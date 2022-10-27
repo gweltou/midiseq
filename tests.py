@@ -2,8 +2,31 @@
 
 import random
 import rtmidi
+import time
 
-from miditool import *
+from miditool import listOutputs, openPort, getOutputs
+from scales import *
+from utils import *
+from sequence import Seq, Note
+from track import Track
+
+
+def ex_03(midiout):
+    print("EX 03")
+
+    s = Seq()
+    s.setScale("aeolian", "e")
+    s.length = 1
+    s.fillGaussianWalk()
+    s2 = s.copy()
+    s2.clear()
+    s2.fillGaussianWalk()
+
+    t = Track()
+    t.add(s)
+    t.add(s2)
+    
+    play(t)
 
 
 def ex_02(midiout):
@@ -30,10 +53,10 @@ def ex_02(midiout):
     p2.setScale("locrian")
     p2.rootnote = 2
 
-    playSeq(p1)
-    playSeq(p2)
-    playSeq(p1)
-    playSeq(p2)
+    play(p1)
+    play(p2)
+    play(p1)
+    play(p2)
 
 
 def ex_01(midiout):
@@ -77,54 +100,60 @@ def buildSeq():
     return s
 
 
-def playSeq(pattern, channel=1):
-    midi_seq = pattern.getMidiMessages(channel)
-    seq_i = 0
+# def playSeq(pattern, channel=1):
+#     midi_seq = pattern.getMidiMessages(channel)
+#     seq_i = 0
+#     t0 = time.time()
+#     while True:
+#         if seq_i >= len(midi_seq):
+#             print("end")
+#             break
+#         t = time.time() - t0
+#         while midi_seq[seq_i][0] < t:
+#             midiout.sendMessage(midi_seq[seq_i][1])
+#             print("[{}] sending".format(round(t,2)), midi_seq[seq_i][1])
+#             seq_i += 1
+#             if seq_i == len(midi_seq):
+#                 break
+#         time.sleep(0.01)
+def play(track, channel=1):
+    if type(track) == Seq:
+        track = Track(channel)
+        track.add(track)
+
+    midi_seq = []
     t0 = time.time()
+    t_prev = 0.0
+    seq_i = 0
+    track.init()
     while True:
-        if seq_i >= len(midi_seq):
+        t = time.time() - t0
+        timedelta = t - t_prev
+        t_prev = t
+        assert 0 < timedelta < 99
+
+        if midi_seq and seq_i < len(midi_seq):
+            while t >= midi_seq[seq_i][0]:
+                midiout.sendMessage(midi_seq[seq_i][1])
+                print("sending", midi_seq[seq_i][1])
+                seq_i += 1
+                if seq_i == len(midi_seq):
+                    break
+        
+        new_messages = track.update(timedelta)
+        if new_messages:
+            midi_seq = new_messages
+            t0 = time.time()
+            t = 0.0
+            t_prev = 0.0
+            seq_i = 0
+
+        if track.ended:
             print("end")
             break
-        t = time.time() - t0
-        while midi_seq[seq_i][0] < t:
-            midiout.sendMessage(midi_seq[seq_i][1])
-            print("[{}] sending".format(round(t,2)), midi_seq[seq_i][1])
-            seq_i += 1
-            if seq_i == len(midi_seq):
-                break
+
         time.sleep(0.01)
 
-
-def test2(midiout):
-    s = buildSeq()
-    print(s)
-    playSeq(s*2, midiout)
-
-
-def test3(midiout):
-    s1 = buildSeq()
-    s2 = s1.copy()
-    #s2.stretch(2)
-
-    playSeq(s1+s1, midiout)
-
-def test4(midiout):
-    s1 = buildSeq()
-    s1.addSilence(0.5)
-    s1.setScale("major")
-    s2 = buildSeq()
-    s2.addSilence(0.5)
-    s2.setScale("whole_tone")
-    s = s1 + s2 + s1 + s2
-    s.stretch(0.5)
-    playSeq(s, midiout)
-
-def test5(midiout):
-    s1 = buildSeq()
-    s1.setScale("aeolian")
-    #s1.splitNotes(2)
-    #s1.stretch(2.0)
-    playSeq(s1 * 4, midiout)
 
 
 def test_adding():
@@ -156,16 +185,35 @@ def test_truncate():
 def test_gaussian_walk():
     s = Seq()
     s.length = 1
-    s.fillGaussianWalk(60)
+    s.fillGaussianWalk()
     assert len(s) == 4
     s.clear()
-    s.fillGaussianWalk(60)
+    s.fillGaussianWalk()
     assert len(s) == 4
     s.head = 0.0
-    s.fillGaussianWalk(72)
+    s.rootnote += 12
+    s.fillGaussianWalk()
     assert len(s) == 8
 
     print("test_gaussian_walk", "pass")
+
+
+def test_track():
+    s = Seq()
+    s.setScale("aeolian", "e")
+    s.length = 1
+    s.fillGaussianWalk()
+
+    t = Track()
+    t.add(s)
+    mess = t.update(0.1)
+    assert len(mess) == 8
+    mess = t.update(1.0)
+    assert t.ended == True
+    t.init()
+    assert t.ended == False
+
+    print("test_track", "pass")
 
 
 if __name__ == "__main__":
@@ -173,10 +221,11 @@ if __name__ == "__main__":
     test_adding()
     test_truncate()
     test_gaussian_walk()
+    test_track()
 
     midiout = rtmidi.RtMidiOut()
 
     listOutputs(midiout)
     openPort(midiout, len(getOutputs(midiout)) - 1)    
 
-    ex_02(midiout)
+    ex_03(midiout)
