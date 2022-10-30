@@ -6,9 +6,19 @@ import time
 
 from miditool import listOutputs, openPort, getOutputs
 from scales import *
-from utils import *
-from sequence import Seq, Note
+from sequence import *
 from track import Track
+from generators import *
+
+
+
+def ex_04(midiout):
+    print(("EX 04: Generator with args"))
+
+    t = Track()
+    t.generator = gen_sweeps_pattern
+    t.gen_args = ("AbbCbbAddCdd", "pentatonic_minor", "e4")
+    play(t)
 
 
 def ex_03(midiout):
@@ -22,28 +32,36 @@ def ex_03(midiout):
     s2.clear()
     s2.fillGaussianWalk()
 
+    s3 = s.copy()
+    s3.clear()
+    s3.fillGaussianWalk()
+
     t = Track()
     t.add(s)
     t.add(s2)
+    t.add(s)
+    t.add(s3)
     
     play(t)
 
 
 def ex_02(midiout):
+    print("EX 02")
+
     s = Seq()
     s.setScale("aeolian")
     s.length = 1
-    s.fillGaussianWalk(60)
+    s.fillGaussianWalk()
     cp = s.copy()
-    cp.transpose = -12
+    cp.transpose(-12)
     cp.expand(0.8)
     s.add(cp, 0.0)
     
     s2 = s.copy()
     s2.clear()
-    s2.fillGaussianWalk(60, 0.25, 4)
+    s2.fillGaussianWalk()
     cp = s2.copy()
-    cp.transpose = -12
+    cp.transpose(-12)
     cp.expand(0.8)
     s2.add(cp, 0.0)
 
@@ -51,7 +69,7 @@ def ex_02(midiout):
     p2 = p1.copy()
     p2.expand(1.4)
     p2.setScale("locrian")
-    p2.rootnote = 2
+    p2.tonic = 62
 
     play(p1)
     play(p2)
@@ -63,27 +81,27 @@ def ex_01(midiout):
     s = Seq()
     s.setScale("aeolian")
     s.length = 1
-    s.fillGaussianWalk(60)
+    s.fillGaussianWalk()
     s.head = 0.0
-    s.fillGaussianWalk(72)
+    s.fillGaussianWalk()
     
     s2 = s.copy()
     s2.clear()
-    s2.fillGaussianWalk(60)
+    s2.fillGaussianWalk()
     s2.head = 0.0
-    s2.fillGaussianWalk(72)
+    s2.fillGaussianWalk()
 
     p1 = (s + s2) * 2
     p1 *= 0.9
     p2 = p1.copy()
     p2.expand(1.2)
     #p2.setScale("aeolian")
-    p2.rootnote = 2
+    p2.tonic = 2
 
-    playSeq(p1)
-    playSeq(p2)
-    playSeq(p1)
-    playSeq(p2)
+    play(p1)
+    play(p2)
+    play(p1)
+    play(p2)
 
 
 
@@ -100,26 +118,11 @@ def buildSeq():
     return s
 
 
-# def playSeq(pattern, channel=1):
-#     midi_seq = pattern.getMidiMessages(channel)
-#     seq_i = 0
-#     t0 = time.time()
-#     while True:
-#         if seq_i >= len(midi_seq):
-#             print("end")
-#             break
-#         t = time.time() - t0
-#         while midi_seq[seq_i][0] < t:
-#             midiout.sendMessage(midi_seq[seq_i][1])
-#             print("[{}] sending".format(round(t,2)), midi_seq[seq_i][1])
-#             seq_i += 1
-#             if seq_i == len(midi_seq):
-#                 break
-#         time.sleep(0.01)
-def play(track, channel=1):
-    if type(track) == Seq:
+def play(track_or_seq, channel=1):
+    track = track_or_seq
+    if type(track_or_seq) == Seq:
         track = Track(channel)
-        track.add(track)
+        track.add(track_or_seq)
 
     midi_seq = []
     t0 = time.time()
@@ -154,6 +157,27 @@ def play(track, channel=1):
 
         time.sleep(0.01)
 
+
+def test_generator():
+    t1 = Track()
+    
+    def gen():
+        for _ in range(4):
+            s = Seq()
+            s.length = 1
+            s.setScale("dorian", "a")
+            s.fillGaussianWalk(dev=4)
+            # s.transpose(-12)
+            yield s
+    
+    t1.generator = gen
+    t1.init()
+    assert len(t1.seqs) == 0
+    t1.update(0.01)
+    assert t1._next_timer == 1.0
+    assert t1.ended == False
+
+    print("test_generator", "pass")
 
 
 def test_adding():
@@ -191,7 +215,7 @@ def test_gaussian_walk():
     s.fillGaussianWalk()
     assert len(s) == 4
     s.head = 0.0
-    s.rootnote += 12
+    s.tonic += 12
     s.fillGaussianWalk()
     assert len(s) == 8
 
@@ -216,16 +240,45 @@ def test_track():
     print("test_track", "pass")
 
 
+def test_map():
+    s = Seq()
+    s.length = 1
+    s.map([60, 54, 54, 54, 69, 54, 54, 54])
+    assert len(s) == 8
+
+    print("test_map", "pass")
+
+
+def test_getNotesFromString():
+    n = getNotesFromString("60 62 64", dur=0.5)
+    assert len(n) == 3
+    assert n[0].pitch == 60
+    assert n[0].dur == 0.5
+    n = getNotesFromString("do re mi fa sol")
+    assert len(n) == 5
+
+    s = Seq()
+    s.addNotes("do si la sol")
+    assert len(s) == 4
+
+    print("test_getNotesFromString", "pass")
+
+
+
 if __name__ == "__main__":
     
     test_adding()
     test_truncate()
     test_gaussian_walk()
     test_track()
+    test_map()
+    test_generator()
+    test_getNotesFromString()
+
 
     midiout = rtmidi.RtMidiOut()
 
     listOutputs(midiout)
     openPort(midiout, len(getOutputs(midiout)) - 1)    
 
-    ex_03(midiout)
+    ex_04(midiout)
