@@ -8,9 +8,9 @@ class Track():
     """
 
     def __init__(self, channel=1):
-        self.generator =  None
-        self._generator = None
+        self.gen_func =  None
         self.gen_args = None
+        self.generator = None
         self.channel = channel
         self.seqs = []
         self.seq_i = 0
@@ -27,8 +27,8 @@ class Track():
         self.seqs.clear()
         self.seq_i = 0
         self.ended = True
+        self.gen_func = None
         self.generator = None
-        self._generator = None
         self.gen_args = None
     
 
@@ -46,9 +46,9 @@ class Track():
             return self.seqs[i].getMidiMessages(self.channel)
 
         elif self.seq_i == len(self.seqs) and self._next_timer <= 0.0:
-            if self._generator:
+            if self.generator:
                 try:
-                    new_seq = next(self._generator)
+                    new_seq = next(self.generator)
                     self._next_timer = new_seq.length
                     return new_seq.getMidiMessages(self.channel)
                 except:
@@ -62,8 +62,8 @@ class Track():
         self._next_timer = 0.0
         self.seq_i = 0
         self.ended = False
-        if callable(self.generator):
+        if callable(self.gen_func):
             if self.gen_args:
-                self._generator = self.generator(*self.gen_args)
+                self.generator = self.gen_func(*self.gen_args)
             else:
-                self._generator = self.generator()
+                self.generator = self.gen_func()

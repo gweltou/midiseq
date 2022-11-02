@@ -16,7 +16,7 @@ def ex_04(midiout):
     print(("EX 04: Generator with args"))
 
     t = Track()
-    t.generator = gen_sweeps_pattern
+    t.gen_func = gen_sweeps_pattern
     t.gen_args = ("AbbCbbAddCdd", "pentatonic_minor", "e4")
     play(t)
 
@@ -170,7 +170,7 @@ def test_generator():
             # s.transpose(-12)
             yield s
     
-    t1.generator = gen
+    t1.gen_func = gen
     t1.init()
     assert len(t1.seqs) == 0
     t1.update(0.01)
@@ -264,6 +264,19 @@ def test_getNotesFromString():
     print("test_getNotesFromString", "pass")
 
 
+def test_addchord():
+    s = Seq()
+    s.addChordNotes((48, 50, 64,))
+    assert len(s) == 3
+    s.clear()
+    s.addChordNotes("do re mi fa# sol3")
+    assert len(s) == 5
+    assert s.length == 1
+
+    print("test_addchord", "pass")
+
+
+
 
 if __name__ == "__main__":
     
@@ -274,6 +287,18 @@ if __name__ == "__main__":
     test_map()
     test_generator()
     test_getNotesFromString()
+    test_addchord()
+
+    print("Generators")
+    next(gen_1())
+    next(gen_chords1())
+    next(gen_chords2())
+    next(gen_sweeps())
+    next(gen_sweeps_pattern("ABAB"))
+    next(gen_tintinnabuli())
+    next(gen_tintinnabuli2())
+    next(gen_tintinnabuli3())
+    print("All good")
 
 
     midiout = rtmidi.RtMidiOut()
@@ -281,4 +306,4 @@ if __name__ == "__main__":
     listOutputs(midiout)
     openPort(midiout, len(getOutputs(midiout)) - 1)    
 
-    ex_04(midiout)
+    # ex_04(midiout)

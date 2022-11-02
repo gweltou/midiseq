@@ -28,6 +28,10 @@ Connecting devices together (sender to reciever)
     Inverse de splitNotes
     Combine les séries de mêmes notes consécutives sans silences
     Ralonge les notes suivies de silences pour recouvrir la totalité des silences de la séquence
+* Sort
+  organise les notes temporelement par ordre de hauteur (sans cheuvauchement)
+* spread
+  étale les notes qui se chevauchent de façon à ce qu'il n'y ai pas 2 notes qui se jouent au même moment.
 * générateur de la suite de Recaman
 
 ### Classe Grid

@@ -113,10 +113,10 @@ class Seq():
             raise TypeError("Only notes or sequences can be added to a sequence")
         
 
-    def addNote(self, pitch, dur=0.25, vel=127):
+    def addNote(self, pitch, dur=0.25, vel=127, head=-1):
         """ Add a single note to the sequence, growing its length if necessary.
         """
-        self.add(Note(pitch, dur, vel))
+        self.add(Note(pitch, dur, vel), head)
     
 
     def addNotes(self, notes, dur=0.25, vel=127):
@@ -135,19 +135,21 @@ class Seq():
 
 
     def addChordNotes(self, notes, dur=0.25, vel=127):
-        raise NotImplementedError
+        """ Add a chord given a list of notes/pitches """
+        if type(notes) == str:
+            notes = getNotesFromString(notes)
+        head = self.head
+        for n in notes:
+            if type(n) != Note:
+                n = Note(n, dur, vel)
+            self.add(n, head)
 
 
-    def addChord(self, name, pitch, dur=0.25, vel=127):
-        chords = {
-            "maj": [0, 4, 7],
-            "min": [0, 3, 7],
-        }
-
-        if name in chords:
-            for semi in chords[name]:
-                note = Note(pitch + semi, dur, vel)
-                self.notes.append( (self.head, note) )
+    def addTriad(self, degree=0, dur=0.25, vel=127):
+        """ Add a triad chord using the musical scale """
+        for chord_deg in [0, 2, 4]:
+            note = Note(self.getScaleDegree(degree+chord_deg), dur, vel)
+            self.notes.append( (self.head, note) )
 
         self.head += dur
         self.length = max(self.length, self.head)
@@ -155,6 +157,10 @@ class Seq():
 
 
     def fillSweep(self, from_pitch=42, to_pitch=64, num=4):
+        if type(from_pitch) == str:
+            from_pitch = noteToPitch(from_pitch)
+        if type(to_pitch) == str:
+            to_pitch = noteToPitch(to_pitch)
         from_pitch = self.getClosestNoteInScale(from_pitch)
         pitch_step = int((to_pitch - from_pitch) / num)
         time_step = (self.length - self.head) / num
@@ -271,6 +277,19 @@ class Seq():
         for t, note in orig:
             if random.random() > prob:
                 self.notes.append( (t, note) )
+    
+
+    def humanize(self, tfactor=0.02, veldev=10):
+        """ Randomly changes the notes time and duration """
+        new_notes = []
+        for t, note in self.notes:
+            t = t + 2 * (random.random()-0.5) * tfactor
+            note.dur = note.dur + random.random() * tfactor
+            note.vel = int(100 + random.gauss(0, veldev))
+            note.vel = min(127, max(0, note.vel))
+            new_notes.append( (t, note) )
+        self.notes = new_notes
+        self._dirty = True
 
 
     def setScale(self, scale, tonic=-1):
@@ -433,21 +452,30 @@ class Seq():
 ## UTILS ##
 ###########
 
+
+def buildScale(scale, tonic):
+    s = Seq()
+    s.setScale(scale, tonic)
+    for i in range(len(s.scale) + 1):
+        s.addNote(s.getScaleDegree(i))
+    return s
+
+
 def noteToPitch(name):
     """ Returns the midi pitch number giver a spelled note """
     if type(name) != str: raise TypeError('Argument must be a string. Ex: "do", "c#4", "60... ')
 
     notes = {'c': 0,    'do': 0,
-             'c+': 1, 'c#': 1,
+             'c+': 1,   'c#': 1,    'do#': 1,
              'd': 2,    're': 2,
-             'd+' : 3, 'd#' : 3,
+             'd+' : 3,  'd#' : 3,   're#': 3,
              'e': 4,    'mi': 4,
              'f': 5,    'fa': 5,
-             'f+': 6, 'f#': 6,
+             'f+': 6,   'f#': 6,    'fa#': 6,
              'g': 7,    'sol': 7,
-             'g+': 8, 'g#': 8,
-             'a': 9,    'la': 8,
-             'a+': 10, 'a#': 10,
+             'g+': 8,   'g#': 8,    'sol#': 8,
+             'a': 9,    'la': 9,
+             'a+': 10,  'a#': 10,   'la#': 10,
              'b': 11,   'si': 11,
              }
     p = re.compile(r'([a-z]+[#\-+]?)(\d?)' ,re.IGNORECASE)
@@ -481,3 +509,11 @@ def getNotesFromString(s, dur=0.25, vel=127):
             notes.append( Note(pitch, dur, vel) )
 
     return notes
+
+
+def euclid(k, n, offset=0):
+    offset = offset % n
+    onsets = [(offset+round(n*i/k))%n for i in range(k)]
+    grid = [ 'x' if i in onsets else '.' for i in range(n) ]
+    print(onsets)
+    print(grid)
