@@ -37,7 +37,7 @@ def getOutputs(midiout):
     return outputs
 
 
-def play(seq_or_track=None, channel=1):
+def play(seq_or_track=None, channel=1, loop=False):
     tracks = []
     for i in range(16):
         track_name = "t{}".format(i+1)
@@ -52,7 +52,7 @@ def play(seq_or_track=None, channel=1):
     
     _must_stop = False
     if seq_or_track:
-        _playing_thread = threading.Thread(target=_play, args=(seq_or_track, channel,), daemon=True)
+        _playing_thread = threading.Thread(target=_play, args=(seq_or_track, channel, loop), daemon=True)
     else:
         _playing_thread = threading.Thread(target=_play, args=(tracks[0],), daemon=True)
     _playing_thread.start()
@@ -64,9 +64,9 @@ def stop():
     panic()
 
 
-def _play(track_or_seq, channel=1):
+def _play(track_or_seq, channel=1, loop=False):
     track = track_or_seq
-    if type(track_or_seq) == Seq:
+    if type(track_or_seq) == Seq or type(track_or_seq) == Grid:
         track = Track(channel)
         track.add(track_or_seq)
 
@@ -76,6 +76,7 @@ def _play(track_or_seq, channel=1):
     t_prev = 0.0
     seq_i = 0
     track.init()
+    track.loop=loop
     while True:
         if _must_stop:
             print("++++ PLAYBACK stopping...")
@@ -93,6 +94,12 @@ def _play(track_or_seq, channel=1):
                     print("sending", midi_seq[seq_i][1])
                 seq_i += 1
                 if seq_i == len(midi_seq):
+                    # if loop:
+                    #     track.init()
+                        # t0 = time.time()
+                        # t_prev = 0.0
+                        # seq_i = 0
+                        # continue
                     break
         
         new_messages = track.update(timedelta)
@@ -104,6 +111,12 @@ def _play(track_or_seq, channel=1):
             seq_i = 0
 
         if track.ended:
+            # if loop:
+            #     track.init()
+                # t0 = time.time()
+                # t_prev = 0.0
+                # seq_i = 0
+                # continue
             break
 
         t = time.time() - t0 - t_prev
@@ -134,3 +147,8 @@ if __name__ == "__main__":
     t3.channel = 3
     t4 = Track()
     t4.channel = 4
+
+
+    # g=Grid()
+    # g.euclid(36, 4)
+    # _play(g.toSeq(), 10, True)

@@ -13,9 +13,8 @@ class Track():
         self.generator = None
         self.channel = channel
         self.seqs = []
-        self.seq_i = 0
-        self._next_timer = 0.0
-        self.ended = False
+        self.loop = False
+        self.init()
     
 
     def add(self, sequence):
@@ -53,6 +52,8 @@ class Track():
                     return new_seq.getMidiMessages(self.channel)
                 except:
                     self.ended = True
+            elif self.loop:
+                self.init()
             else:
                 self.ended = True
             

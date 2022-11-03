@@ -158,26 +158,10 @@ def play(track_or_seq, channel=1):
         time.sleep(0.01)
 
 
-def test_generator():
-    t1 = Track()
-    
-    def gen():
-        for _ in range(4):
-            s = Seq()
-            s.length = 1
-            s.setScale("dorian", "a")
-            s.fillGaussianWalk(dev=4)
-            # s.transpose(-12)
-            yield s
-    
-    t1.gen_func = gen
-    t1.init()
-    assert len(t1.seqs) == 0
-    t1.update(0.01)
-    assert t1._next_timer == 1.0
-    assert t1.ended == False
 
-    print("test_generator", "pass")
+
+
+
 
 
 def test_adding():
@@ -224,7 +208,7 @@ def test_gaussian_walk():
 
 def test_track():
     s = Seq()
-    s.setScale("aeolian", "e")
+    s.scale = Scale("aeolian", "e")
     s.length = 1
     s.fillGaussianWalk()
 
@@ -247,6 +231,28 @@ def test_map():
     assert len(s) == 8
 
     print("test_map", "pass")
+
+
+def test_generator():
+    t1 = Track()
+    
+    def gen():
+        for _ in range(4):
+            s = Seq()
+            s.length = 1
+            s.scale = Scale("dorian", "a")
+            s.fillGaussianWalk(dev=4)
+            # s.transpose(-12)
+            yield s
+    
+    t1.gen_func = gen
+    t1.init()
+    assert len(t1.seqs) == 0
+    t1.update(0.01)
+    assert t1._next_timer == 1.0
+    assert t1.ended == False
+
+    print("test_generator", "pass")
 
 
 def test_getNotesFromString():
@@ -276,6 +282,37 @@ def test_addchord():
     print("test_addchord", "pass")
 
 
+def test_grid():
+    g = Grid()
+    assert len(g) == 8
+    g.repeat("do", 2, 1)
+    s = g.toSeq()
+    assert len(s) == 4
+    g.clear()
+    g.euclid("38", 5)
+    assert len(g.toSeq()) == 5
+
+    print("test_grid", "pass")
+
+
+def test_scale():
+    s = Scale()
+    assert len(s) == 7
+    assert s.getDegree(0) == 60
+    assert s.getDegree(1) == 62
+    assert s.getDegree(7) == 72
+    assert s.getDegree(-7) == 48
+    assert s.getDegree(12) == 81
+
+    assert s.getClosest(60) == 60
+    assert s.getClosest(61) == 60
+    assert s.getClosest(62) == 62
+    s.tonic += 1
+    assert s.getDegree(0) == 61
+    assert s.getClosest(60)
+
+    print("test_scale", "pass")
+
 
 
 if __name__ == "__main__":
@@ -288,16 +325,20 @@ if __name__ == "__main__":
     test_generator()
     test_getNotesFromString()
     test_addchord()
+    test_grid()
+    test_scale()
 
     print("Generators")
     next(gen_1())
     next(gen_chords1())
     next(gen_chords2())
+    next(gen_chords3())
     next(gen_sweeps())
     next(gen_sweeps_pattern("ABAB"))
     next(gen_tintinnabuli())
     next(gen_tintinnabuli2())
     next(gen_tintinnabuli3())
+    next(gen_fratres())
     print("All good")
 
 

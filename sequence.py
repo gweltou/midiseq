@@ -1,7 +1,7 @@
 import rtmidi
 import random
 import re
-from scales import *
+from scales import noteToPitch, Scale
 
 
 
@@ -35,10 +35,31 @@ class Note():
 
 
 
+
 class Grid():
+    """
+        General Midi drums note mapping :
+        35 Bass Drum 2
+        36 Bass Drum 1
+        37 Side Stick
+        38 Snare Drum 1 *
+        39 Hand Clap    *
+        40 Snare Drum 2 *
+        41 Low Tom 2
+        42 Closed Hi-hat *
+        43 Low Tom 1
+        44 Pedal Hi-hat
+        45 Mid Tom 2
+        46 Open Hi-hat
+        47 Mid Tom 1
+        48 High Tom 2
+        49 Crash Cymbal 1
+        50 High Tom 1
+        51 Ride Cymbal 1
+    """
     
     def __init__(self, length=1, nsub=16):
-        self.length = 1
+        self.length = 2
         self.grid = [ set() for _ in range(nsub) ]
 
     def repeat(self, note, div, offset=0, preserve=False):
@@ -58,7 +79,7 @@ class Grid():
         """
         assert div > 0
         assert offset < len(self.grid)
-        if type(note) == int:
+        if type(note) != Note:
             note = Note(note, 0.1)
 
         i = offset
@@ -67,6 +88,37 @@ class Grid():
                 self.grid[i].add(note.copy())
             i += div
     
+
+    def clear(self):
+        self.grid = [ set() for _ in range(len(self.grid)) ]
+
+
+    def resize(self, new_size):
+        new_grid = [ set() for _ in range(new_size) ]
+
+        for i, col in enumerate(self.grid):
+            new_i = round(new_size * i/len(self.grid))
+            for note in col:
+                new_grid[new_i].add(note)
+        
+        self.grid = new_grid
+
+
+    def euclid(self, note, k, offset=0):
+        """ Euclidian rythm """
+        if type(note) != Note:
+            note = Note(note, dur=0.1)
+        n = len(self.grid)
+        offset = offset % n
+        onsets = [(offset+round(n*i/k))%n for i in range(k)]
+        # print(onsets)
+        for i in onsets:
+            self.grid[i].add(note.copy())
+
+        # grid = [ 'x' if i in onsets else '.' for i in range(n) ]
+        # print(grid)
+
+
     def toSeq(self):
         s = Seq(self.length)
         step = self.length / len(self.grid)
@@ -78,6 +130,26 @@ class Grid():
         return s
 
 
+    # def mute(self, pitch):
+
+
+    def getMidiMessages(self, channel=1):
+        return self.toSeq().getMidiMessages(channel)
+
+
+    def __str__(self):
+        s = '[ '
+        for b in [str(len(c)) if c else '.' for c in self.grid]:
+            s += b + ' '
+        s += ']'
+        return s
+    
+
+    def __len__(self):
+        return len(self.grid)
+
+
+
 
 class Seq():
 
@@ -85,7 +157,7 @@ class Seq():
         self.notes = []
         self.head = 0.0     # Recording head
         self.length = length
-        self.scale = scales["chromatic"]
+        self.scale = None
         self.tonic = 60
         self._dirty = True
         # self.next = None    # Plug a sequence to be played after this one
@@ -103,7 +175,7 @@ class Seq():
             self.length = max(self.length, self.head)
             self._dirty = True
         elif type(other) == type(self):
-            other = other.copy().freeze()
+            other = other.copy()
             for (t, note) in other.notes:
                 self.notes.append( (self.head + t, note) )
             self.head += other.length
@@ -145,30 +217,21 @@ class Seq():
             self.add(n, head)
 
 
-    def addTriad(self, degree=0, dur=0.25, vel=127):
-        """ Add a triad chord using the musical scale """
-        for chord_deg in [0, 2, 4]:
-            note = Note(self.getScaleDegree(degree+chord_deg), dur, vel)
-            self.notes.append( (self.head, note) )
-
-        self.head += dur
-        self.length = max(self.length, self.head)
-        self._dirty = True
-
-
     def fillSweep(self, from_pitch=42, to_pitch=64, num=4):
         if type(from_pitch) == str:
             from_pitch = noteToPitch(from_pitch)
         if type(to_pitch) == str:
             to_pitch = noteToPitch(to_pitch)
-        from_pitch = self.getClosestNoteInScale(from_pitch)
+        if type(self.scale) == Scale:
+            from_pitch = self.scale.getClosest(from_pitch)
         pitch_step = int((to_pitch - from_pitch) / num)
         time_step = (self.length - self.head) / num
         head = self.head
         for i in range(num):
-            pitch = self.getClosestNoteInScale(from_pitch + i*pitch_step)
+            pitch = from_pitch + i*pitch_step
+            if type(self.scale) == Scale:
+                pitch = self.scale.getClosest(pitch)
             self.add( Note(pitch, time_step), head )
-            # pitch = self.getScaleDegree2(pitch, i)
             head += time_step
 
         self.head = self.length
@@ -180,7 +243,10 @@ class Seq():
             This will not change the sequence's length.
         """
         while self.head + 0.001 < self.length:
-            pitch = self.getClosestNoteInScale(random.randint(min, max))
+            if type(self.scale) == Scale:
+                pitch = self.scale.getClosest(random.randint(min, max))
+            else:
+                pitch = random.randint(min, max)
             self.add( Note(pitch, dur) )
     
 
@@ -209,12 +275,26 @@ class Seq():
         prev = 0
         while self.head + 0.001 < self.length:
             prev_degree = prev + round(random.gauss(0, dev))
-            pitch = self.getScaleDegree(prev_degree)
+            if type(self.scale) == Scale:
+                pitch = self.scale.getDegree(prev_degree)
+            else:
+                pitch = 60 + prev_degree
             prev = prev_degree
             # self.notes.append( (self.head, Note(pitch, dur)) )
             # self.head += dur
             self.add(Note(pitch, dur))
     
+
+    def replacePitch(self, old, new):
+        """ Replace notes with given pitch to a new pitch """
+        if type(old) == str:
+            old = noteToPitch(old)
+        if type(new) == str:
+            new = noteToPitch(new)
+        for note in self.notes:
+            if note.pitch == old:
+                note.pitch == new
+
 
     def map(self, grid, duty_cycle=0.2):
         beat_len = (self.length - self.head) / len(grid)
@@ -292,68 +372,6 @@ class Seq():
         self._dirty = True
 
 
-    def setScale(self, scale, tonic=-1):
-        if tonic == -1:
-            tonic = self.tonic
-        elif type(tonic) == int:
-            self.tonic = min(127, max(0, tonic))
-        elif type(tonic) == str:
-            self.tonic = noteToPitch(tonic)
-        else:
-            raise TypeError("rootnote must be a pitch number [0-127] or a valid note name")
-
-        if type(scale) == str:
-            if scale in scales:
-                self.scale = scales[scale]
-            elif scale in modes:
-                self.scale = modes[scale]
-            else:
-                raise TypeError('scale "{}" is unknown'.format(scale))
-        elif type(scale) == list:
-            self.scale = scale
-
-
-    def getScaleDegree(self, n):
-        """ get the pitch of the n-th degree note in the current musical scale, relative to the rootnote
-        """
-        
-        nth_oct, nth_degree = divmod(round(n), len(self.scale))
-
-        if n >= 0:
-            distances = self.scale
-        else:  # Negative number
-            distances = [ d-12 for d in self.scale]
-            nth_oct += 1
-
-        return self.tonic + 12 * nth_oct + distances[nth_degree]
-
-
-    def getScaleDegree2(self, pitch, n):
-        """ Returns pitch +/- n degrees in the current scale """
-        oct, semi = divmod(pitch, 12)
-        for i, s in enumerate(self.scale):
-            if s >= semi: break
-        oct_off, deg = divmod(round(n) + i, len(self.scale))
-        return (oct+oct_off)*12 + self.scale[deg]
-
-
-    def getClosestNoteInScale(self, pitch):
-        """ Find closest note in scale.
-            Returns a corrected pitch, in range [0-127].
-            Lower pitch takes precedence.
-        """
-        if type(pitch) != int or pitch < 0 or pitch > 127:
-            raise TypeError("Pitch should be in range [0-127], got {}".format(pitch))
-        octave, degree = divmod(pitch, 12)
-        distances = [s-(degree-self.tonic)%12 for s in self.scale]
-        min_dist = 12
-        for d in distances:
-            if abs(d) < abs(min_dist):
-                min_dist = d
-        
-        return int(12 * octave + degree + min_dist)
-
-
     def clear(self):
         self.notes.clear()
         self.head = 0.0
@@ -371,22 +389,22 @@ class Seq():
         return new
 
 
-    def freeze(self):
-        new_notes = []
-        for pos, note in self.notes:
-            # End of sequence
-            if pos >= self.length:
-                break
-            # Truncate last note if necesary
-            if pos + note.dur > self.length:
-                note = note.copy()
-                note.dur = self.length - pos
-            new_note = note.copy()
-            new_note.pitch = self.getClosestNoteInScale(note.pitch)
-            new_notes.append( (pos, new_note) )
-        self.notes = new_notes
-        # self.transpose = 0
-        return self
+    # def freeze(self):
+    #     new_notes = []
+    #     for pos, note in self.notes:
+    #         # End of sequence
+    #         if pos >= self.length:
+    #             break
+    #         # Truncate last note if necesary
+    #         if pos + note.dur > self.length:
+    #             note = note.copy()
+    #             note.dur = self.length - pos
+    #         new_note = note.copy()
+    #         new_note.pitch = self.getClosestNoteInScale(note.pitch)
+    #         new_notes.append( (pos, new_note) )
+    #     self.notes = new_notes
+    #     # self.transpose = 0
+    #     return self
 
 
     def getMidiMessages(self, channel=1):
@@ -404,10 +422,10 @@ class Seq():
             if note.prob < 1 and random.random() > note.prob:
                 continue
             
-            pitch = self.getClosestNoteInScale(note.pitch)
+            # pitch = self.getClosestNoteInScale(note.pitch)
 
-            note_on = rtmidi.MidiMessage.noteOn(channel, pitch, note.vel)
-            note_off = rtmidi.MidiMessage.noteOff(channel, pitch)
+            note_on = rtmidi.MidiMessage.noteOn(channel, note.pitch, note.vel)
+            note_off = rtmidi.MidiMessage.noteOff(channel, note.pitch)
             midi_seq.append( (pos, note_on) )
             midi_seq.append( (pos + note.dur, note_off) )
 
@@ -453,48 +471,6 @@ class Seq():
 ###########
 
 
-def buildScale(scale, tonic):
-    s = Seq()
-    s.setScale(scale, tonic)
-    for i in range(len(s.scale) + 1):
-        s.addNote(s.getScaleDegree(i))
-    return s
-
-
-def noteToPitch(name):
-    """ Returns the midi pitch number giver a spelled note """
-    if type(name) != str: raise TypeError('Argument must be a string. Ex: "do", "c#4", "60... ')
-
-    notes = {'c': 0,    'do': 0,
-             'c+': 1,   'c#': 1,    'do#': 1,
-             'd': 2,    're': 2,
-             'd+' : 3,  'd#' : 3,   're#': 3,
-             'e': 4,    'mi': 4,
-             'f': 5,    'fa': 5,
-             'f+': 6,   'f#': 6,    'fa#': 6,
-             'g': 7,    'sol': 7,
-             'g+': 8,   'g#': 8,    'sol#': 8,
-             'a': 9,    'la': 9,
-             'a+': 10,  'a#': 10,   'la#': 10,
-             'b': 11,   'si': 11,
-             }
-    p = re.compile(r'([a-z]+[#\-+]?)(\d?)' ,re.IGNORECASE)
-
-    name = name.strip()
-    if name.isdecimal():
-        return int(name)
-    
-    m = p.match(name)
-    if m:
-        tone = m.groups()[0]
-        if m.groups()[1] != '':
-            oct = int(m.groups()[1])
-            return 12*oct + notes[tone]
-        else:
-            return 12*5 + notes[tone]
-    
-    return -1
-
 
 
 def getNotesFromString(s, dur=0.25, vel=127):
@@ -509,11 +485,3 @@ def getNotesFromString(s, dur=0.25, vel=127):
             notes.append( Note(pitch, dur, vel) )
 
     return notes
-
-
-def euclid(k, n, offset=0):
-    offset = offset % n
-    onsets = [(offset+round(n*i/k))%n for i in range(k)]
-    grid = [ 'x' if i in onsets else '.' for i in range(n) ]
-    print(onsets)
-    print(grid)
