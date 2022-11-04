@@ -1,5 +1,11 @@
 # MidiTool
 
+## Installation
+
+ pip install rtmidi
+ 
+ sudo apt install jupyter-qtconsole
+
 
 ## Alsa connect
 
@@ -19,6 +25,7 @@ Connecting devices together (sender to reciever)
 ## Développement futur / idées à explorer
 
 * Micro-tonalité avec le pitch bend
+* Classe Chord, additions Note-Note (=Seq), Chord-Note (=Seq), Seq-Note...
 
 ### Méthodes de la classe Seq
 
@@ -35,18 +42,3 @@ Connecting devices together (sender to reciever)
 * générateur de la suite de Recaman
 
 ### Classe Grid
-
-* beatEvery(pitch, division, offset)
-  """
-      Parameters
-      ----------
-          pitch (int)
-            midi note [0-127]
-          division (int)
-            the note will be repeated every division of the grid
-          offset (int)
-            offset beats in grid
-  """
-
-* subdivide(n)
-  """ Subdivide grid by multiplying number of cells by n """

@@ -1,6 +1,6 @@
 import random
 from sequence import Seq
-from scales import *
+from scales import Scale, modes
 
 
 

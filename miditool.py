@@ -1,22 +1,36 @@
 ### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
 
 import rtmidi
-# import random
 import time
 import threading
-from sequence import *
+from sequence import Seq, Grid
 from track import Track
-from scales import *
+# from scales import *
 from generators import *
 
 
-DEBUG = True
-
+# DEBUG = True
 
 _timeres = 0.01
 _playing_thread = None
+_listening_thread = None
 _must_stop = False
+_recording = False
+_record = None              # Where the recordings from midi in are stored
 _verbose = True
+_display = True
+_display_min = 36
+_display_max = 96
+
+midiout = rtmidi.RtMidiOut()
+midiin = rtmidi.RtMidiIn()
+t1 = Track()
+t2 = Track()
+t2.channel = 2
+t3 = Track()
+t3.channel = 3
+t4 = Track()
+t4.channel = 4
 
 
 
@@ -26,50 +40,40 @@ def panic(channel=1):
         midiout.sendMessage(mess)
 
 
-def listOutputs(midiout):
-    for i in range(midiout.getPortCount()):
-        print( "[{}] {}".format(i, midiout.getPortName(i)) )
-
-def getOutputs(midiout):
-    outputs = []
-    for i in range(midiout.getPortCount()):
-        outputs.append( (i, midiout.getPortName(i)) )
-    return outputs
-
-
-def play(seq_or_track=None, channel=1, loop=False):
-    tracks = []
-    for i in range(16):
-        track_name = "t{}".format(i+1)
-        if track_name in globals():
-            tracks.append(globals()[track_name])
-        
+def play(seq_or_track=None, channel=1, loop=False):    
+    # Wait for other playing thread to stop
     global _playing_thread
     global _must_stop
     if _playing_thread != None:
         _must_stop = True
         _playing_thread.join()
     
-    _must_stop = False
     if seq_or_track:
-        _playing_thread = threading.Thread(target=_play, args=(seq_or_track, channel, loop), daemon=True)
+        track = seq_or_track
+        if type(seq_or_track) == Seq or type(seq_or_track) == Grid:
+            track = Track(channel)
+            track.add(seq_or_track)
+        _playing_thread = threading.Thread(target=_play, args=(track, channel, loop), daemon=True)
     else:
+        tracks = []
+        for i in range(16):
+            track_name = "t{}".format(i+1)
+            if track_name in globals():
+                tracks.append(globals()[track_name])
         _playing_thread = threading.Thread(target=_play, args=(tracks[0],), daemon=True)
+    
+    _must_stop = False
     _playing_thread.start()
 
 
 def stop():
     global _must_stop
     _must_stop = True
+    _recording = False
     panic()
 
 
-def _play(track_or_seq, channel=1, loop=False):
-    track = track_or_seq
-    if type(track_or_seq) == Seq or type(track_or_seq) == Grid:
-        track = Track(channel)
-        track.add(track_or_seq)
-
+def _play(track, channel=1, loop=False):
     print("++++ PLAYBACK Started")
     midi_seq = []
     t0 = time.time()
@@ -77,6 +81,7 @@ def _play(track_or_seq, channel=1, loop=False):
     seq_i = 0
     track.init()
     track.loop=loop
+    active_notes = set()
     while True:
         if _must_stop:
             print("++++ PLAYBACK stopping...")
@@ -88,19 +93,33 @@ def _play(track_or_seq, channel=1, loop=False):
         assert 0 < timedelta < 99
 
         if midi_seq and seq_i < len(midi_seq):
+            new_noteon = False
             while t >= midi_seq[seq_i][0]:
-                midiout.sendMessage(midi_seq[seq_i][1])
-                if _verbose:
-                    print("sending", midi_seq[seq_i][1])
+                mess = midi_seq[seq_i][1]
+                midiout.sendMessage(mess)
+                if mess.isNoteOn():
+                    active_notes.add(mess.getNoteNumber())
+                    new_noteon = True
+                elif mess.isNoteOff():
+                    active_notes.discard(mess.getNoteNumber())
+                
+                if _verbose and not _display:
+                    print("Sent", mess)
+                    
                 seq_i += 1
                 if seq_i == len(midi_seq):
-                    # if loop:
-                    #     track.init()
-                        # t0 = time.time()
-                        # t_prev = 0.0
-                        # seq_i = 0
-                        # continue
                     break
+            
+            if _display and new_noteon:
+                # Visualize notes
+                line = "{}[".format(_display_min)
+                for i in range(_display_min, _display_max):
+                    if i in active_notes:
+                        line += 'x'
+                    else:
+                        line += '.'
+                print(line + ']{}'.format(_display_max))
+
         
         new_messages = track.update(timedelta)
         if new_messages:
@@ -111,42 +130,140 @@ def _play(track_or_seq, channel=1, loop=False):
             seq_i = 0
 
         if track.ended:
-            # if loop:
-            #     track.init()
-                # t0 = time.time()
-                # t_prev = 0.0
-                # seq_i = 0
-                # continue
             break
 
         t = time.time() - t0 - t_prev
         load = t / _timeres
-        if load > 0.1:
+        if load > 0.2:
             print("++++ PLAYBACK [warning] load:", load, "%")
         time.sleep(min(0.2, max(0, _timeres)))
     print("++++ PLAYBACK Stopped")
 
 
+def rec():
+    global _recording
+    _recording = True
+    print("++++ RECORDING to global var '_record'")
 
-def openPort(midiout, port_n):
-    # midiout = rtmidi.RtMidiOut()
+
+def listen(forward=True, forward_channel=1):
+    # Wait for other playing thread to stop
+    global _listening_thread
+    global _must_stop
+    if _listening_thread != None:
+        _must_stop = True
+        _listening_thread.join()
+
+    _listening_thread = threading.Thread(target=_listen, args=(forward, forward_channel,), daemon=True)
+    
+    _must_stop = False
+    _listening_thread.start()
+
+
+def _listen(forward=True, forward_channel=1):
+    print("++++ LISTEN to midi all midi channels")
+
+    active_notes = set()
+    noteon_time = dict()
+    recording = False
+    
+    while True:
+        if _must_stop:
+            print("++++ LISTEN stopping...")
+            break
+
+        if _recording:
+            if not recording:
+                global _record
+                _record = Seq()
+                noteon_time = dict()
+                t0 = time.time()
+                recording = True
+        else:
+            if recording:
+                recording = False
+
+        new_noteon = False
+        mess = midiin.getMessage()
+        
+        while mess:
+            pitch = mess.getNoteNumber()
+            if mess.isNoteOn():
+                active_notes.add(pitch)
+                noteon_time[pitch] = time.time()
+                new_noteon = True
+                if forward:
+                    mess.setChannel(forward_channel)
+                    midiout.sendMessage(mess)
+            elif mess.isNoteOff():
+                active_notes.discard(pitch)
+                if recording:
+                    if pitch in noteon_time:
+                        t = noteon_time[pitch] - t0
+                        dur = time.time() - noteon_time[pitch]
+                        _record.addNote(pitch, dur, head=t)
+                if forward:
+                    mess.setChannel(forward_channel)
+                    midiout.sendMessage(mess)
+            if _verbose and not _display:
+                    print("Recieved", mess)
+            mess = midiin.getMessage()
+        if new_noteon and _display:
+            # Visualize notes
+            line = "{}[".format(_display_min)
+            for i in range(_display_min, _display_max):
+                if i in active_notes:
+                    line += 'x'
+                else:
+                    line += '.'
+            line += ']{}'.format(_display_max)
+            if recording:
+                line += "  (*)"
+            print(line)
+        time.sleep(min(0.2, max(0, _timeres)))
+    print("++++ LISTEN Stopped")
+
+
+
+def listOutputs():
+    for i in range(midiout.getPortCount()):
+        print( "[{}] {}".format(i, midiout.getPortName(i)) )
+
+
+def listInputs():
+    for i in range(midiin.getPortCount()):
+        print( "[{}] {}".format(i, midiin.getPortName(i)) )
+
+
+def getOutputs():
+    outputs = []
+    for i in range(midiout.getPortCount()):
+        outputs.append( (i, midiout.getPortName(i)) )
+    return outputs
+
+
+def openOutput(port_n):
+    if midiout.isPortOpen():
+        midiout.closePort()
     print("Opening port {} [{}]".format(port_n, midiout.getPortName(port_n)) )    
     midiout.openPort(port_n)
 
 
-if __name__ == "__main__":
-    midiout = rtmidi.RtMidiOut()
+def openInput(port_n):
+    if midiin.isPortOpen():
+        midiin.closePort()
+    print("Opening port {} [{}]".format(port_n, midiin.getPortName(port_n)) )    
+    midiin.openPort(port_n)
 
-    listOutputs(midiout)
-    openPort(midiout, len(getOutputs(midiout)) - 1)
-        
-    t1 = Track()
-    t2 = Track()
-    t2.channel = 2
-    t3 = Track()
-    t3.channel = 3
-    t4 = Track()
-    t4.channel = 4
+
+
+
+if __name__ == "__main__":
+    # midiout = rtmidi.RtMidiOut()
+
+    listOutputs()
+    openOutput(len(getOutputs()) - 1)
+
 
 
     # g=Grid()

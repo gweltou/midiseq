@@ -1,6 +1,5 @@
 
 
-
 class Track():
     """ Track where you can add Sequence.
         You can had a silence by adding an empty Sequence with a length.
@@ -57,7 +56,6 @@ class Track():
             else:
                 self.ended = True
             
-
 
     def init(self):
         self._next_timer = 0.0

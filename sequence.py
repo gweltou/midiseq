@@ -1,4 +1,4 @@
-import rtmidi
+from rtmidi import MidiMessage
 import random
 import re
 from scales import noteToPitch, Scale
@@ -39,6 +39,7 @@ class Note():
 class Grid():
     """
         General Midi drums note mapping :
+        32 Kick
         35 Bass Drum 2
         36 Bass Drum 1
         37 Side Stick
@@ -58,9 +59,9 @@ class Grid():
         51 Ride Cymbal 1
     """
     
-    def __init__(self, length=1, nsub=16):
-        self.length = 2
+    def __init__(self, nsub=16, length=1):
         self.grid = [ set() for _ in range(nsub) ]
+        self.length = length
 
     def repeat(self, note, div, offset=0, preserve=False):
         """
@@ -128,9 +129,6 @@ class Grid():
                 s.add(note, head)
             head += step
         return s
-
-
-    # def mute(self, pitch):
 
 
     def getMidiMessages(self, channel=1):
@@ -424,8 +422,8 @@ class Seq():
             
             # pitch = self.getClosestNoteInScale(note.pitch)
 
-            note_on = rtmidi.MidiMessage.noteOn(channel, note.pitch, note.vel)
-            note_off = rtmidi.MidiMessage.noteOff(channel, note.pitch)
+            note_on = MidiMessage.noteOn(channel, note.pitch, note.vel)
+            note_off = MidiMessage.noteOff(channel, note.pitch)
             midi_seq.append( (pos, note_on) )
             midi_seq.append( (pos + note.dur, note_off) )
 

@@ -1,12 +1,9 @@
-
-
 import random
 import rtmidi
 import time
 
-from miditool import listOutputs, openPort, getOutputs
-from scales import *
-from sequence import *
+from miditool import listOutputs, openOutput, getOutputs, _play
+from sequence import Seq, Grid, getNotesFromString
 from track import Track
 from generators import *
 
@@ -18,14 +15,14 @@ def ex_04(midiout):
     t = Track()
     t.gen_func = gen_sweeps_pattern
     t.gen_args = ("AbbCbbAddCdd", "pentatonic_minor", "e4")
-    play(t)
+    _play(t)
 
 
 def ex_03(midiout):
     print("EX 03")
 
     s = Seq()
-    s.setScale("aeolian", "e")
+    s.scale = Scale("aeolian", "e")
     s.length = 1
     s.fillGaussianWalk()
     s2 = s.copy()
@@ -42,14 +39,14 @@ def ex_03(midiout):
     t.add(s)
     t.add(s3)
     
-    play(t)
+    _play(t)
 
 
 def ex_02(midiout):
     print("EX 02")
 
     s = Seq()
-    s.setScale("aeolian")
+    s.scale = Scale("aeolian")
     s.length = 1
     s.fillGaussianWalk()
     cp = s.copy()
@@ -71,15 +68,15 @@ def ex_02(midiout):
     p2.setScale("locrian")
     p2.tonic = 62
 
-    play(p1)
-    play(p2)
-    play(p1)
-    play(p2)
+    _play(p1)
+    _play(p2)
+    _play(p1)
+    _play(p2)
 
 
 def ex_01(midiout):
     s = Seq()
-    s.setScale("aeolian")
+    s.scale = Scale("aeolian")
     s.length = 1
     s.fillGaussianWalk()
     s.head = 0.0
@@ -98,10 +95,10 @@ def ex_01(midiout):
     #p2.setScale("aeolian")
     p2.tonic = 2
 
-    play(p1)
-    play(p2)
-    play(p1)
-    play(p2)
+    _play(p1)
+    _play(p2)
+    _play(p1)
+    _play(p2)
 
 
 
@@ -118,47 +115,44 @@ def buildSeq():
     return s
 
 
-def play(track_or_seq, channel=1):
-    track = track_or_seq
-    if type(track_or_seq) == Seq:
-        track = Track(channel)
-        track.add(track_or_seq)
+# def play(track_or_seq, channel=1):
+#     track = track_or_seq
+#     if type(track_or_seq) == Seq:
+#         track = Track(channel)
+#         track.add(track_or_seq)
 
-    midi_seq = []
-    t0 = time.time()
-    t_prev = 0.0
-    seq_i = 0
-    track.init()
-    while True:
-        t = time.time() - t0
-        timedelta = t - t_prev
-        t_prev = t
-        assert 0 < timedelta < 99
+#     midi_seq = []
+#     t0 = time.time()
+#     t_prev = 0.0
+#     seq_i = 0
+#     track.init()
+#     while True:
+#         t = time.time() - t0
+#         timedelta = t - t_prev
+#         t_prev = t
+#         assert 0 < timedelta < 99
 
-        if midi_seq and seq_i < len(midi_seq):
-            while t >= midi_seq[seq_i][0]:
-                midiout.sendMessage(midi_seq[seq_i][1])
-                print("sending", midi_seq[seq_i][1])
-                seq_i += 1
-                if seq_i == len(midi_seq):
-                    break
+#         if midi_seq and seq_i < len(midi_seq):
+#             while t >= midi_seq[seq_i][0]:
+#                 midiout.sendMessage(midi_seq[seq_i][1])
+#                 print("sending", midi_seq[seq_i][1])
+#                 seq_i += 1
+#                 if seq_i == len(midi_seq):
+#                     break
         
-        new_messages = track.update(timedelta)
-        if new_messages:
-            midi_seq = new_messages
-            t0 = time.time()
-            t = 0.0
-            t_prev = 0.0
-            seq_i = 0
+#         new_messages = track.update(timedelta)
+#         if new_messages:
+#             midi_seq = new_messages
+#             t0 = time.time()
+#             t = 0.0
+#             t_prev = 0.0
+#             seq_i = 0
 
-        if track.ended:
-            print("end")
-            break
+#         if track.ended:
+#             print("end")
+#             break
 
-        time.sleep(0.01)
-
-
-
+#         time.sleep(0.01)
 
 
 
@@ -283,7 +277,7 @@ def test_addchord():
 
 
 def test_grid():
-    g = Grid()
+    g = Grid(8)
     assert len(g) == 8
     g.repeat("do", 2, 1)
     s = g.toSeq()
@@ -342,9 +336,7 @@ if __name__ == "__main__":
     print("All good")
 
 
-    midiout = rtmidi.RtMidiOut()
-
-    listOutputs(midiout)
-    openPort(midiout, len(getOutputs(midiout)) - 1)    
+    # listOutputs()
+    # openOutput(len(getOutputs()) - 1)    
 
     # ex_04(midiout)
