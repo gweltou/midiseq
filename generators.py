@@ -1,5 +1,5 @@
 import random
-from sequence import Seq
+from sequence import Note, Seq, Grid
 from scales import Scale, modes
 
 
@@ -97,6 +97,21 @@ def gen_chords3():
             s.addChordNotes(s.scale.triad(deg), 0.66, random.randint(80, 127))
         s.addChordNotes(s.scale.triad(0), 0.66, random.randint(80, 120))
         yield s
+
+
+def gen_drums1():
+    g = Grid()
+    g.length = 1.5
+    g.euclid(35, 2)     # Kick
+    g.euclid(38, 2, 4)  # Snare
+    # g.euclid(42, 11, 1) # Hihats
+    g2 = Grid(8)
+    g2.length = 0.5
+    g2.euclid(35, 1)
+    g2.euclid(39, 1, 4)
+    g2.euclid(42, 6, 1)
+    while True:
+        yield g.toSeq() + g2.toSeq()
 
 
 

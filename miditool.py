@@ -13,6 +13,9 @@ from generators import *
 
 _tempo = 120
 _timeres = 0.01
+_metronome = True
+_metronome_div = 4
+_metronome_notes = (75, 85)
 _playing_thread = None
 _listening_thread = None
 _must_stop = False
@@ -54,6 +57,11 @@ def play(seq_or_track=None, channel=1, loop=False):
     
     if seq_or_track:
         track = seq_or_track
+        if type(seq_or_track) == Note:
+            s = Seq()
+            s.length=0
+            s.add(seq_or_track)
+            seq_or_track = s
         if type(seq_or_track) == Seq or type(seq_or_track) == Grid:
             track = Track(channel)
             track.add(seq_or_track)
@@ -173,8 +181,18 @@ def _listen(forward=True, forward_channel=1):
     active_notes = set()
     noteon_time = dict()
     recording = False
+    metronome_ticks = 0
+    metronome_cumul = 0.0
+    t0 = time.time()
+    t_prev = t0
+    ticking = None
     
     while True:
+        if ticking: # Metronome tick
+            note_off = rtmidi.MidiMessage.noteOff(10, ticking)
+            midiout.sendMessage(note_off)
+            ticking = None
+
         if _must_stop:
             print("++++ LISTEN stopping...")
             break
@@ -190,9 +208,26 @@ def _listen(forward=True, forward_channel=1):
             if recording:
                 recording = False
 
+
+        t = time.time()
+        dt = t - t_prev
+        t_prev = t
+        if _metronome:
+            dt *= _tempo / 120
+            metronome_cumul += dt
+            if metronome_cumul > 0.5:
+                if (metronome_ticks % _metronome_div) == 0:
+                    p = _metronome_notes[0]
+                else:
+                    p = _metronome_notes[1]
+                note_on = rtmidi.MidiMessage.noteOn(10, p, 100)
+                midiout.sendMessage(note_on)
+                ticking = p
+                metronome_ticks += 1
+                metronome_cumul -= 0.5
+
         new_noteon = False
         mess = midiin.getMessage()
-        
         while mess:
             pitch = mess.getNoteNumber()
             if mess.isNoteOn():
@@ -215,6 +250,7 @@ def _listen(forward=True, forward_channel=1):
             if _verbose and not _display:
                     print("Recieved", mess)
             mess = midiin.getMessage()
+        
         if new_noteon and _display:
             # Visualize notes
             line = "{}[".format(_display_min)
@@ -227,6 +263,7 @@ def _listen(forward=True, forward_channel=1):
             if recording:
                 line += "  (*)"
             print(line)
+        
         time.sleep(min(0.2, max(0, _timeres)))
     print("++++ LISTEN Stopped")
 

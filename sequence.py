@@ -39,7 +39,6 @@ class Note():
 class Grid():
     """
         General Midi drums note mapping :
-        32 Kick
         35 Bass Drum 2
         36 Bass Drum 1
         37 Side Stick
