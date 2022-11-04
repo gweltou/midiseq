@@ -11,6 +11,7 @@ from generators import *
 
 # DEBUG = True
 
+_tempo = 120
 _timeres = 0.01
 _playing_thread = None
 _listening_thread = None
@@ -21,6 +22,9 @@ _verbose = True
 _display = True
 _display_min = 36
 _display_max = 96
+
+
+lock = threading.Lock()
 
 midiout = rtmidi.RtMidiOut()
 midiin = rtmidi.RtMidiIn()
@@ -88,13 +92,16 @@ def _play(track, channel=1, loop=False):
             break
 
         t = time.time() - t0
+        t_norm = t
+        t_norm *= _tempo / 120       # A time unit (Seq.length=1) is 1 second at 120bpm
         timedelta = t - t_prev
+        timedelta *= _tempo / 120
         t_prev = t
         assert 0 < timedelta < 99
 
         if midi_seq and seq_i < len(midi_seq):
             new_noteon = False
-            while t >= midi_seq[seq_i][0]:
+            while t_norm >= midi_seq[seq_i][0]:
                 mess = midi_seq[seq_i][1]
                 midiout.sendMessage(mess)
                 if mess.isNoteOn():
@@ -132,8 +139,8 @@ def _play(track, channel=1, loop=False):
         if track.ended:
             break
 
-        t = time.time() - t0 - t_prev
-        load = t / _timeres
+        t_frame = time.time() - t0 - t
+        load = t_frame / _timeres
         if load > 0.2:
             print("++++ PLAYBACK [warning] load:", load, "%")
         time.sleep(min(0.2, max(0, _timeres)))

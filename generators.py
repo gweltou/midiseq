@@ -51,17 +51,16 @@ def gen_chords1():
     while True:
         s = Seq()
         scl = Scale(random.choice(list(modes.keys())))
-        print(scl)
         s.scale = Scale(scl)
         s.clear()
         for _ in range(4):
             s.addChordNotes(scl.triad([0, 1, 2, 3][d%3]))
-            # s.addTriad([0, 1, 2, 3][d%3])
             d+= 1
         s.addSil()
         s.stretch(2, False)# *= 2.0
         s.humanize(0.05)
         yield s
+
 
 def gen_chords2():
     d = 0
@@ -82,6 +81,7 @@ def gen_chords2():
         s.humanize(0.01)
         yield s
 
+
 def gen_chords3():
     # int i = 0
     jumps = [2, 3, 4]
@@ -97,7 +97,6 @@ def gen_chords3():
             s.addChordNotes(s.scale.triad(deg), 0.66, random.randint(80, 127))
         s.addChordNotes(s.scale.triad(0), 0.66, random.randint(80, 120))
         yield s
-
 
 
 

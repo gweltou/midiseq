@@ -7,6 +7,21 @@
  sudo apt install jupyter-qtconsole
 
 
+## Utilisation
+
+### Le temps
+
+Pour changer la durée d'une séquence on modifie sa propriété `length`. On peut aussi la passer en argument au constructeur de la classe `Seq`.
+```python
+s = Seq(4)
+# ou bien
+s = Seq()
+s.length = 4
+```
+
+L'unité temporelle est égale à une seconde.
+
+
 ## Alsa connect
 
 List midi inputs (devices that can recieve midi)
