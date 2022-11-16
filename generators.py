@@ -124,9 +124,9 @@ def gen_tintinnabuli():
         s.clear()
         pitch = s.scale.getDegree(random.gauss(0, 2.5)) + 12
         pitch2 = 54 + random.choice([0, 3, 7, -12])
-        s.addNote(pitch, dur=note_dur)
+        s.add(Note(pitch, dur=note_dur))
         s.head=0.0
-        s.addNote(pitch2, dur=note_dur)
+        s.add(Note(pitch2, dur=note_dur))
         s.length = note_dur + abs(random.gauss(0, 3))
         yield s
 
@@ -181,4 +181,17 @@ def gen_fratres():
         d += 1
         s.stretch(4.0)
         s.humanize()
+        yield s
+    
+
+def gen_japscale():
+    
+    sc = Scale("japanese")
+    while True:
+        s=Seq() 
+        s.scale=sc
+        if random.random() < 0.1:
+            sc.tonic = random.randrange(42, 54)
+        s.fillGaussianWalk(1, dev=2)
+        s.stretch(16, False)
         yield s

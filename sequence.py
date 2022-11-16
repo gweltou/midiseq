@@ -5,6 +5,16 @@ from scales import noteToPitch, Scale
 
 
 
+note_length = 1/4
+
+def setNoteLen(d):
+    global note_length
+    """ Set default note length """
+    note_length = d
+
+
+
+
 class Note():
 
     def __init__(self, pitch, dur=1, vel=127, prob=1):
@@ -15,12 +25,34 @@ class Note():
         elif type(pitch) == int and (pitch < 0 or pitch > 127):
             raise TypeError("Pitch must be an integer in range [0, 127], got {}".format(pitch))
         self.pitch = min(127, max(0, pitch))
-        self.dur = dur
+        self.dur = dur * note_length
         self.vel = vel
         self.prob = prob
     
+
+    def __add__(self, other):
+        s = Seq()
+        s.add(self)
+        s.add(other)
+        s.length = self.dur + other.dur
+        return s
+
+
+    def __mul__(self, number):
+        if type(number) != int:
+            raise TypeError
+        s = Seq()
+        for _ in range(number):
+            s.add(self.copy())
+        s.length = self.dur * number
+        return s
+        
+
     def copy(self):
-        return Note(self.pitch, self.dur, self.vel, self.prob)
+        n = Note(self.pitch, self.dur, self.vel, self.prob)
+        n.dur = self.dur # Overrides the note_length multiplier
+        return n
+
 
     def __str__(self):
         return "{} {} {}".format(self.pitch, self.dur, self.vel)
@@ -61,6 +93,9 @@ class Grid():
     def __init__(self, nsub=16, length=1):
         self.grid = [ set() for _ in range(nsub) ]
         self.length = length
+
+
+    #def gridRepeat(self, pattern, )
 
     def repeat(self, note, div, offset=0, preserve=False):
         """
@@ -120,7 +155,8 @@ class Grid():
 
 
     def toSeq(self):
-        s = Seq(self.length)
+        s = Seq()
+        s.length = self.length
         step = self.length / len(self.grid)
         head = 0.0
         for col in self.grid:
@@ -149,14 +185,20 @@ class Grid():
 
 
 class Seq():
+    """ 
+        (61, 15, 12, 0, (0, 0, 0, 54), 60)
 
-    def __init__(self, length=1):
-        self.notes = []
+    """
+
+    def __init__(self, notes=None, length=1):
         self.head = 0.0     # Recording head
         self.length = length
         self.scale = None
         self.tonic = 60
         self._dirty = True
+        self.notes = []
+        if notes:
+            self.addNotes(notes)
         # self.next = None    # Plug a sequence to be played after this one
 
 
@@ -180,20 +222,32 @@ class Seq():
             self._dirty = True
         else:
             raise TypeError("Only notes or sequences can be added to a sequence")
-        
-
-    def addNote(self, pitch, dur=0.25, vel=127, head=-1):
-        """ Add a single note to the sequence, growing its length if necessary.
-        """
-        self.add(Note(pitch, dur, vel), head)
     
 
-    def addNotes(self, notes, dur=0.25, vel=127):
-        if type(notes) != str:
-            raise TypeError("argument `notes` must be a string")
-        notes = getNotesFromString(notes, dur, vel)
-        for n in notes:
-            self.add(n)
+    def addNotes(self, notes, dur=1, vel=127):
+        """
+            Add many notes sequencially
+
+            Parameters
+            ----------
+                notes:
+                    A list of note pitches, can be a string or an iterable
+                    Ex: "c# d f2 do re mi" or (61, 62, 29, 60, 62, 64)
+        """
+        if type(notes) == str:
+            for note in getNotesFromString(notes, dur, vel):
+                self.add(note)
+        elif hasattr(notes, '__iter__'):
+            # notes = [Note(pitch, dur, vel) for pitch in notes]
+            for pitch in notes:
+                if type(pitch) in (tuple, list):
+                    self.addNotes(pitch, dur/len(pitch), vel)
+                elif pitch == 0:
+                    self.addSil(dur)
+                else:
+                    self.add(Note(pitch, dur, vel))
+        else:
+            raise TypeError("argument `notes` must be a string or an iterable")
 
 
     def addSil(self, dur=0.25):
@@ -204,9 +258,11 @@ class Seq():
 
 
     def addChordNotes(self, notes, dur=0.25, vel=127):
-        """ Add a chord given a list of notes/pitches """
+        """ Add a chord with the list of given notes/pitches """
         if type(notes) == str:
             notes = getNotesFromString(notes)
+        elif hasattr(notes, '__iter__'):
+            notes = [Note(pitch, dur, vel) for pitch in notes]
         head = self.head
         for n in notes:
             if type(n) != Note:
@@ -294,11 +350,12 @@ class Seq():
 
 
     def map(self, grid, duty_cycle=0.2):
+        # XXX: Not usefull right now
         beat_len = (self.length - self.head) / len(grid)
         note_dur = duty_cycle * beat_len
         for pitch in grid:
             if 0 < pitch <= 127:
-                self.addNote(pitch, note_dur)
+                self.add(Note(pitch, note_dur))
                 self.head += beat_len - note_dur
             else:
                 self.head += beat_len
@@ -323,6 +380,7 @@ class Seq():
     def expand(self, factor):
         """ Expand or compress notes pitches around the mean value of the whole sequence
         """
+        # XXX: Should it preserve scale ?
         sum = 0
         for _, note in self.notes:
             sum += note.pitch
@@ -404,6 +462,21 @@ class Seq():
     #     return self
 
 
+    def crop(self):
+        """ Shorten or delete notes before time 0 and after the sequence's length """
+        cropped_notes = []
+        for t, n in self.notes:
+            if t + n.dur > 0 and t < self.length:
+                if t < 0:
+                    n.dur += t
+                elif t + n.dur > self.length:
+                    n.dur -= t + n.dur - self.length
+                t = (min(max(t, 0), self.length))
+                cropped_notes.append( (t, n) )
+            self.notes = cropped_notes
+
+
+
     def getMidiMessages(self, channel=1):
         midi_seq = []
         for pos, note in self.notes:
@@ -463,17 +536,19 @@ class Seq():
 
 
 
+####  ALIASES
+
+n = Note
+s = Seq
+
+
 ###########
 ## UTILS ##
 ###########
 
 
-
-
-def getNotesFromString(s, dur=0.25, vel=127):
+def getNotesFromString(s, dur=1, vel=127):
     if type(s) != str: raise TypeError('Argument must be a string. Ex: "do re mi" or "60 62 64"')
-    
-    p = re.compile(r'([a-z]+[#\-+]?)(\d?)' ,re.IGNORECASE)
     
     notes = []
     for t in s.split():

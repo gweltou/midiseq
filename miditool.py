@@ -3,28 +3,31 @@
 import rtmidi
 import time
 import threading
-from sequence import Seq, Grid
+from sequence import *
 from track import Track
-# from scales import *
+from scales import *
 from generators import *
+from parameters import *
 
 
 # DEBUG = True
 
 _tempo = 120
 _timeres = 0.01
-_metronome = True
-_metronome_div = 4
-_metronome_notes = (75, 85)
+_metronome_click = True
+_metronome_div = 4          # Number of divisions in a metronome cycle
+_metronome_notes = (75, 85) # Midi click notes
+_metronome_pre = 1          # Number of metronome cycle before recording
 _playing_thread = None
 _listening_thread = None
 _must_stop = False
+_armed = False              # Ready to record, waiting for the player thread to give the recording trigger
 _recording = False
+_recording_time = 0.0
 _record = None              # Where the recordings from midi in are stored
 _verbose = True
 _display = True
-_display_min = 36
-_display_max = 96
+_display_range = (36, 96)
 
 
 lock = threading.Lock()
@@ -80,35 +83,72 @@ def play(seq_or_track=None, channel=1, loop=False):
 
 def stop():
     global _must_stop
+    global _recording
+    global _armed
     _must_stop = True
     _recording = False
+    _armed = False
     panic()
 
 
 def _play(track, channel=1, loop=False):
+    global _armed
+    global _recording
+    global _recording_time
     print("++++ PLAYBACK Started")
     midi_seq = []
     t0 = time.time()
     t_prev = 0.0
+    metronome_time = 0.0
+    metronome_click_count = 0
     seq_i = 0
     track.init()
-    track.loop=loop
+    track.loop = loop
     active_notes = set()
+    clicking = False
+    click_note = None
     while True:
         if _must_stop:
-            print("++++ PLAYBACK stopping...")
+            for note in active_notes:
+                note_off = rtmidi.MidiMessage.noteOff(channel, note)
+                midiout.sendMessage(note_off)
             break
+        
+        if click_note: # Metronome tick
+            note_off = rtmidi.MidiMessage.noteOff(10, click_note)
+            midiout.sendMessage(note_off)
+            click_note = None
 
         t = time.time() - t0
-        t_norm = t
-        t_norm *= _tempo / 120       # A time unit (Seq.length=1) is 1 second at 120bpm
         timedelta = t - t_prev
-        timedelta *= _tempo / 120
+        timedelta *= _tempo / 120   # A time unit (Seq.length=1) is 1 second at 120bpm
         t_prev = t
         assert 0 < timedelta < 99
+        metronome_time += timedelta
+        if _recording:
+            _recording_time += timedelta
+        
+        if metronome_time > 0.5:
+            metronome_click_count += 1
+            if metronome_click_count % _metronome_div == 0:
+                p = _metronome_notes[0]
+                if _armed:
+                    print("rec starting")
+                    _recording = True
+                    _recording_time = 0.0 - _metronome_pre * _metronome_div
+                    _armed = False
+                    clicking = _metronome_click
+            else:
+                p = _metronome_notes[1]
+            if clicking:
+                note_on = rtmidi.MidiMessage.noteOn(10, p, 100)
+                midiout.sendMessage(note_on)
+                click_note = p
+            metronome_time -= 0.5
 
         if midi_seq and seq_i < len(midi_seq):
             new_noteon = False
+            t_norm = t * _tempo / 120
             while t_norm >= midi_seq[seq_i][0]:
                 mess = midi_seq[seq_i][1]
                 midiout.sendMessage(mess)
@@ -127,15 +167,14 @@ def _play(track, channel=1, loop=False):
             
             if _display and new_noteon:
                 # Visualize notes
-                line = "{}[".format(_display_min)
-                for i in range(_display_min, _display_max):
+                line = "{}[".format(_display_range[0])
+                for i in range(_display_range[0], _display_range[1]):
                     if i in active_notes:
                         line += 'x'
                     else:
                         line += '.'
-                print(line + ']{}'.format(_display_max))
+                print(line + ']{}'.format(_display_range[1]))
 
-        
         new_messages = track.update(timedelta)
         if new_messages:
             midi_seq = new_messages
@@ -144,8 +183,8 @@ def _play(track, channel=1, loop=False):
             t_prev = 0.0
             seq_i = 0
 
-        if track.ended:
-            break
+        # if track.ended:
+        #     break
 
         t_frame = time.time() - t0 - t
         load = t_frame / _timeres
@@ -153,11 +192,21 @@ def _play(track, channel=1, loop=False):
             print("++++ PLAYBACK [warning] load:", load, "%")
         time.sleep(min(0.2, max(0, _timeres)))
     print("++++ PLAYBACK Stopped")
+    global _playing_thread
+    _playing_thread = None
 
 
 def rec():
-    global _recording
-    _recording = True
+    if not _listening_thread:
+        print("Listening thread is not started")
+        return
+    if not _playing_thread:
+        print("Call 'play()' to launch a metronome and start recording")
+
+    # global _recording
+    # _recording = True
+    global _armed
+    _armed = True
     print("++++ RECORDING to global var '_record'")
 
 
@@ -180,51 +229,20 @@ def _listen(forward=True, forward_channel=1):
 
     active_notes = set()
     noteon_time = dict()
-    recording = False
-    metronome_ticks = 0
-    metronome_cumul = 0.0
+    # recording = False
+    # recording_time = 0.0
+    # metronome_ticks = 0
+    # metronome_cumul = 0.0
     t0 = time.time()
     t_prev = t0
-    ticking = None
+    # ticking = None
     
     while True:
-        if ticking: # Metronome tick
-            note_off = rtmidi.MidiMessage.noteOff(10, ticking)
-            midiout.sendMessage(note_off)
-            ticking = None
-
         if _must_stop:
-            print("++++ LISTEN stopping...")
             break
 
-        if _recording:
-            if not recording:
-                global _record
-                _record = Seq()
-                noteon_time = dict()
-                t0 = time.time()
-                recording = True
-        else:
-            if recording:
-                recording = False
-
-
         t = time.time()
-        dt = t - t_prev
         t_prev = t
-        if _metronome:
-            dt *= _tempo / 120
-            metronome_cumul += dt
-            if metronome_cumul > 0.5:
-                if (metronome_ticks % _metronome_div) == 0:
-                    p = _metronome_notes[0]
-                else:
-                    p = _metronome_notes[1]
-                note_on = rtmidi.MidiMessage.noteOn(10, p, 100)
-                midiout.sendMessage(note_on)
-                ticking = p
-                metronome_ticks += 1
-                metronome_cumul -= 0.5
 
         new_noteon = False
         mess = midiin.getMessage()
@@ -239,11 +257,11 @@ def _listen(forward=True, forward_channel=1):
                     midiout.sendMessage(mess)
             elif mess.isNoteOff():
                 active_notes.discard(pitch)
-                if recording:
+                if _recording:
                     if pitch in noteon_time:
                         t = noteon_time[pitch] - t0
                         dur = time.time() - noteon_time[pitch]
-                        _record.addNote(pitch, dur, head=t)
+                        _record.addNote(pitch, dur, head=_recording_time)
                 if forward:
                     mess.setChannel(forward_channel)
                     midiout.sendMessage(mess)
@@ -253,25 +271,21 @@ def _listen(forward=True, forward_channel=1):
         
         if new_noteon and _display:
             # Visualize notes
-            line = "{}[".format(_display_min)
-            for i in range(_display_min, _display_max):
+            line = "{}[".format(_display_range[0])
+            for i in range(_display_range[0], _display_range[1]):
                 if i in active_notes:
                     line += 'x'
                 else:
                     line += '.'
-            line += ']{}'.format(_display_max)
-            if recording:
+            line += ']{}'.format(_display_range[1])
+            if _recording:
                 line += "  (*)"
             print(line)
         
         time.sleep(min(0.2, max(0, _timeres)))
     print("++++ LISTEN Stopped")
-
-
-
-def listOutputs():
-    for i in range(midiout.getPortCount()):
-        print( "[{}] {}".format(i, midiout.getPortName(i)) )
+    global _listening_thread
+    _listening_thread = None
 
 
 def listInputs():
@@ -279,11 +293,17 @@ def listInputs():
         print( "[{}] {}".format(i, midiin.getPortName(i)) )
 
 
-def getOutputs():
-    outputs = []
+def getInputs():
+    return [ (i, midiin.getPortName(i)) for i in range(midiin.getPortCount()) ]
+
+
+def listOutputs():
     for i in range(midiout.getPortCount()):
-        outputs.append( (i, midiout.getPortName(i)) )
-    return outputs
+        print( "[{}] {}".format(i, midiout.getPortName(i)) )
+
+
+def getOutputs():
+    return [ (i, midiout.getPortName(i)) for i in range(midiout.getPortCount()) ]
 
 
 def openOutput(port_n):
@@ -305,9 +325,10 @@ def openInput(port_n):
 if __name__ == "__main__":
     # midiout = rtmidi.RtMidiOut()
 
+    
+
     listOutputs()
     openOutput(len(getOutputs()) - 1)
-
 
 
     # g=Grid()

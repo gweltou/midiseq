@@ -157,7 +157,6 @@ def buildSeq():
 
 
 
-
 def test_adding():
     s = Seq()
     s.length = 1
@@ -168,10 +167,14 @@ def test_adding():
     assert len(s*2) == 2 * len(s)
     assert (s*2).length == 2 * s.length
 
+    s = Seq()
+    s.addNotes("do si la sol fa mi2 re# c")
+    assert len(s) == 8
+
     print("test_adding", "pass")
 
 
-def test_truncate():
+def test_midimessage_truncate():
     s = Seq()
     s.length = 1
     s.fillRandom()
@@ -308,11 +311,22 @@ def test_scale():
     print("test_scale", "pass")
 
 
+def test_crop():
+    s = Seq()
+    s.head = -0.35
+    s.fillRandom()
+    s.add(Note(66))
+    s.length = 1
+    assert len(s) == 7
+    assert s.notes[0][0] == -0.35
+    s.crop()
+    assert len(s) == 5
+
 
 if __name__ == "__main__":
     
     test_adding()
-    test_truncate()
+    test_midimessage_truncate()
     test_gaussian_walk()
     test_track()
     test_map()
@@ -321,6 +335,7 @@ if __name__ == "__main__":
     test_addchord()
     test_grid()
     test_scale()
+    test_crop()
 
     print("Generators")
     next(gen_1())

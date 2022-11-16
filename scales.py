@@ -63,7 +63,7 @@ def noteToPitch(name):
             oct = int(m.groups()[1])
             return 12*oct + notes[tone]
         else:
-            return 12*5 + notes[tone]
+            return 12*5 + notes[tone] # Defaults to fifth octave ?
     
     return -1
 

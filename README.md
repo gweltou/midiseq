@@ -1,8 +1,17 @@
 # MidiTool
 
+D'autres programmes dans le genre:
+WarpSeq:
+https://bitbucket.org/laserllama/warpseq/src/master/
+
+Braid:
+https://braid.live/
+
 ## Installation
 
  pip install rtmidi
+ 
+Pour un environnement de programmation toute options :
  
  sudo apt install jupyter-qtconsole
 
@@ -41,6 +50,9 @@ Connecting devices together (sender to reciever)
 
 * Micro-tonalité avec le pitch bend
 * Classe Chord, additions Note-Note (=Seq), Chord-Note (=Seq), Seq-Note...
+* Pouvoir associer une fonction de callback à la réception d'un contrôle midi
+* Listen() devrait n'avoir à s'appeler qu'une seule fois. Créer une fonction stop_listen().
+
 
 ### Méthodes de la classe Seq
 
