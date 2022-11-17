@@ -1,4 +1,4 @@
-from rtmidi import MidiMessage
+#from rtmidi import Message
 import random
 import re
 from scales import noteToPitch, Scale
@@ -476,6 +476,19 @@ class Seq():
             self.notes = cropped_notes
 
 
+    def shift(self, dt, loop=False):
+        """ Shift note onset times by a given delta time
+
+            Parameters
+            ----------
+                loop:
+                    if True, notes that were pushed out of the sequence get appendend to the other side
+        """
+        new_notes = []
+        for t, n in self.notes:
+            new_notes.append( (t+dt, n) )
+        self.notes = new_notes
+
 
     def getMidiMessages(self, channel=1):
         midi_seq = []
@@ -494,8 +507,10 @@ class Seq():
             
             # pitch = self.getClosestNoteInScale(note.pitch)
 
-            note_on = MidiMessage.noteOn(channel, note.pitch, note.vel)
-            note_off = MidiMessage.noteOff(channel, note.pitch)
+            # note_on = Message.noteOn(channel, note.pitch, note.vel)
+            # note_off = Message.noteOff(channel, note.pitch)
+            note_on = [0x90, note.pitch, note.vel]
+            note_off = [0x80, note.pitch, 0]
             midi_seq.append( (pos, note_on) )
             midi_seq.append( (pos + note.dur, note_off) )
 
@@ -526,6 +541,18 @@ class Seq():
             
             return new_sequence
         else: raise TypeError
+
+    
+    def __rshift__(self, other):
+        if isinstance(other, float):
+            copy = self.copy()
+            copy.shift(other)
+            return copy
+
+
+    def __lshift__(self, other):
+        if isinstance(other, float):
+            return self.__rshift__(-other)
 
 
     def __str__(self):

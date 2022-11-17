@@ -1,6 +1,8 @@
 ### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
 
 import rtmidi
+from mido import MidiFile
+import mido
 import time
 import threading
 from sequence import *
@@ -32,8 +34,8 @@ _display_range = (36, 96)
 
 lock = threading.Lock()
 
-midiout = rtmidi.RtMidiOut()
-midiin = rtmidi.RtMidiIn()
+midiout = rtmidi.MidiOut()
+midiin = rtmidi.MidiIn()
 t1 = Track()
 t2 = Track()
 t2.channel = 2
@@ -110,12 +112,14 @@ def _play(track, channel=1, loop=False):
     while True:
         if _must_stop:
             for note in active_notes:
-                note_off = rtmidi.MidiMessage.noteOff(channel, note)
+                # note_off = rtmidi.MidiMessage.noteOff(channel, note)
+                note_off = [0x80 + channel-1, note, 0]
                 midiout.sendMessage(note_off)
             break
         
         if click_note: # Metronome tick
-            note_off = rtmidi.MidiMessage.noteOff(10, click_note)
+            # note_off = rtmidi.MidiMessage.noteOff(10, click_note)
+            note_off = [0x89, note, 0]
             midiout.sendMessage(note_off)
             click_note = None
 
@@ -141,8 +145,9 @@ def _play(track, channel=1, loop=False):
             else:
                 p = _metronome_notes[1]
             if clicking:
-                note_on = rtmidi.MidiMessage.noteOn(10, p, 100)
-                midiout.sendMessage(note_on)
+                # note_on = rtmidi.MidiMessage.noteOn(10, p, 100)
+                note_on = [0x90, p, 100]
+                midiout.send_message(note_on)
                 click_note = p
             metronome_time -= 0.5
 
@@ -151,12 +156,12 @@ def _play(track, channel=1, loop=False):
             t_norm = t * _tempo / 120
             while t_norm >= midi_seq[seq_i][0]:
                 mess = midi_seq[seq_i][1]
-                midiout.sendMessage(mess)
-                if mess.isNoteOn():
-                    active_notes.add(mess.getNoteNumber())
+                midiout.send_message(mess)
+                if mess[0]>>4 == 9: # note on
+                    active_notes.add(mess[1])
                     new_noteon = True
-                elif mess.isNoteOff():
-                    active_notes.discard(mess.getNoteNumber())
+                elif mess[0]>>4 == 8: # note off
+                    active_notes.discard(mess[1])
                 
                 if _verbose and not _display:
                     print("Sent", mess)
@@ -254,7 +259,7 @@ def _listen(forward=True, forward_channel=1):
                 new_noteon = True
                 if forward:
                     mess.setChannel(forward_channel)
-                    midiout.sendMessage(mess)
+                    midiout.send_message(mess)
             elif mess.isNoteOff():
                 active_notes.discard(pitch)
                 if _recording:
@@ -264,10 +269,10 @@ def _listen(forward=True, forward_channel=1):
                         _record.addNote(pitch, dur, head=_recording_time)
                 if forward:
                     mess.setChannel(forward_channel)
-                    midiout.sendMessage(mess)
+                    midiout.send_message(mess)
             if _verbose and not _display:
                     print("Recieved", mess)
-            mess = midiin.getMessage()
+            mess = midiin.get_message()
         
         if new_noteon and _display:
             # Visualize notes
@@ -289,48 +294,120 @@ def _listen(forward=True, forward_channel=1):
 
 
 def listInputs():
-    for i in range(midiin.getPortCount()):
+    for i in range(midiin.get_port_count()):
         print( "[{}] {}".format(i, midiin.getPortName(i)) )
 
 
 def getInputs():
-    return [ (i, midiin.getPortName(i)) for i in range(midiin.getPortCount()) ]
+    return [ (i, midiin.getPortName(i)) for i in range(midiin.get_port_count()) ]
 
 
 def listOutputs():
-    for i in range(midiout.getPortCount()):
-        print( "[{}] {}".format(i, midiout.getPortName(i)) )
+    for i in range(midiout.get_port_count()):
+        print( "[{}] {}".format(i, midiout.get_port_name(i)) )
 
 
 def getOutputs():
-    return [ (i, midiout.getPortName(i)) for i in range(midiout.getPortCount()) ]
+    return [ (i, midiout.get_port_name(i)) for i in range(midiout.get_port_count()) ]
 
 
 def openOutput(port_n):
-    if midiout.isPortOpen():
-        midiout.closePort()
-    print("Opening port {} [{}]".format(port_n, midiout.getPortName(port_n)) )    
-    midiout.openPort(port_n)
+    if midiout.is_port_open():
+        midiout.close_port()
+    print("Opening port {} [{}]".format(port_n, midiout.get_port_name(port_n)) )    
+    midiout.open_port(port_n)
 
 
 def openInput(port_n):
-    if midiin.isPortOpen():
-        midiin.closePort()
-    print("Opening port {} [{}]".format(port_n, midiin.getPortName(port_n)) )    
-    midiin.openPort(port_n)
+    if midiin.is_port_open():
+        midiin.close_port()
+    print("Opening port {} [{}]".format(port_n, midiin.get_port_name(port_n)) )    
+    midiin.open_port(port_n)
 
+
+def openFile(path, track=1):
+    """ Open a midi file with mido """
+
+    mid = MidiFile(path)
+    print("number of tracks:", len(mid.tracks))
+    print("ticks per beat:", mid.ticks_per_beat)
+    print("track0:", mid.tracks[0])
+    print("track1 length:", mid.length)
+    divisor = mid.ticks_per_beat
+
+    # Get tempo
+
+    # Get first track:
+    active_notes = dict()
+    s = Seq()
+    time = 0
+
+    for msg in mid.tracks[track]:
+        time += msg.time
+        if msg.type == 'note_on':
+            active_notes[msg.note] = time
+        elif msg.type == 'note_off':
+            t0 = active_notes[msg.note]
+            d = time - t0
+            n = Note(msg.note, d / divisor, msg.velocity)
+            s.add(n, t0 / divisor)
+    print(s.length)
+    # s *= 1/s.length
+    # s *= mid.length
+
+    return s
+
+
+
+def test_mido():
+    note_on = mido.Message('note_on', channel=1, note=sit16, velocity=100)
+    note_off = mido.Message('note_off', channel=1, note=sit16)
+
+    port_name = mido.get_output_names()[0]
+    print("port name:", port_name)
+
+    po = mido.open_output(port_name)
+    po.send(note_on)
+    time.sleep(0.3)
+    po.send(note_off)
+
+    port_name = mido.get_output_names()[3]
+    print("port name:", port_name)
+    po2 = mido.open_output(port_name)
+    po2.send(note_on)
+    time.sleep(0.3)
+    po2.send(note_off)
+
+
+def test_rtmidi():
+    midiout.close_port()
+
+    p1 = rtmidi.MidiOut()
+    p1.open_port(0)
+
+    p2 = rtmidi.MidiOut()
+    p2.open_port(1)
+
+    note_on = [0x90, sit1, 100]
+    note_off = [0x80, sit1, 0]
+
+    p1.send_message(note_on)
+    time.sleep(0.3)
+    p1.send_message(note_off)
+
+    p2.send_message(note_on)
+    time.sleep(0.3)
+    p2.send_message(note_off)
 
 
 
 if __name__ == "__main__":
     # midiout = rtmidi.RtMidiOut()
-
+    global _metronome_notes
+    _metronome_notes = (sit13, sit16)
     
 
     listOutputs()
     openOutput(len(getOutputs()) - 1)
 
-
-    # g=Grid()
-    # g.euclid(36, 4)
-    # _play(g.toSeq(), 10, True)
+    mid = MidiFile("ff9rock.mid")
