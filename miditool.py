@@ -7,9 +7,7 @@ import time
 import threading
 from sequence import *
 from track import Track, Song
-from scales import *
 from generators import *
-from parameters import *
 
 
 # DEBUG = True
@@ -57,7 +55,7 @@ t4.channel = 4
 #         _default_output.sendMessage(mess)
 
 
-def play(seq_or_track=None, channel=1, loop=False):
+def play(what=None, channel=1, loop=False):
     """ Play a Song, a Track, a Sequence or a single Note
 
         Parameters
@@ -74,24 +72,24 @@ def play(seq_or_track=None, channel=1, loop=False):
         _must_stop = True
         _playing_thread.join()
     
-    if seq_or_track:
-        track = seq_or_track
-        if type(seq_or_track) == Note:
+    if what:
+        track = what
+        if type(what) is Note:
             s = Seq()
             s.length=0
-            s.add(seq_or_track)
-            seq_or_track = s
-        if type(seq_or_track) == Seq or type(seq_or_track) == Grid:
+            s.add(what)
+            what = s
+        if type(what) in (Seq, Grid):
             track = Track(channel)
-            track.add(seq_or_track)
+            track.add(what)
         _playing_thread = threading.Thread(target=_play, args=(track, channel, loop), daemon=True)
-    else:
+    else:    # Play all tracks
         tracks = []
         for i in range(16):
             track_name = "t{}".format(i+1)
             if track_name in globals():
                 tracks.append(globals()[track_name])
-        _playing_thread = threading.Thread(target=_play, args=(tracks[0],), daemon=True)
+        _playing_thread = threading.Thread(target=_play, args=(tracks[0], channel, loop), daemon=True)
     
     _must_stop = False
     _playing_thread.start()
@@ -102,7 +100,7 @@ def _play(track, channel=1, loop=False):
     global _recording
     global _recording_time
     print("++++ PLAYBACK Started")
-    track.init()
+    track.reset()
     track.loop = loop
     midi_seq = []
     active_notes = set()
@@ -397,19 +395,19 @@ if __name__ == "__main__":
     global _metronome_notes
     _metronome_notes = (sit13, sit16)
     
-    output_ports = dict()
-    output_ports["default"] = openOutput(0)
+    midi_out = dict()
+    midi_out["default"] = openOutput(0)
     for i, port_name in getOutputs():
         if "microfreak" in port_name.lower():
-            output_ports["microfreak"] = openOutput(i)
+            midi_out["microfreak"] = openOutput(i)
         if "fluid" in port_name.lower():
-            output_ports["fluid"] = openOutput(i)
+            midi_out["fluid"] = openOutput(i)
 
-    _default_output = output_ports["default"]
-    _metronome_port = output_ports["default"]
-    if "arturia" in output_ports:
-        _default_output = output_ports["arturia"]
-    elif "fluid" in output_ports:
-        _default_output = output_ports["fluid"]
+    _default_output = midi_out["default"]
+    _metronome_port = midi_out["default"]
+    if "arturia" in midi_out:
+        _default_output = midi_out["arturia"]
+    elif "fluid" in midi_out:
+        _default_output = midi_out["fluid"]
 
-    mid = openFile("ff9rock.mid")
+    # midi_file = openFile("ff9rock.mid")

@@ -1,5 +1,31 @@
 import random
-from sequence import Note, Sil, Seq, Grid, Scale, modes
+from sequence import Note, Sil, Seq, Grid, Scale, modes, Chord
+
+
+# Sitala drum sampler mapping to midi pitch
+# Clean 808
+sit1 = 36 # Kick
+sit2 = 37 # Snare
+sit3 = 38 # Closed HH
+sit4 = 39 # Open HH
+sit5 = 40 # Cymbal
+sit6 = 41 # Low Tom
+sit7 = 42 # Mid Tom
+sit8 = 43 # High Tom
+sit9 = 44 # Low Conga
+sit10 = 45 # Mid Conga
+sit11 = 46 # High Conga
+sit12 = 47 # Hand Clap
+sit13 = 48 # Clave
+sit14 = 49 # Maraca
+sit15 = 50 # Cowbell
+sit16 = 51 # Rim shot
+
+K = sit1
+S = sit2
+HH = sit3
+OHH = sit4
+
 
 
 
@@ -31,7 +57,7 @@ def gen_sweeps(scale="minor", tonic="a"):
         yield s
 
 
-def gen_sweeps_pattern(pattern, scale="minor", tonic="a"):
+def gen_sweeps_pattern(pattern="ABAB", scale="minor", tonic="a"):
     """
         pattern: (str)
             Ex: "ABAB" or "1112"
@@ -53,7 +79,7 @@ def gen_chords1():
         s.scale = Scale(scl)
         s.clear()
         for _ in range(4):
-            s.addChordNotes(scl.triad([0, 1, 2, 3][d%3]))
+            s.add(scl.triad([0, 1, 2, 3][d%3]))
             d+= 1
         s.add(Sil())
         s.stretch(2, False)# *= 2.0
@@ -73,7 +99,7 @@ def gen_chords2():
         chord_prog = [ random.choice(list(range(7))) for _ in range(4) ]
         print(chord_prog)
         for i in chord_prog:
-            s.addChordNotes(s.scale.triad(i))
+            s.add(s.scale.triad(i))
         s.add(Sil())
         s.stretch(2, False)# *= 2.0
         d+= 1
@@ -93,8 +119,8 @@ def gen_chords3():
             if random.random() < 0.5:
                 off = -off
             deg += off
-            s.addChordNotes(s.scale.triad(deg), 0.66, random.randint(80, 127))
-        s.addChordNotes(s.scale.triad(0), 0.66, random.randint(80, 120))
+            s.add(s.scale.triad(deg, random.randint(80, 127)), 0.66)
+        s.add(s.scale.triad(0, random.randint(80, 120)), 0.66)
         yield s
 
 
@@ -195,6 +221,35 @@ def gen_japscale():
         yield s
 
 
+def loop1():
+    g = Grid()
+    g.length = 2
+    g.euclid(sit3, 12, 1)
+    g.euclid(sit2, 4, 4)
+    g.euclid(sit1, 2, 0)
+    return g
+
+
+def loop_euclidian_sitala():
+    short = [sit3, sit4, sit14, sit16]
+    g = Grid()
+    g.length = 4
+
+    g.euclid(sit1, random.randint(2, 5), random.randint(0, 3))
+    g.euclid(sit2, random.randint(2, 5), random.randint(1, 5))
+
+    if random.random() > 0.5:
+        g.euclid(sit12, random.randint(1, 3), random.randint(0, 8))
+
+    random.shuffle(short)
+    for i in range(random.randint(0, len(short))):
+        n = random.randint(5, 12)
+        g.euclid(short[i], n, random.randint(0, n))
+
+    return g
+
+
+
 def gen_drum_8thNoteGrove():
     s = Seq((sit3, 0) * 4)  # High-hats
     s.merge(Seq((sit1, 0, 0, 0, sit2, 0, 0, 0)))   # Kick and Snare
@@ -208,8 +263,39 @@ def gen_drum_4toTheFloor():
     s *= 2
     yield s
 
-def gen_drum_shuffleGrove():
+def gen_drum_shuffleGroove():
+    # setNoteLen(1/8)
     s = Seq( (sit3, 0, sit3) * 2)   # HH
     s.merge(Seq( (sit1, 0, 0, sit2, 0, 0) ))    # K & S
     s *= 2
     yield s
+
+def gen_drum_discoGroove():
+    s = Seq( ( HH, 0, OHH, 0) * 2 )
+    s.merge( Note(K) + 3 * Sil() + Chord((K, S)) + 3 * Sil() )
+    s *= 2
+    yield s
+# t1.gen_func = gen_drum_shuffleGrove
+
+
+
+def gen_mf_mel1():
+    """ 22/11/2022
+    """
+
+    s = Seq()
+    s.length = 1
+    scale = Scale("major", "sol")
+    degree = 0
+    while True:
+        if random.random() > 0.8:
+            degree = random.randint(-5, 5)
+        degree += random.gauss(0, 4)
+        degree = min(5, max(-5, degree))
+        chord = scale.triad(degree, dur=1/8)
+        s.add(chord)
+        if random.random() > 0.8:
+            s.add(chord, head=0.87)
+        s.humanize()
+        yield s
+        s.clear()

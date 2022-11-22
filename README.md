@@ -7,6 +7,9 @@ https://bitbucket.org/laserllama/warpseq/src/master/
 Braid:
 https://braid.live/
 
+MusicPy
+https://github.com/Rainbow-Dreamer/musicpy
+
 ## Installation
 
  pip install rtmidi

@@ -4,9 +4,9 @@ import random
 import rtmidi
 import time
 
-from sequence import Note, Sil, Seq, Grid, getNotesFromString, noteToPitch
+from sequence import Note, Sil, Seq, Grid, getNotesFromString, noteToPitch, Scale
 from track import Track
-from generators import *
+import generators
 
 
 """
@@ -185,7 +185,7 @@ def test_track():
     assert len(mess) == 8
     mess = t.update(1.0)
     assert t.ended == True
-    t.init()
+    t.reset()
     assert t.ended == False
 
     print("test_track", "pass")
@@ -213,7 +213,7 @@ def test_generator():
             yield s
     
     t1.gen_func = gen
-    t1.init()
+    t1.reset()
     assert len(t1.seqs) == 0
     t1.update(0.01)
     assert t1._next_timer == 1.0
@@ -316,14 +316,10 @@ if __name__ == "__main__":
     test_merge()
 
     print("Generators")
-    next(gen_1())
-    next(gen_chords1())
-    next(gen_chords2())
-    next(gen_chords3())
-    next(gen_sweeps())
-    next(gen_sweeps_pattern("ABAB"))
-    next(gen_tintinnabuli())
-    next(gen_tintinnabuli2())
-    next(gen_tintinnabuli3())
-    next(gen_fratres())
+    for i in dir(generators):
+        if i.startswith("gen_"):
+            gen = getattr(generators, i)
+            print(i)
+            next(gen())
+
     print("All good")

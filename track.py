@@ -7,14 +7,15 @@ class Track():
     """
 
     def __init__(self, channel=1):
+        self.midiport = None
+        self.channel = channel
+        self.instrument = None
         self.gen_func =  None
         self.gen_args = None
         self.generator = None
-        self.channel = channel
         self.seqs = []
         self.loop = False
-        self.init()
-        self.midiport = None
+        self.reset()
     
 
     def add(self, sequence):
@@ -53,15 +54,18 @@ class Track():
                     new_seq = next(self.generator)
                     self._next_timer = new_seq.length
                     return new_seq.getMidiMessages(self.channel)
-                except:
-                    self.ended = True
+                except StopIteration:
+                    if self.loop:
+                        self.reset()
+                    else:
+                        self.ended = True
             elif self.loop:
-                self.init()
+                self.reset()
             else:
                 self.ended = True
             
 
-    def init(self):
+    def reset(self):
         self._next_timer = 0.0
         self.seq_i = 0
         self.ended = False
@@ -70,6 +74,7 @@ class Track():
                 self.generator = self.gen_func(*self.gen_args)
             else:
                 self.generator = self.gen_func()
+
 
 
 class Song():

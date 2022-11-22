@@ -3,12 +3,12 @@ import re
 
 
 
-note_length = 1/4
+NOTE_LENGTH = 1/4
 
 def setNoteLen(d):
-    global note_length
+    global NOTE_LENGTH
     """ Set default note length """
-    note_length = d
+    NOTE_LENGTH = d
 
 
 
@@ -111,13 +111,15 @@ class Scale():
         return (oct+oct_off)*12 + self.scale[deg]
     
 
-    def triad(self, degree=0):
-        """ Returns the notes in the nth degree triad """
-        notes = []
-        for chord_deg in [0, 2, 4]:
-            notes.append( self.getDegree(degree+chord_deg) )
+    def triad(self, degree=0, dur=1, vel=100, prob=1):
+        """ Returns a triad Chord of the nth degree in the scale """
+        # notes = []
+        # for chord_deg in [0, 2, 4]:
+        #     notes.append( self.getDegree(degree+chord_deg) )
 
-        return notes
+        return Chord([self.getDegree(degree+deg) for deg in [0,2,4]],
+                     dur=dur, vel=vel, prob=prob)
+        # return Chord(notes, dur=dur)
 
 
     def __str__(self):
@@ -131,7 +133,7 @@ class Scale():
 
 class Note():
 
-    def __init__(self, pitch, dur=1, vel=127, prob=1):
+    def __init__(self, pitch, dur=1, vel=100, prob=1):
         if type(pitch) == str:
             pitch = noteToPitch(pitch)
         elif type(pitch) != int:
@@ -139,7 +141,7 @@ class Note():
         elif type(pitch) == int and (pitch < 0 or pitch > 127):
             raise TypeError("Pitch must be an integer in range [0, 127], got {}".format(pitch))
         self.pitch = min(127, max(0, pitch))
-        self.dur = dur * note_length
+        self.dur = dur * NOTE_LENGTH
         self.vel = vel
         self.prob = prob
     
@@ -182,9 +184,9 @@ class Note():
     
     def __repr__(self):
         args = "{}".format(self.pitch)
-        if self.dur != note_length:
+        if self.dur != NOTE_LENGTH:
             args += ",{}".format(round(self.dur, 3))
-        if self.vel != 127:
+        if self.vel != 100:
             args += ",{}".format(self.vel)
         if self.prob != 1:
             args += ",{}".format(round(self.prob, 3))
@@ -196,7 +198,7 @@ class Sil():
     """ Silence """
     
     def __init__(self, dur=1):
-        self.dur = dur * note_length
+        self.dur = dur * NOTE_LENGTH
     
     def __add__(self, other):
         pass
@@ -214,6 +216,26 @@ class Sil():
     
     def __repr__(self):
         return "Sil({})".format(self.dur)
+
+
+class Chord():
+
+    def __init__(self, notes, dur=1, vel=100, prob=1):
+        self.notes = []
+        self.dur = dur * NOTE_LENGTH
+        self.prob = prob
+        if type(notes) == str:
+            for note in getNotesFromString(notes, dur, vel, prob):
+                self.notes.append(note)
+        elif hasattr(notes, '__iter__'):
+            for pitch in notes:
+                print(pitch, type(pitch))
+                self.notes.append(Note(pitch, dur, vel, prob))
+        else:
+            raise TypeError("argument `notes` must be a string or an iterable")
+    
+    def __repr__(self):
+        return "Chord({},{})".format(self.notes, self.dur, self.prob)
 
 
 
@@ -353,15 +375,21 @@ class Seq():
         """
         if head >= 0:
             self.head = head
-        if type(other) == Note:
+        if type(other) is Note:
             self.notes.append( (self.head, other) )
             self.head += other.dur
             self.length = max(self.length, self.head)
             # self._dirty = True
-        elif isinstance(other, Sil):
+        elif type(other) is Sil:
             self.head += other.dur
             self.length = max(self.length, self.head)
-        elif type(other) == type(self):
+        elif type(other) is Chord:
+            for note in other.notes:
+                self.notes.append( (self.head, note) )
+            self.head += other.dur
+            self.length = max(self.length, self.head)
+            self.notes.sort(key=lambda x: x[0])
+        elif type(other) is type(self):
             other = other.copy()
             for (t, note) in other.notes:
                 self.notes.append( (self.head + t, note) )
@@ -468,7 +496,7 @@ class Seq():
                 dev : float
                     Standard deviation
         """
-        if self.head + note_length > self.length:
+        if self.head + NOTE_LENGTH > self.length:
             return
         
         # self.notes.append( (self.head, Note(self.tonic, dur)) )
@@ -665,8 +693,8 @@ class Seq():
     
 
     def __add__(self, other):
-        if not type(other) in (type(self), Note, Sil):
-            raise TypeError("Can only add sequences together or notes to sequences")
+        if not type(other) in (type(self), Note, Sil, Chord):
+            raise TypeError("Only Note, Sil, Chord and other Seq can be added to sequences")
         
         new_seq = self.copy()
         new_seq.add(other)
@@ -713,6 +741,7 @@ class Seq():
 ####  ALIASES
 n = Note
 s = Sil
+c = Chord
 sq = Seq
 
 
@@ -759,7 +788,7 @@ def noteToPitch(name):
 
 
 
-def getNotesFromString(s, dur=1, vel=127):
+def getNotesFromString(s, dur=1, vel=127, prob=1):
     """ Return a list of notes and silences from a string """
     if type(s) != str:
         raise TypeError('Argument must be a string. Ex: "do re mi" or "60 62 64"')
@@ -768,7 +797,7 @@ def getNotesFromString(s, dur=1, vel=127):
     for t in s.split():
         pitch = noteToPitch(t)
         if 0 < pitch < 128:
-            notes.append( Note(pitch, dur, vel) )
+            notes.append( Note(pitch, dur, vel, prob) )
         elif pitch == 0:
             notes.append(Sil(dur))
 
