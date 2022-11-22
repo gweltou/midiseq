@@ -6,7 +6,7 @@ import mido
 import time
 import threading
 from sequence import *
-from track import Track
+from track import Track, Song
 from scales import *
 from generators import *
 from parameters import *
@@ -14,27 +14,32 @@ from parameters import *
 
 # DEBUG = True
 
-_tempo = 120
-_timeres = 0.01
 _metronome_click = True
-_metronome_div = 4          # Number of divisions in a metronome cycle
+_metronome_div = 4          # Number of quarter notes in a metronome cycle
 _metronome_notes = (75, 85) # Midi click notes
 _metronome_pre = 1          # Number of metronome cycle before recording
+_metronome_port = None      # Midi port for metronome
+
 _playing_thread = None
 _listening_thread = None
+_default_output = None
+_timeres = 0.01
+_tempo = 120
 _must_stop = False
 _armed = False              # Ready to record, waiting for the player thread to give the recording trigger
 _recording = False
 _recording_time = 0.0
 _record = None              # Where the recordings from midi in are stored
+
 _verbose = True
 _display = True
 _display_range = (36, 96)
 
 
+
 lock = threading.Lock()
 
-midiout = rtmidi.MidiOut()
+# midiout = rtmidi.MidiOut()
 midiin = rtmidi.MidiIn()
 t1 = Track()
 t2 = Track()
@@ -46,13 +51,22 @@ t4.channel = 4
 
 
 
-def panic(channel=1):
-    for i in range(16):
-        mess = rtmidi.MidiMessage.allNotesOff(i)
-        midiout.sendMessage(mess)
+# def panic(channel=1):
+#     for i in range(16):
+#         mess = rtmidi.MidiMessage.allNotesOff(i)
+#         _default_output.sendMessage(mess)
 
 
-def play(seq_or_track=None, channel=1, loop=False):    
+def play(seq_or_track=None, channel=1, loop=False):
+    """ Play a Song, a Track, a Sequence or a single Note
+
+        Parameters
+        ----------
+            channel (int):
+                Midi channel, between 1 and 16 (defaults to 1)
+            loop (boolean):
+                Loop playback
+    """   
     # Wait for other playing thread to stop
     global _playing_thread
     global _must_stop
@@ -83,44 +97,33 @@ def play(seq_or_track=None, channel=1, loop=False):
     _playing_thread.start()
 
 
-def stop():
-    global _must_stop
-    global _recording
-    global _armed
-    _must_stop = True
-    _recording = False
-    _armed = False
-    panic()
-
-
 def _play(track, channel=1, loop=False):
     global _armed
     global _recording
     global _recording_time
     print("++++ PLAYBACK Started")
-    midi_seq = []
-    t0 = time.time()
-    t_prev = 0.0
-    metronome_time = 0.0
-    metronome_click_count = 0
-    seq_i = 0
     track.init()
     track.loop = loop
+    midi_seq = []
     active_notes = set()
+    seq_time = 0.0
+    seq_i = 0
+    metronome_time = 0.0
+    metronome_click_count = 0
+    t0 = time.time()
+    t_prev = 0.0
     clicking = False
     click_note = None
     while True:
         if _must_stop:
             for note in active_notes:
-                # note_off = rtmidi.MidiMessage.noteOff(channel, note)
                 note_off = [0x80 + channel-1, note, 0]
-                midiout.sendMessage(note_off)
+                _default_output.send_message(note_off)
             break
         
-        if click_note: # Metronome tick
-            # note_off = rtmidi.MidiMessage.noteOff(10, click_note)
-            note_off = [0x89, note, 0]
-            midiout.sendMessage(note_off)
+        if click_note: # Metronome click
+            note_off = [0x89, click_note, 0]
+            _default_output.send_message(note_off)
             click_note = None
 
         t = time.time() - t0
@@ -129,6 +132,7 @@ def _play(track, channel=1, loop=False):
         t_prev = t
         assert 0 < timedelta < 99
         metronome_time += timedelta
+        seq_time += timedelta
         if _recording:
             _recording_time += timedelta
         
@@ -147,16 +151,15 @@ def _play(track, channel=1, loop=False):
             if clicking:
                 # note_on = rtmidi.MidiMessage.noteOn(10, p, 100)
                 note_on = [0x90, p, 100]
-                midiout.send_message(note_on)
+                _default_output.send_message(note_on)
                 click_note = p
             metronome_time -= 0.5
 
         if midi_seq and seq_i < len(midi_seq):
             new_noteon = False
-            t_norm = t * _tempo / 120
-            while t_norm >= midi_seq[seq_i][0]:
+            while seq_time >= midi_seq[seq_i][0]:
                 mess = midi_seq[seq_i][1]
-                midiout.send_message(mess)
+                _default_output.send_message(mess)
                 if mess[0]>>4 == 9: # note on
                     active_notes.add(mess[1])
                     new_noteon = True
@@ -172,47 +175,33 @@ def _play(track, channel=1, loop=False):
             
             if _display and new_noteon:
                 # Visualize notes
-                line = "{}[".format(_display_range[0])
-                for i in range(_display_range[0], _display_range[1]):
-                    if i in active_notes:
-                        line += 'x'
-                    else:
-                        line += '.'
-                print(line + ']{}'.format(_display_range[1]))
+                notes_str = ['.'] * (_display_range[1] - _display_range[0] + 1)
+                for i in active_notes:
+                    if i < _display_range[0]: notes_str[0] = '<'
+                    elif i > _display_range[1]: notes_str[-1] = '>'
+                    else: notes_str[i - _display_range[0]] = 'x'
+                notes_str = "".join(notes_str)
+                print(str(_display_range[0]) + '[' + notes_str + ']' + str(_display_range[1]))
 
         new_messages = track.update(timedelta)
         if new_messages:
             midi_seq = new_messages
-            t0 = time.time()
-            t = 0.0
-            t_prev = 0.0
+            seq_time = 0.0 #XXX Will introduce a time lag every time...
+            # t0 = time.time()
+            # t = 0.0
+            # t_prev = 0.0
             seq_i = 0
 
-        # if track.ended:
-        #     break
-
+        # Check CPU load
         t_frame = time.time() - t0 - t
         load = t_frame / _timeres
         if load > 0.2:
             print("++++ PLAYBACK [warning] load:", load, "%")
         time.sleep(min(0.2, max(0, _timeres)))
+
     print("++++ PLAYBACK Stopped")
     global _playing_thread
     _playing_thread = None
-
-
-def rec():
-    if not _listening_thread:
-        print("Listening thread is not started")
-        return
-    if not _playing_thread:
-        print("Call 'play()' to launch a metronome and start recording")
-
-    # global _recording
-    # _recording = True
-    global _armed
-    _armed = True
-    print("++++ RECORDING to global var '_record'")
 
 
 def listen(forward=True, forward_channel=1):
@@ -230,67 +219,82 @@ def listen(forward=True, forward_channel=1):
 
 
 def _listen(forward=True, forward_channel=1):
+    #XXX Doesn't take tempo into account...
     print("++++ LISTEN to midi all midi channels")
 
     active_notes = set()
     noteon_time = dict()
-    # recording = False
-    # recording_time = 0.0
-    # metronome_ticks = 0
-    # metronome_cumul = 0.0
     t0 = time.time()
-    t_prev = t0
-    # ticking = None
-    
+    # t_prev = t0    
     while True:
         if _must_stop:
             break
 
-        t = time.time()
-        t_prev = t
+        # t = time.time()
+        # t_prev = t
 
         new_noteon = False
-        mess = midiin.getMessage()
+        mess = midiin.get_message()
         while mess:
-            pitch = mess.getNoteNumber()
+            pitch = mess[1]
             if mess.isNoteOn():
                 active_notes.add(pitch)
                 noteon_time[pitch] = time.time()
                 new_noteon = True
                 if forward:
                     mess.setChannel(forward_channel)
-                    midiout.send_message(mess)
+                    _default_output.send_message(mess)
             elif mess.isNoteOff():
                 active_notes.discard(pitch)
                 if _recording:
                     if pitch in noteon_time:
-                        t = noteon_time[pitch] - t0
+                        # t = noteon_time[pitch] - t0
                         dur = time.time() - noteon_time[pitch]
                         _record.addNote(pitch, dur, head=_recording_time)
                 if forward:
                     mess.setChannel(forward_channel)
-                    midiout.send_message(mess)
+                    _default_output.send_message(mess)
             if _verbose and not _display:
                     print("Recieved", mess)
             mess = midiin.get_message()
         
-        if new_noteon and _display:
+        if _display and new_noteon:
             # Visualize notes
-            line = "{}[".format(_display_range[0])
-            for i in range(_display_range[0], _display_range[1]):
-                if i in active_notes:
-                    line += 'x'
-                else:
-                    line += '.'
-            line += ']{}'.format(_display_range[1])
-            if _recording:
-                line += "  (*)"
-            print(line)
+            notes_str = ['.'] * (_display_range[1] - _display_range[0] + 1)
+            for i in active_notes:
+                if i < _display_range[0]: notes_str[0] = '<'
+                elif i > _display_range[1]: notes_str[-1] = '>'
+                else: notes_str[i - _display_range[0]] = 'x'
+            notes_str = "".join(notes_str)
+            print(str(_display_range[0]) + '[' + notes_str + ']' + str(_display_range[1]))
         
         time.sleep(min(0.2, max(0, _timeres)))
+    
     print("++++ LISTEN Stopped")
     global _listening_thread
     _listening_thread = None
+
+
+def rec():
+    if not _listening_thread:
+        print("Listening thread is not started")
+        return
+    if not _playing_thread:
+        print("Call 'play()' to launch a metronome and start recording")
+
+    global _armed
+    _armed = True
+    print("++++ RECORDING to global var '_record'")
+
+
+def stop():
+    global _must_stop
+    global _recording
+    global _armed
+    _must_stop = True
+    _recording = False
+    _armed = False
+    #panic()
 
 
 def listInputs():
@@ -303,19 +307,23 @@ def getInputs():
 
 
 def listOutputs():
+    midiout = rtmidi.MidiOut()
     for i in range(midiout.get_port_count()):
         print( "[{}] {}".format(i, midiout.get_port_name(i)) )
 
 
 def getOutputs():
+    midiout = rtmidi.MidiOut()
     return [ (i, midiout.get_port_name(i)) for i in range(midiout.get_port_count()) ]
 
 
 def openOutput(port_n):
-    if midiout.is_port_open():
-        midiout.close_port()
+    midiout = rtmidi.MidiOut()
+    # if midiout.is_port_open():
+    #     midiout.close_port()
     print("Opening port {} [{}]".format(port_n, midiout.get_port_name(port_n)) )    
     midiout.open_port(port_n)
+    return midiout
 
 
 def openInput(port_n):
@@ -326,16 +334,40 @@ def openInput(port_n):
 
 
 def openFile(path, track=1):
-    """ Open a midi file with mido """
+    """
+        Open a midi file with mido
+
+        Inside a track, delta time is in midi ticks
+        A beat is the same as a 1/4 note == metronome click
+        ticks per beat == pulse per quarter note (PPQ)
+        midi tempo is in msec per beat
+        Rate of midi clock is 24 PPQ
+    """
 
     mid = MidiFile(path)
-    print("number of tracks:", len(mid.tracks))
+    print("Midi file type", mid.type)
     print("ticks per beat:", mid.ticks_per_beat)
+    print("number of tracks:", len(mid.tracks))
     print("track0:", mid.tracks[0])
-    print("track1 length:", mid.length)
-    divisor = mid.ticks_per_beat
+    m, s = divmod(mid.length, 60)
+    print("Song length: {}'{}".format(int(m), int(s)))
+    divisor = mid.ticks_per_beat * 2
+
+    song = Song()
 
     # Get tempo
+    # https://mido.readthedocs.io/en/latest/midi_files.html#tempo-and-beat-resolution
+    for mess in mid.tracks[0]:
+        if mess.is_meta and mess.type == "set_tempo":
+            tempo = round(60 * 1_000_000 / mess.tempo, 3)
+            print("Found tempo:", tempo)
+            song.tempo = tempo
+        if mess.is_meta and mess.type == "time_signature":
+            num = mess.numerator
+            den = 2 ** mess.denominator
+            song.time_signature = (num, den)
+            print("Found time signature: {}/{}".format(num, den))
+
 
     # Get first track:
     active_notes = dict()
@@ -343,61 +375,20 @@ def openFile(path, track=1):
     time = 0
 
     for msg in mid.tracks[track]:
+        if msg.is_meta:
+            print(msg)
+        
         time += msg.time
         if msg.type == 'note_on':
-            active_notes[msg.note] = time
-        elif msg.type == 'note_off':
-            t0 = active_notes[msg.note]
+            active_notes[msg.note] = (time, msg.velocity)
+        elif msg.type == 'note_off' and msg.note in active_notes:
+            t0, vel = active_notes.pop(msg.note)
             d = time - t0
-            n = Note(msg.note, d / divisor, msg.velocity)
-            s.add(n, t0 / divisor)
-    print(s.length)
-    # s *= 1/s.length
-    # s *= mid.length
+            n = Note(msg.note, d/divisor, vel)
+            s.add(n, head=t0/divisor)
+    song.tracks.append(s)
 
-    return s
-
-
-
-def test_mido():
-    note_on = mido.Message('note_on', channel=1, note=sit16, velocity=100)
-    note_off = mido.Message('note_off', channel=1, note=sit16)
-
-    port_name = mido.get_output_names()[0]
-    print("port name:", port_name)
-
-    po = mido.open_output(port_name)
-    po.send(note_on)
-    time.sleep(0.3)
-    po.send(note_off)
-
-    port_name = mido.get_output_names()[3]
-    print("port name:", port_name)
-    po2 = mido.open_output(port_name)
-    po2.send(note_on)
-    time.sleep(0.3)
-    po2.send(note_off)
-
-
-def test_rtmidi():
-    midiout.close_port()
-
-    p1 = rtmidi.MidiOut()
-    p1.open_port(0)
-
-    p2 = rtmidi.MidiOut()
-    p2.open_port(1)
-
-    note_on = [0x90, sit1, 100]
-    note_off = [0x80, sit1, 0]
-
-    p1.send_message(note_on)
-    time.sleep(0.3)
-    p1.send_message(note_off)
-
-    p2.send_message(note_on)
-    time.sleep(0.3)
-    p2.send_message(note_off)
+    return song
 
 
 
@@ -406,8 +397,19 @@ if __name__ == "__main__":
     global _metronome_notes
     _metronome_notes = (sit13, sit16)
     
+    output_ports = dict()
+    output_ports["default"] = openOutput(0)
+    for i, port_name in getOutputs():
+        if "microfreak" in port_name.lower():
+            output_ports["microfreak"] = openOutput(i)
+        if "fluid" in port_name.lower():
+            output_ports["fluid"] = openOutput(i)
 
-    listOutputs()
-    openOutput(len(getOutputs()) - 1)
+    _default_output = output_ports["default"]
+    _metronome_port = output_ports["default"]
+    if "arturia" in output_ports:
+        _default_output = output_ports["arturia"]
+    elif "fluid" in output_ports:
+        _default_output = output_ports["fluid"]
 
-    mid = MidiFile("ff9rock.mid")
+    mid = openFile("ff9rock.mid")

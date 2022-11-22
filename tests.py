@@ -1,17 +1,15 @@
 # !/usr/bin/env python3
 
-
 import random
 import rtmidi
 import time
 
-from miditool import listOutputs, openOutput, getOutputs, _play
-from sequence import Seq, Grid, getNotesFromString
+from sequence import Note, Sil, Seq, Grid, getNotesFromString, noteToPitch
 from track import Track
 from generators import *
 
 
-
+"""
 def ex_04(midiout):
     print(("EX 04: Generator with args"))
 
@@ -102,6 +100,7 @@ def ex_01(midiout):
     _play(p2)
     _play(p1)
     _play(p2)
+"""
 
 
 
@@ -118,52 +117,12 @@ def buildSeq():
     return s
 
 
-# def play(track_or_seq, channel=1):
-#     track = track_or_seq
-#     if type(track_or_seq) == Seq:
-#         track = Track(channel)
-#         track.add(track_or_seq)
 
-#     midi_seq = []
-#     t0 = time.time()
-#     t_prev = 0.0
-#     seq_i = 0
-#     track.init()
-#     while True:
-#         t = time.time() - t0
-#         timedelta = t - t_prev
-#         t_prev = t
-#         assert 0 < timedelta < 99
-
-#         if midi_seq and seq_i < len(midi_seq):
-#             while t >= midi_seq[seq_i][0]:
-#                 midiout.sendMessage(midi_seq[seq_i][1])
-#                 print("sending", midi_seq[seq_i][1])
-#                 seq_i += 1
-#                 if seq_i == len(midi_seq):
-#                     break
-        
-#         new_messages = track.update(timedelta)
-#         if new_messages:
-#             midi_seq = new_messages
-#             t0 = time.time()
-#             t = 0.0
-#             t_prev = 0.0
-#             seq_i = 0
-
-#         if track.ended:
-#             print("end")
-#             break
-
-#         time.sleep(0.01)
-
-
-
-
-def test_adding():
+def test_basic_opps():
     s = Seq()
     s.length = 1
-    s.fillRandom(dur=0.25)
+    s.fillRandom()
+    assert len(s) == 4
 
     assert len(s+s) == 2 * len(s)
     assert (s+s).length == 2 * s.length
@@ -174,7 +133,15 @@ def test_adding():
     s.addNotes("do si la sol fa mi2 re# c")
     assert len(s) == 8
 
-    print("test_adding", "pass")
+    s = Note(35) + Note(36) + Sil()
+    assert len(s) == 2
+    assert s.length == 0.75
+
+    s = 2*Note(30) + Sil() + Note(33)*3 + 2*Sil() + Note(39)
+    assert s.length == 2.25
+    assert len(s) == 6
+
+    print("test_basic_opps", "pass")
 
 
 def test_midimessage_truncate():
@@ -256,7 +223,7 @@ def test_generator():
 
 
 def test_getNotesFromString():
-    n = getNotesFromString("60 62 64", dur=0.5)
+    n = getNotesFromString("60 62 64", dur=2)
     assert len(n) == 3
     assert n[0].pitch == 60
     assert n[0].dur == 0.5
@@ -277,7 +244,7 @@ def test_addchord():
     s.clear()
     s.addChordNotes("do re mi fa# sol3")
     assert len(s) == 5
-    assert s.length == 1
+    assert s.length == 0.25
 
     print("test_addchord", "pass")
 
@@ -317,6 +284,7 @@ def test_scale():
 def test_crop():
     s = Seq()
     s.head = -0.35
+    s.length = 1
     s.fillRandom()
     s.add(Note(66))
     s.length = 1
@@ -326,9 +294,15 @@ def test_crop():
     assert len(s) == 5
 
 
+def test_merge():
+    s = Seq("50 50 0 50")
+    s.merge(Seq("0 60 60 0"))
+    assert len(s) == 5
+
+
 if __name__ == "__main__":
     
-    test_adding()
+    test_basic_opps()
     test_midimessage_truncate()
     test_gaussian_walk()
     test_track()
@@ -339,6 +313,7 @@ if __name__ == "__main__":
     test_grid()
     test_scale()
     test_crop()
+    test_merge()
 
     print("Generators")
     next(gen_1())
@@ -352,9 +327,3 @@ if __name__ == "__main__":
     next(gen_tintinnabuli3())
     next(gen_fratres())
     print("All good")
-
-
-    # listOutputs()
-    # openOutput(len(getOutputs()) - 1)    
-
-    # ex_04(midiout)

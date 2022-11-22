@@ -1,7 +1,5 @@
-#from rtmidi import Message
 import random
 import re
-from scales import noteToPitch, Scale
 
 
 
@@ -12,6 +10,122 @@ def setNoteLen(d):
     """ Set default note length """
     note_length = d
 
+
+
+scales = {
+    "chromatic":        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    "major":            [0, 2, 4, 5, 7, 9, 11],
+    "minor":            [0, 2, 3, 5, 7, 8, 10],
+    #"harmonic_minor":   [0, 2, 3, 5, 7, 8, 10],
+    "whole_tone":       [0, 2, 4, 6, 8, 10],
+    "pentatonic":       [0, 2, 4, 7, 9],
+    "pentatonic_minor": [0, 3, 5, 7, 10],
+    "japanese":         [0, 1, 5, 7, 8],
+    "zelda_ocarnia":    [0, 3, 7, 9],
+}
+
+modes = {
+    "ionian":       [0, 2, 4, 5, 7, 9, 11],
+    "dorian":       [0, 2, 3, 5, 7, 9, 10],
+    "phrygian":     [0, 1, 3, 5, 7, 8, 10],
+    "lydian":       [0, 2, 4, 6, 7, 9, 11],
+    "mixolidian":   [0, 2, 4, 5, 7, 9, 10],
+    "aeolian":      [0, 2, 3, 5, 7, 8, 10],
+    "locrian":      [0, 1, 3, 5, 6, 8, 10],
+}
+
+
+# def buildScale(scale, tonic):
+#     s = Seq()
+#     s.scale = Scale(scale, tonic)
+#     for i in range(len(s.scale) + 1):
+#         s.addNote(s.scale.getDegree(i))
+#     return s
+
+
+
+class Scale():
+
+    def __init__(self, scale="major", tonic=60):
+        if type(tonic) == int:
+            self.tonic = min(127, max(0, tonic))
+        elif type(tonic) == str:
+            self.tonic = noteToPitch(tonic)
+        else:
+            raise TypeError("rootnote must be a pitch number [0-127] or a valid note name")
+
+        if type(scale) == str:
+            if scale in scales:
+                self.scale = scales[scale]
+            elif scale in modes:
+                self.scale = modes[scale]
+            else:
+                raise TypeError('scale "{}" is unknown'.format(scale))
+        elif type(scale) == list:
+            self.scale = scale
+        
+    
+    def getClosest(self, note):
+        """ Find closest note in scale given a pitch.
+            Returns a corrected pitch, in range [0-127].
+            Lower pitch takes precedence.
+        """
+        if type(note) == int:
+            pitch = min(127, max(0, note))
+        elif type(note) == str:
+            pitch = noteToPitch(note)
+        else:
+            raise TypeError("Argument must be a pitch number [0-127] or a valid note name")
+
+        octave, degree = divmod(pitch, 12)
+        distances = [s-(degree-self.tonic)%12 for s in self.scale]
+        min_dist = 12
+        for d in distances:
+            if abs(d) < abs(min_dist):
+                min_dist = d
+        
+        return int(12 * octave + degree + min_dist)
+
+
+    def getDegree(self, n):
+        """ get the pitch of the n-th degree note in the current musical scale, relative to the rootnote
+        """
+        
+        nth_oct, nth_degree = divmod(round(n), len(self.scale))
+
+        if n >= 0:
+            distances = self.scale
+        else:  # Negative number
+            distances = [ d-12 for d in self.scale]
+            nth_oct += 1
+
+        return self.tonic + 12 * nth_oct + distances[nth_degree]
+
+
+    def getDegree2(self, pitch, n):
+        """ Returns pitch +/- n degrees in the current scale """
+        oct, semi = divmod(pitch, 12)
+        for i, s in enumerate(self.scale):
+            if s >= semi: break
+        oct_off, deg = divmod(round(n) + i, len(self.scale))
+        return (oct+oct_off)*12 + self.scale[deg]
+    
+
+    def triad(self, degree=0):
+        """ Returns the notes in the nth degree triad """
+        notes = []
+        for chord_deg in [0, 2, 4]:
+            notes.append( self.getDegree(degree+chord_deg) )
+
+        return notes
+
+
+    def __str__(self):
+        return "{} {}".format(self.scale, self.tonic)
+
+
+    def __len__(self):
+        return len(self.scale)
 
 
 
@@ -29,12 +143,24 @@ class Note():
         self.vel = vel
         self.prob = prob
     
+    
+    def copy(self):
+        n = Note(self.pitch, self.dur, self.vel, self.prob)
+        n.dur = self.dur # Overrides the note_length multiplier
+        return n
+
 
     def __add__(self, other):
-        s = Seq()
-        s.add(self)
-        s.add(other)
-        s.length = self.dur + other.dur
+        if type(other) in (Note, Sil):
+            s = Seq()
+            s.add(self)
+            s.add(other)
+        if isinstance(other, Seq):
+            s = other.copy()
+            old_head = other.head
+            s.shift(self.dur)
+            s.add(self, head=0)
+            s.head = old_head + self.dur
         return s
 
 
@@ -46,25 +172,48 @@ class Note():
             s.add(self.copy())
         s.length = self.dur * number
         return s
-        
-
-    def copy(self):
-        n = Note(self.pitch, self.dur, self.vel, self.prob)
-        n.dur = self.dur # Overrides the note_length multiplier
-        return n
+    
+    def __rmul__(self, number):
+        return self.__mul__(number)
 
 
     def __str__(self):
         return "{} {} {}".format(self.pitch, self.dur, self.vel)
     
     def __repr__(self):
-        args = "{},{}".format(self.pitch, self.dur)
+        args = "{}".format(self.pitch)
+        if self.dur != note_length:
+            args += ",{}".format(round(self.dur, 3))
         if self.vel != 127:
             args += ",{}".format(self.vel)
         if self.prob != 1:
-            args += ",{}".format(self.prob)
+            args += ",{}".format(round(self.prob, 3))
         return "Note({})".format(args)
 
+
+
+class Sil():
+    """ Silence """
+    
+    def __init__(self, dur=1):
+        self.dur = dur * note_length
+    
+    def __add__(self, other):
+        pass
+    
+    def __mul__(self, number):
+        if type(number) != int:
+            raise TypeError("Can only multiply a Silence by a integer number")
+        s = Seq()
+        for _ in range(number):
+            s.add(self)
+        return s
+    
+    def __rmul__(self, number):
+        return self.__mul__(number)
+    
+    def __repr__(self):
+        return "Sil({})".format(self.dur)
 
 
 
@@ -183,19 +332,15 @@ class Grid():
 
 
 
-
 class Seq():
-    """ 
-        (61, 15, 12, 0, (0, 0, 0, 54), 60)
+    """ Sequence of notes """
 
-    """
-
-    def __init__(self, notes=None, length=1):
+    def __init__(self, notes=None, length=0):
         self.head = 0.0     # Recording head
         self.length = length
         self.scale = None
         self.tonic = 60
-        self._dirty = True
+        # self._dirty = True
         self.notes = []
         if notes:
             self.addNotes(notes)
@@ -212,49 +357,45 @@ class Seq():
             self.notes.append( (self.head, other) )
             self.head += other.dur
             self.length = max(self.length, self.head)
-            self._dirty = True
+            # self._dirty = True
+        elif isinstance(other, Sil):
+            self.head += other.dur
+            self.length = max(self.length, self.head)
         elif type(other) == type(self):
             other = other.copy()
             for (t, note) in other.notes:
                 self.notes.append( (self.head + t, note) )
             self.head += other.length
             self.length = max(self.length, self.head)
-            self._dirty = True
+            # self._dirty = True
         else:
-            raise TypeError("Only notes or sequences can be added to a sequence")
+            raise TypeError("Only notes, silences or other sequences can be added to a sequence")
     
 
     def addNotes(self, notes, dur=1, vel=127):
-        """
-            Add many notes sequencially
+        """ Add many notes sequencially
 
             Parameters
             ----------
-                notes:
+                notes (str/list/tuple):
                     A list of note pitches, can be a string or an iterable
                     Ex: "c# d f2 do re mi" or (61, 62, 29, 60, 62, 64)
+                    If the value 0 is given in place of a pitch it will be treated as a silence
+
         """
         if type(notes) == str:
             for note in getNotesFromString(notes, dur, vel):
                 self.add(note)
         elif hasattr(notes, '__iter__'):
-            # notes = [Note(pitch, dur, vel) for pitch in notes]
             for pitch in notes:
                 if type(pitch) in (tuple, list):
                     self.addNotes(pitch, dur/len(pitch), vel)
                 elif pitch == 0:
-                    self.addSil(dur)
+                    self.add(Sil(dur))
                 else:
                     self.add(Note(pitch, dur, vel))
         else:
             raise TypeError("argument `notes` must be a string or an iterable")
-
-
-    def addSil(self, dur=0.25):
-        """ Add a silence to the sequence, growing its length if necessary.
-        """
-        self.head += dur
-        self.length = max(self.length, self.head)
 
 
     def addChordNotes(self, notes, dur=0.25, vel=127):
@@ -268,6 +409,14 @@ class Seq():
             if type(n) != Note:
                 n = Note(n, dur, vel)
             self.add(n, head)
+
+
+    def merge(self, other):
+        if type(other) != type(self):
+            raise TypeError("Can only merge other Sequences")
+        for data in other.notes:
+            self.notes.append(data)
+        self.notes.sort(key=lambda x: x[0])
 
 
     def fillSweep(self, from_pitch=42, to_pitch=64, num=4):
@@ -290,7 +439,7 @@ class Seq():
         self.head = self.length
 
 
-    def fillRandom(self, dur=0.25, min=36, max=90):
+    def fillRandom(self, min=36, max=90):
         """ Fill the sequence with random notes, starting from head position.
             The generated notes will be choosen from the current musical scale.
             This will not change the sequence's length.
@@ -300,10 +449,10 @@ class Seq():
                 pitch = self.scale.getClosest(random.randint(min, max))
             else:
                 pitch = random.randint(min, max)
-            self.add( Note(pitch, dur) )
+            self.add(Note(pitch))
     
 
-    def fillGaussianWalk(self, dur=0.25, dev=2):
+    def fillGaussianWalk(self, dev=2):
         """ 
             Fill the sequence with random notes, starting from head position.
             In a random walk, each new note can go up, down or keep the same pitch as the previous note.
@@ -319,12 +468,12 @@ class Seq():
                 dev : float
                     Standard deviation
         """
-        if self.head + dur > self.length:
+        if self.head + note_length > self.length:
             return
         
         # self.notes.append( (self.head, Note(self.tonic, dur)) )
         # self.head += dur
-        self.add(Note(self.tonic, dur))
+        self.add(Note(self.tonic))
         prev = 0
         while self.head + 0.001 < self.length:
             prev_degree = prev + round(random.gauss(0, dev))
@@ -335,7 +484,7 @@ class Seq():
             prev = prev_degree
             # self.notes.append( (self.head, Note(pitch, dur)) )
             # self.head += dur
-            self.add(Note(pitch, dur))
+            self.add(Note(pitch))
     
 
     def replacePitch(self, old, new):
@@ -378,9 +527,7 @@ class Seq():
 
 
     def expand(self, factor):
-        """ Expand or compress notes pitches around the mean value of the whole sequence
-        """
-        # XXX: Should it preserve scale ?
+        """ Expand or compress notes pitches around the mean value of the whole sequence """
         sum = 0
         for _, note in self.notes:
             sum += note.pitch
@@ -424,7 +571,7 @@ class Seq():
             note.vel = min(127, max(0, note.vel))
             new_notes.append( (t, note) )
         self.notes = new_notes
-        self._dirty = True
+        # self._dirty = True
 
 
     def clear(self):
@@ -439,8 +586,7 @@ class Seq():
         new.head = self.head
         new.tonic = self.tonic
         new.scale = self.scale
-        # new.transpose = self.transpose
-        new._dirty = self._dirty
+        # new._dirty = self._dirty
         return new
 
 
@@ -519,7 +665,7 @@ class Seq():
     
 
     def __add__(self, other):
-        if not type(other) in (type(self), Note):
+        if not type(other) in (type(self), Note, Sil):
             raise TypeError("Can only add sequences together or notes to sequences")
         
         new_seq = self.copy()
@@ -549,38 +695,81 @@ class Seq():
             copy.shift(other)
             return copy
 
-
     def __lshift__(self, other):
         if isinstance(other, float):
             return self.__rshift__(-other)
 
+    def __len__(self):
+        return len(self.notes)
 
     def __str__(self):
         return str(self.notes)
     
-    def __len__(self):
-        return len(self.notes)
+    def __repr__(self):
+        return str(self)    
 
 
 
 ####  ALIASES
-
 n = Note
-s = Seq
+s = Sil
+sq = Seq
+
 
 
 ###########
 ## UTILS ##
 ###########
 
+def noteToPitch(name):
+    """ Returns the midi pitch number given a spelled note """
+    
+    if type(name) != str:
+        raise TypeError('Argument must be a string. Ex: "do", "c#4", "60... ')
+
+    notes = {'c': 0,    'do': 0,
+             'c+': 1,   'c#': 1,    'do#': 1,
+             'd': 2,    're': 2,
+             'd+' : 3,  'd#' : 3,   're#': 3,
+             'e': 4,    'mi': 4,
+             'f': 5,    'fa': 5,
+             'f+': 6,   'f#': 6,    'fa#': 6,
+             'g': 7,    'sol': 7,
+             'g+': 8,   'g#': 8,    'sol#': 8,
+             'a': 9,    'la': 9,
+             'a+': 10,  'a#': 10,   'la#': 10,
+             'b': 11,   'si': 11,
+             }
+    p = re.compile(r'([a-z]+[#\-+]?)(\d?)' ,re.IGNORECASE)
+
+    name = name.strip()
+    if name.isdecimal():
+        return int(name)
+    
+    m = p.match(name)
+    if m:
+        tone = m.groups()[0]
+        if m.groups()[1] != '':
+            oct = int(m.groups()[1])
+            return 12*oct + notes[tone]
+        else:
+            return 12*5 + notes[tone] # Defaults to fifth octave ?
+    
+    return -1
+
+
 
 def getNotesFromString(s, dur=1, vel=127):
-    if type(s) != str: raise TypeError('Argument must be a string. Ex: "do re mi" or "60 62 64"')
+    """ Return a list of notes and silences from a string """
+    if type(s) != str:
+        raise TypeError('Argument must be a string. Ex: "do re mi" or "60 62 64"')
     
     notes = []
     for t in s.split():
         pitch = noteToPitch(t)
-        if pitch >= 0:
+        if 0 < pitch < 128:
             notes.append( Note(pitch, dur, vel) )
+        elif pitch == 0:
+            notes.append(Sil(dur))
 
     return notes

@@ -1,6 +1,5 @@
 import random
-from sequence import Note, Seq, Grid
-from scales import Scale, modes
+from sequence import Note, Sil, Seq, Grid, Scale, modes
 
 
 
@@ -56,7 +55,7 @@ def gen_chords1():
         for _ in range(4):
             s.addChordNotes(scl.triad([0, 1, 2, 3][d%3]))
             d+= 1
-        s.addSil()
+        s.add(Sil())
         s.stretch(2, False)# *= 2.0
         s.humanize(0.05)
         yield s
@@ -75,7 +74,7 @@ def gen_chords2():
         print(chord_prog)
         for i in chord_prog:
             s.addChordNotes(s.scale.triad(i))
-        s.addSil()
+        s.add(Sil())
         s.stretch(2, False)# *= 2.0
         d+= 1
         s.humanize(0.01)
@@ -185,13 +184,32 @@ def gen_fratres():
     
 
 def gen_japscale():
-    
     sc = Scale("japanese")
     while True:
         s=Seq() 
         s.scale=sc
         if random.random() < 0.1:
             sc.tonic = random.randrange(42, 54)
-        s.fillGaussianWalk(1, dev=2)
+        s.fillGaussianWalk(dev=2)
         s.stretch(16, False)
         yield s
+
+
+def gen_drum_8thNoteGrove():
+    s = Seq((sit3, 0) * 4)  # High-hats
+    s.merge(Seq((sit1, 0, 0, 0, sit2, 0, 0, 0)))   # Kick and Snare
+    s *= 2
+    yield s
+
+def gen_drum_4toTheFloor():
+    s = Seq((sit3, 0) * 4)  # High-hats
+    s.merge(Seq( (sit1, 0, 0, 0) * 2) )   # Kick and Snare
+    s.merge(Seq( (0, 0, 0, 0, sit2, 0, 0, 0) ))
+    s *= 2
+    yield s
+
+def gen_drum_shuffleGrove():
+    s = Seq( (sit3, 0, sit3) * 2)   # HH
+    s.merge(Seq( (sit1, 0, 0, sit2, 0, 0) ))    # K & S
+    s *= 2
+    yield s

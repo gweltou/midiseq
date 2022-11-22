@@ -14,6 +14,7 @@ class Track():
         self.seqs = []
         self.loop = False
         self.init()
+        self.midiport = None
     
 
     def add(self, sequence):
@@ -32,6 +33,8 @@ class Track():
 
     def update(self, timedelta):
         """ Returns MidiMessages when a new sequence just started """
+        #TODO: write a function "next" or something instead
+
         if self.ended:
             return
         self._next_timer -= timedelta
@@ -44,6 +47,7 @@ class Track():
             return self.seqs[i].getMidiMessages(self.channel)
 
         elif self.seq_i == len(self.seqs) and self._next_timer <= 0.0:
+            #TODO: allow looping for finished generators
             if self.generator:
                 try:
                     new_seq = next(self.generator)
@@ -66,3 +70,11 @@ class Track():
                 self.generator = self.gen_func(*self.gen_args)
             else:
                 self.generator = self.gen_func()
+
+
+class Song():
+
+    def __init__(self):
+        self.tempo = 120
+        self.time_signature = (4, 4)
+        self.tracks = []

@@ -52,6 +52,7 @@ Connecting devices together (sender to reciever)
 * Classe Chord, additions Note-Note (=Seq), Chord-Note (=Seq), Seq-Note...
 * Pouvoir associer une fonction de callback à la réception d'un contrôle midi
 * Listen() devrait n'avoir à s'appeler qu'une seule fois. Créer une fonction stop_listen().
+* Possibilité de jouer des notes d'une séquence se trouvent au delà de la taille (param length) de la séquence.
 
 
 ### Méthodes de la classe Seq
