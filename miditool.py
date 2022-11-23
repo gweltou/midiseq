@@ -6,7 +6,6 @@ import mido
 import time
 import threading
 from sequence import *
-from track import Track, Song
 from generators import *
 
 

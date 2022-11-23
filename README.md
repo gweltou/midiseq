@@ -10,7 +10,16 @@ https://braid.live/
 MusicPy
 https://github.com/Rainbow-Dreamer/musicpy
 
-## Installation
+
+## Features
+
+Polyphonic real-time midi sequencer in Python.
+With a strong emphasis on generative composition and live performances.
+Clear and short syntax while trying to remain as little esoteric as possible.
+Explicit docstrings and error messages.
+
+
+## Setup
 
  pip install rtmidi
  
@@ -19,7 +28,7 @@ Pour un environnement de programmation toute options :
  sudo apt install jupyter-qtconsole
 
 
-## Utilisation
+## Usage
 
 ### Le temps
 
@@ -32,6 +41,16 @@ s.length = 4
 ```
 
 L'unité temporelle est égale à une seconde.
+
+### Notes, Chords and Silences
+
+### Sequences
+
+### Generators
+
+### Tracks
+
+Whenever you want to chain sequences or generators, or if you want to play sequences in parallel on different midi channels you can use tracks.
 
 
 ## Alsa connect
@@ -71,5 +90,4 @@ Connecting devices together (sender to reciever)
 * spread
   étale les notes qui se chevauchent de façon à ce qu'il n'y ai pas 2 notes qui se jouent au même moment.
 * générateur de la suite de Recaman
-
-### Classe Grid
+* Fonction de selection des notes d'après critères. Possibilité d'appliquer une transfo quelconque sur la séléction de notes (transpose, vel, dur)

@@ -27,6 +27,12 @@ HH = sit3
 OHH = sit4
 
 
+####  ALIASES
+n = Note
+s = Sil
+c = Chord
+sq = Seq
+
 
 
 def gen_1():
@@ -165,7 +171,7 @@ def gen_tintinnabuli2():
         pitch_low = s.tonic - 12
         pitch_low = s.scale.getDegree2(pitch_low, random.choice([0, 0, -len(s.scale), 1, 1, 2, 2]))
         pitch_high = s.scale.getDegree(random.randrange(len(s.scale)))
-        s.addChordNotes((pitch_low, pitch_high))
+        s.add(Chord((pitch_low, pitch_high)))
         s.length = note_dur + abs(random.gauss(0, 3))
         yield s
 
@@ -179,7 +185,7 @@ def gen_tintinnabuli3():
         pitch_low = s.tonic - 12
         pitch_low = s.scale.getDegree2(pitch_low, random.choice([0, 0, -len(s.scale), 2, 2, 4, 4]))
         pitch_high = s.scale.getDegree(random.randrange(len(s.scale)))
-        s.addChordNotes((pitch_low, pitch_high))
+        s.add(Chord((pitch_low, pitch_high)))
         s.length = note_dur + abs(random.gauss(0, 3))
         s.humanize(0.02)
         yield s
@@ -194,15 +200,15 @@ def gen_fratres():
     while True:
         s=Seq()
         pitches = ( main.getDegree(0), main.getDegree(2)+24, minor.getClosest(main.getDegree(0)+9) )
-        s.addChordNotes(pitches, 0.5)
+        s.add(Chord(pitches), 0.5)
         for i in range(1, d):
             pitches = ( main.getDegree(i), main.getDegree(i+2)+24, minor.getClosest(main.getDegree(i)+9) )
-            s.addChordNotes(pitches)
+            s.add(Chord(pitches))
         for i in range(-d+1, 0):
             pitches = ( main.getDegree(i), main.getDegree(i+2)+24, minor.getClosest(main.getDegree(i)+9) )
-            s.addChordNotes(pitches)
+            s.add(Chord(pitches))
         pitches = ( main.getDegree(0), main.getDegree(2)+24, minor.getClosest(main.getDegree(0)+9) )
-        s.addChordNotes(pitches, 0.5)
+        s.add(Chord(pitches), 0.5)
         d += 1
         s.stretch(4.0)
         s.humanize()
@@ -264,7 +270,6 @@ def gen_drum_4toTheFloor():
     yield s
 
 def gen_drum_shuffleGroove():
-    # setNoteLen(1/8)
     s = Seq( (sit3, 0, sit3) * 2)   # HH
     s.merge(Seq( (sit1, 0, 0, sit2, 0, 0) ))    # K & S
     s *= 2
@@ -275,8 +280,36 @@ def gen_drum_discoGroove():
     s.merge( Note(K) + 3 * Sil() + Chord((K, S)) + 3 * Sil() )
     s *= 2
     yield s
+
+def gen_drum_halfTimeShuffle():
+    s = Seq((HH,), length=1)
+    s.add(HH, 0.72)
+    s *= 4
+    s.add(Note(K), 0)
+    s.add(Note(S), 1.27)
+    s.add(Note(S), 2)
+    s.add(Note(S), 3.27)
+    yield s
 # t1.gen_func = gen_drum_shuffleGrove
 
+def gen_drum_funkyDrummer():
+    s =     Seq((K, 0, K, 0, 0, 0, K, 0, 0, 0, K, 0, 0, K, 0, 0))
+    s.merge(Seq((0, 0, 0, 0, S, 0, 0, S, 0, S, 0, S, S, 0, 0, S)))
+    s.merge(Seq((HH,HH,HH,HH,HH,HH,HH,0, HH,HH,HH,HH,HH,0, HH,HH)))
+    s.merge(Seq((0, 0, 0, 0, 0, 0, 0,OHH,0, 0, 0, 0, 0,OHH,0, 0)))
+    yield s
+
+def gen_drum_drunkenDrummer():
+    s =     Seq((K, 0, K, 0, 0, 0, K, 0, 0, 0, K, 0, 0, K, 0, 0))
+    s.humanize(0.8, 4)
+    snares = Seq((0, 0, 0, 0, S, 0, 0, S, 0, S, 0, S, S, 0, 0, S))
+    snares.humanize(0.8, 4)
+    s.merge(snares)
+    hh = Seq((HH,HH,HH,HH,HH,HH,HH,0, HH,HH,HH,HH,HH,0, HH,HH))
+    hh.humanize(veldev=20)
+    s.merge(hh)
+    s.merge(Seq((0, 0, 0, 0, 0, 0, 0,OHH,0, 0, 0, 0, 0,OHH,0, 0)))
+    yield s
 
 
 def gen_mf_mel1():

@@ -235,7 +235,7 @@ class Chord():
             raise TypeError("argument `notes` must be a string or an iterable")
     
     def __repr__(self):
-        return "Chord({},{})".format(self.notes, self.dur, self.prob)
+        return "Chord({},{},{})".format(self.notes, self.dur, self.prob)
 
 
 
@@ -397,7 +397,7 @@ class Seq():
             self.length = max(self.length, self.head)
             # self._dirty = True
         else:
-            raise TypeError("Only notes, silences or other sequences can be added to a sequence")
+            raise TypeError("Only Notes, Silences, Chords or other Sequences can be added to a Sequence")
     
 
     def addNotes(self, notes, dur=1, vel=127):
@@ -426,17 +426,17 @@ class Seq():
             raise TypeError("argument `notes` must be a string or an iterable")
 
 
-    def addChordNotes(self, notes, dur=0.25, vel=127):
-        """ Add a chord with the list of given notes/pitches """
-        if type(notes) == str:
-            notes = getNotesFromString(notes)
-        elif hasattr(notes, '__iter__'):
-            notes = [Note(pitch, dur, vel) for pitch in notes]
-        head = self.head
-        for n in notes:
-            if type(n) != Note:
-                n = Note(n, dur, vel)
-            self.add(n, head)
+    # def addChordNotes(self, notes, dur=0.25, vel=127):
+    #     """ Add a chord with the list of given notes/pitches """
+    #     if type(notes) == str:
+    #         notes = getNotesFromString(notes)
+    #     elif hasattr(notes, '__iter__'):
+    #         notes = [Note(pitch, dur, vel) for pitch in notes]
+    #     head = self.head
+    #     for n in notes:
+    #         if type(n) != Note:
+    #             n = Note(n, dur, vel)
+    #         self.add(n, head)
 
 
     def merge(self, other):
@@ -590,7 +590,15 @@ class Seq():
     
 
     def humanize(self, tfactor=0.02, veldev=10):
-        """ Randomly changes the notes time and duration """
+        """ Randomly changes the notes time and duration
+
+            Parameters
+            ----------
+                tfactor (0.0 < float < 1.0):
+                    variation en note temporal position
+                veldev (float):
+                    velocity standard deviation
+        """
         new_notes = []
         for t, note in self.notes:
             t = t + 2 * (random.random()-0.5) * tfactor
@@ -738,11 +746,89 @@ class Seq():
 
 
 
-####  ALIASES
-n = Note
-s = Sil
-c = Chord
-sq = Seq
+class Track():
+    """ Track where you can add Sequence.
+        You can had a silence by adding an empty Sequence with a length.
+        You can define a generator callback function by modifing the generator property.
+    """
+
+    def __init__(self, channel=1):
+        self.midiport = None
+        self.channel = channel
+        self.instrument = None
+        self.gen_func =  None
+        self.gen_args = None
+        self.generator = None
+        self.seqs = []
+        self.loop = False
+        self.reset()
+    
+
+    def add(self, sequence):
+        self.seqs.append(sequence)
+        self.ended = False
+    
+
+    def clear(self):
+        self.seqs.clear()
+        self.seq_i = 0
+        self.ended = True
+        self.gen_func = None
+        self.generator = None
+        self.gen_args = None
+    
+
+    def update(self, timedelta):
+        """ Returns MidiMessages when a new sequence just started """
+        #TODO: write a function "next" or something instead
+
+        if self.ended:
+            return
+        self._next_timer -= timedelta
+
+        if self.seq_i < len(self.seqs) and self._next_timer <= 0.0:
+            # Send next sequence
+            i = self.seq_i
+            self.seq_i += 1
+            self._next_timer = self.seqs[i].length
+            return self.seqs[i].getMidiMessages(self.channel)
+
+        elif self.seq_i == len(self.seqs) and self._next_timer <= 0.0:
+            #TODO: allow looping for finished generators
+            if self.generator:
+                try:
+                    new_seq = next(self.generator)
+                    self._next_timer = new_seq.length
+                    return new_seq.getMidiMessages(self.channel)
+                except StopIteration:
+                    if self.loop:
+                        self.reset()
+                    else:
+                        self.ended = True
+            elif self.loop:
+                self.reset()
+            else:
+                self.ended = True
+            
+
+    def reset(self):
+        self._next_timer = 0.0
+        self.seq_i = 0
+        self.ended = False
+        if callable(self.gen_func):
+            if self.gen_args:
+                self.generator = self.gen_func(*self.gen_args)
+            else:
+                self.generator = self.gen_func()
+
+
+
+class Song():
+
+    def __init__(self):
+        self.tempo = 120
+        self.time_signature = (4, 4)
+        self.tracks = []
 
 
 
