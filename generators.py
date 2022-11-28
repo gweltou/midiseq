@@ -1,5 +1,5 @@
 import random
-from sequence import Note, Sil, Seq, Grid, Scale, modes, Chord
+from sequence import Note, Sil, Seq, Scale, modes, Chord
 
 
 # Sitala drum sampler mapping to midi pitch
@@ -28,22 +28,12 @@ OHH = sit4
 
 
 ####  ALIASES
-n = Note
-s = Sil
-c = Chord
-sq = Seq
+# n = Note
+# s = Sil
+# c = Chord
+# sq = Seq
 
 
-
-def gen_1():
-    for _ in range(4):
-        s = Seq()
-        s.length = 1
-        s.scale = Scale("dorian", "g")
-        s.fillGaussianWalk()
-        s.transpose(-12)
-        s.stretch(2.0)
-        yield s
 
  
 def gen_sweeps(scale="minor", tonic="a"):
@@ -130,19 +120,19 @@ def gen_chords3():
         yield s
 
 
-def gen_drums1():
-    g = Grid()
-    g.length = 1.5
-    g.euclid(35, 2)     # Kick
-    g.euclid(38, 2, 4)  # Snare
-    # g.euclid(42, 11, 1) # Hihats
-    g2 = Grid(8)
-    g2.length = 0.5
-    g2.euclid(35, 1)
-    g2.euclid(39, 1, 4)
-    g2.euclid(42, 6, 1)
-    while True:
-        yield g.toSeq() + g2.toSeq()
+# def gen_drums1():
+#     g = Grid()
+#     g.length = 1.5
+#     g.euclid(35, 2)     # Kick
+#     g.euclid(38, 2, 4)  # Snare
+#     # g.euclid(42, 11, 1) # Hihats
+#     g2 = Grid(8)
+#     g2.length = 0.5
+#     g2.euclid(35, 1)
+#     g2.euclid(39, 1, 4)
+#     g2.euclid(42, 6, 1)
+#     while True:
+#         yield g.toSeq() + g2.toSeq()
 
 
 
@@ -169,7 +159,7 @@ def gen_tintinnabuli2():
     while True:
         s.clear()
         pitch_low = s.tonic - 12
-        pitch_low = s.scale.getDegree2(pitch_low, random.choice([0, 0, -len(s.scale), 1, 1, 2, 2]))
+        pitch_low = s.scale.getDegreeFrom(pitch_low, random.choice([0, 0, -len(s.scale), 1, 1, 2, 2]))
         pitch_high = s.scale.getDegree(random.randrange(len(s.scale)))
         s.add(Chord((pitch_low, pitch_high)))
         s.length = note_dur + abs(random.gauss(0, 3))
@@ -183,7 +173,7 @@ def gen_tintinnabuli3():
     while True:
         s.clear()
         pitch_low = s.tonic - 12
-        pitch_low = s.scale.getDegree2(pitch_low, random.choice([0, 0, -len(s.scale), 2, 2, 4, 4]))
+        pitch_low = s.scale.getDegreeFrom(pitch_low, random.choice([0, 0, -len(s.scale), 2, 2, 4, 4]))
         pitch_high = s.scale.getDegree(random.randrange(len(s.scale)))
         s.add(Chord((pitch_low, pitch_high)))
         s.length = note_dur + abs(random.gauss(0, 3))
@@ -227,32 +217,32 @@ def gen_japscale():
         yield s
 
 
-def loop1():
-    g = Grid()
-    g.length = 2
-    g.euclid(sit3, 12, 1)
-    g.euclid(sit2, 4, 4)
-    g.euclid(sit1, 2, 0)
-    return g
+# def loop1():
+#     g = Grid()
+#     g.length = 2
+#     g.euclid(sit3, 12, 1)
+#     g.euclid(sit2, 4, 4)
+#     g.euclid(sit1, 2, 0)
+#     return g
 
 
-def loop_euclidian_sitala():
-    short = [sit3, sit4, sit14, sit16]
-    g = Grid()
-    g.length = 4
+# def loop_euclidian_sitala():
+#     short = [sit3, sit4, sit14, sit16]
+#     g = Grid()
+#     g.length = 4
 
-    g.euclid(sit1, random.randint(2, 5), random.randint(0, 3))
-    g.euclid(sit2, random.randint(2, 5), random.randint(1, 5))
+#     g.euclid(sit1, random.randint(2, 5), random.randint(0, 3))
+#     g.euclid(sit2, random.randint(2, 5), random.randint(1, 5))
 
-    if random.random() > 0.5:
-        g.euclid(sit12, random.randint(1, 3), random.randint(0, 8))
+#     if random.random() > 0.5:
+#         g.euclid(sit12, random.randint(1, 3), random.randint(0, 8))
 
-    random.shuffle(short)
-    for i in range(random.randint(0, len(short))):
-        n = random.randint(5, 12)
-        g.euclid(short[i], n, random.randint(0, n))
+#     random.shuffle(short)
+#     for i in range(random.randint(0, len(short))):
+#         n = random.randint(5, 12)
+#         g.euclid(short[i], n, random.randint(0, n))
 
-    return g
+#     return g
 
 
 
@@ -283,7 +273,7 @@ def gen_drum_discoGroove():
 
 def gen_drum_halfTimeShuffle():
     s = Seq((HH,), length=1)
-    s.add(HH, 0.72)
+    s.add(Note(HH), 0.72)
     s *= 4
     s.add(Note(K), 0)
     s.add(Note(S), 1.27)
@@ -293,10 +283,8 @@ def gen_drum_halfTimeShuffle():
 # t1.gen_func = gen_drum_shuffleGrove
 
 def gen_drum_funkyDrummer():
-    s =     Seq((K, 0, K, 0, 0, 0, K, 0, 0, 0, K, 0, 0, K, 0, 0))
-    s.merge(Seq((0, 0, 0, 0, S, 0, 0, S, 0, S, 0, S, S, 0, 0, S)))
-    s.merge(Seq((HH,HH,HH,HH,HH,HH,HH,0, HH,HH,HH,HH,HH,0, HH,HH)))
-    s.merge(Seq((0, 0, 0, 0, 0, 0, 0,OHH,0, 0, 0, 0, 0,OHH,0, 0)))
+    s =     Seq((K, 0, K, 0, S, 0, K, S, 0, S, K, S, S, K, 0, S))
+    s.merge(Seq((HH,HH,HH,HH,HH,HH,HH,OHH,HH,HH,HH,HH,HH,OHH,HH,HH)))
     yield s
 
 def gen_drum_drunkenDrummer():

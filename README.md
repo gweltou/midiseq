@@ -79,8 +79,14 @@ Connecting devices together (sender to reciever)
 
 ### Méthodes de la classe Seq
 
-* shift(n)
+* shift(n, loop=False)
   décallage des notes
+* map(other:Seq)
+  Calque une mélodie sur un rythme
+* monophy()
+  supprime la polyphonie
+* flatten()
+  Supprime tous les silences et mets toutes les notes à la suite, sans chevauchement
 * joinNotes()
     Inverse de splitNotes
     Combine les séries de mêmes notes consécutives sans silences

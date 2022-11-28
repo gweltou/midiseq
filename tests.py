@@ -4,8 +4,7 @@ import random
 import rtmidi
 import time
 
-from sequence import Note, Sil, Seq, Grid, getNotesFromString, noteToPitch, Scale
-from track import Track
+from sequence import Note, Sil, Seq, Grid, getNotesFromString, noteToPitch, Scale, Track
 import generators
 
 
@@ -238,15 +237,15 @@ def test_getNotesFromString():
 
 
 def test_addchord():
-    s = Seq()
-    s.addChordNotes((48, 50, 64,))
-    assert len(s) == 3
-    s.clear()
-    s.addChordNotes("do re mi fa# sol3")
-    assert len(s) == 5
-    assert s.length == 0.25
+    # s = Seq()
+    # s.addChordNotes((48, 50, 64,))
+    # assert len(s) == 3
+    # s.clear()
+    # s.addChordNotes("do re mi fa# sol3")
+    # assert len(s) == 5
+    # assert s.length == 0.25
 
-    print("test_addchord", "pass")
+    print("test_addchord", "deprecated")
 
 
 def test_grid():
@@ -300,6 +299,15 @@ def test_merge():
     assert len(s) == 5
 
 
+def test_select():
+    print("test_select")
+    s = Seq("8 9 10 11 12 13")
+    selection = s.select(lambda x: x.pitch <= 10)
+    assert len(selection) == 3
+    
+    print(selection)
+
+
 if __name__ == "__main__":
     
     test_basic_opps()
@@ -314,6 +322,7 @@ if __name__ == "__main__":
     test_scale()
     test_crop()
     test_merge()
+    test_select()
 
     print("Generators")
     for i in dir(generators):

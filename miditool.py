@@ -7,21 +7,21 @@ import time
 import threading
 from sequence import *
 from generators import *
+import env
 
 
 # DEBUG = True
 
+
 _metronome_click = True
 _metronome_div = 4          # Number of quarter notes in a metronome cycle
-_metronome_notes = (75, 85) # Midi click notes
 _metronome_pre = 1          # Number of metronome cycle before recording
 _metronome_port = None      # Midi port for metronome
 
 _playing_thread = None
 _listening_thread = None
-_default_output = None
 _timeres = 0.01
-_tempo = 120
+# _tempo = 120
 _must_stop = False
 _armed = False              # Ready to record, waiting for the player thread to give the recording trigger
 _recording = False
@@ -78,7 +78,7 @@ def play(what=None, channel=1, loop=False):
             s.length=0
             s.add(what)
             what = s
-        if type(what) in (Seq, Grid):
+        if type(what) is Seq:
             track = Track(channel)
             track.add(what)
         _playing_thread = threading.Thread(target=_play, args=(track, channel, loop), daemon=True)
@@ -115,17 +115,17 @@ def _play(track, channel=1, loop=False):
         if _must_stop:
             for note in active_notes:
                 note_off = [0x80 + channel-1, note, 0]
-                _default_output.send_message(note_off)
+                env.DEFAULT_OUTPUT.send_message(note_off)
             break
         
         if click_note: # Metronome click
             note_off = [0x89, click_note, 0]
-            _default_output.send_message(note_off)
+            env.DEFAULT_OUTPUT.send_message(note_off)
             click_note = None
 
         t = time.time() - t0
         timedelta = t - t_prev
-        timedelta *= _tempo / 120   # A time unit (Seq.length=1) is 1 second at 120bpm
+        timedelta *= env.TEMPO / 120   # A time unit (Seq.length=1) is 1 second at 120bpm
         t_prev = t
         assert 0 < timedelta < 99
         metronome_time += timedelta
@@ -136,7 +136,7 @@ def _play(track, channel=1, loop=False):
         if metronome_time > 0.5:
             metronome_click_count += 1
             if metronome_click_count % _metronome_div == 0:
-                p = _metronome_notes[0]
+                p = env.METRONOME_NOTES[0]
                 if _armed:
                     print("rec starting")
                     _recording = True
@@ -144,11 +144,11 @@ def _play(track, channel=1, loop=False):
                     _armed = False
                     clicking = _metronome_click
             else:
-                p = _metronome_notes[1]
+                p = env.METRONOME_NOTES[1]
             if clicking:
                 # note_on = rtmidi.MidiMessage.noteOn(10, p, 100)
                 note_on = [0x90, p, 100]
-                _default_output.send_message(note_on)
+                env.DEFAULT_OUTPUT.send_message(note_on)
                 click_note = p
             metronome_time -= 0.5
 
@@ -156,7 +156,7 @@ def _play(track, channel=1, loop=False):
             new_noteon = False
             while seq_time >= midi_seq[seq_i][0]:
                 mess = midi_seq[seq_i][1]
-                _default_output.send_message(mess)
+                env.DEFAULT_OUTPUT.send_message(mess)
                 if mess[0]>>4 == 9: # note on
                     active_notes.add(mess[1])
                     new_noteon = True
@@ -240,7 +240,7 @@ def _listen(forward=True, forward_channel=1):
                 new_noteon = True
                 if forward:
                     mess.setChannel(forward_channel)
-                    _default_output.send_message(mess)
+                    env.DEFAULT_OUTPUT.send_message(mess)
             elif mess.isNoteOff():
                 active_notes.discard(pitch)
                 if _recording:
@@ -250,7 +250,7 @@ def _listen(forward=True, forward_channel=1):
                         _record.addNote(pitch, dur, head=_recording_time)
                 if forward:
                     mess.setChannel(forward_channel)
-                    _default_output.send_message(mess)
+                    env.DEFAULT_OUTPUT.send_message(mess)
             if _verbose and not _display:
                     print("Recieved", mess)
             mess = midiin.get_message()
@@ -389,24 +389,24 @@ def openFile(path, track=1):
 
 
 
-if __name__ == "__main__":
-    # midiout = rtmidi.RtMidiOut()
-    global _metronome_notes
-    _metronome_notes = (sit13, sit16)
+
+env.METRONOME_NOTES = (sit13, sit16)
+setScale("chromatic")
     
-    midi_out = dict()
-    midi_out["default"] = openOutput(0)
-    for i, port_name in getOutputs():
-        if "microfreak" in port_name.lower():
-            midi_out["microfreak"] = openOutput(i)
-        if "fluid" in port_name.lower():
-            midi_out["fluid"] = openOutput(i)
+midi_out = dict()
+midi_out["default"] = openOutput(0)
+for i, port_name in getOutputs():
+    if "microfreak" in port_name.lower():
+        midi_out["microfreak"] = openOutput(i)
+        midi_out["mf"] = midi_out["microfreak"]
+    if "fluid" in port_name.lower():
+        midi_out["fluid"] = openOutput(i)
+        midi_out["fl"] = midi_out["fluid"]
 
-    _default_output = midi_out["default"]
-    _metronome_port = midi_out["default"]
-    if "arturia" in midi_out:
-        _default_output = midi_out["arturia"]
-    elif "fluid" in midi_out:
-        _default_output = midi_out["fluid"]
 
-    # midi_file = openFile("ff9rock.mid")
+env.DEFAULT_OUTPUT = midi_out["default"]
+_metronome_port = midi_out["default"]
+if "microfreak" in midi_out:
+    env.DEFAULT_OUTPUT = midi_out["microfreak"]
+elif "fluid" in midi_out:
+    env.DEFAULT_OUTPUT = midi_out["fluid"]

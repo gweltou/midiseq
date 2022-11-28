@@ -1,14 +1,6 @@
 import random
 import re
-
-
-
-NOTE_LENGTH = 1/4
-
-def setNoteLen(d):
-    global NOTE_LENGTH
-    """ Set default note length """
-    NOTE_LENGTH = d
+import env
 
 
 
@@ -16,7 +8,8 @@ scales = {
     "chromatic":        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     "major":            [0, 2, 4, 5, 7, 9, 11],
     "minor":            [0, 2, 3, 5, 7, 8, 10],
-    #"harmonic_minor":   [0, 2, 3, 5, 7, 8, 10],
+    "harmonic_minor":   [0, 2, 3, 5, 7, 8, 11],
+    # what about the melodic minor (ascending and descending) ?
     "whole_tone":       [0, 2, 4, 6, 8, 10],
     "pentatonic":       [0, 2, 4, 7, 9],
     "pentatonic_minor": [0, 3, 5, 7, 10],
@@ -42,6 +35,16 @@ modes = {
 #         s.addNote(s.scale.getDegree(i))
 #     return s
 
+
+def setNoteLen(d):
+    """ Set default note length """
+    env.NOTE_LENGTH = d
+
+def setScale(scale="chromatic", tonic="c"):
+    env.SCALE = Scale(scale, tonic)
+
+def setTempo(bpm):
+    env.TEMPO = bpm
 
 
 class Scale():
@@ -89,6 +92,7 @@ class Scale():
 
     def getDegree(self, n):
         """ get the pitch of the n-th degree note in the current musical scale, relative to the rootnote
+            Beware : degrees start at 0. The fifth degree would be n=4.
         """
         
         nth_oct, nth_degree = divmod(round(n), len(self.scale))
@@ -102,7 +106,7 @@ class Scale():
         return self.tonic + 12 * nth_oct + distances[nth_degree]
 
 
-    def getDegree2(self, pitch, n):
+    def getDegreeFrom(self, pitch, n):
         """ Returns pitch +/- n degrees in the current scale """
         oct, semi = divmod(pitch, 12)
         for i, s in enumerate(self.scale):
@@ -141,7 +145,7 @@ class Note():
         elif type(pitch) == int and (pitch < 0 or pitch > 127):
             raise TypeError("Pitch must be an integer in range [0, 127], got {}".format(pitch))
         self.pitch = min(127, max(0, pitch))
-        self.dur = dur * NOTE_LENGTH
+        self.dur = dur * env.NOTE_LENGTH
         self.vel = vel
         self.prob = prob
     
@@ -184,7 +188,7 @@ class Note():
     
     def __repr__(self):
         args = "{}".format(self.pitch)
-        if self.dur != NOTE_LENGTH:
+        if self.dur != env.NOTE_LENGTH:
             args += ",{}".format(round(self.dur, 3))
         if self.vel != 100:
             args += ",{}".format(self.vel)
@@ -198,7 +202,7 @@ class Sil():
     """ Silence """
     
     def __init__(self, dur=1):
-        self.dur = dur * NOTE_LENGTH
+        self.dur = dur * env.NOTE_LENGTH
     
     def __add__(self, other):
         pass
@@ -222,14 +226,13 @@ class Chord():
 
     def __init__(self, notes, dur=1, vel=100, prob=1):
         self.notes = []
-        self.dur = dur * NOTE_LENGTH
+        self.dur = dur * env.NOTE_LENGTH
         self.prob = prob
         if type(notes) == str:
             for note in getNotesFromString(notes, dur, vel, prob):
                 self.notes.append(note)
         elif hasattr(notes, '__iter__'):
             for pitch in notes:
-                print(pitch, type(pitch))
                 self.notes.append(Note(pitch, dur, vel, prob))
         else:
             raise TypeError("argument `notes` must be a string or an iterable")
@@ -239,118 +242,118 @@ class Chord():
 
 
 
-class Grid():
-    """
-        General Midi drums note mapping :
-        35 Bass Drum 2
-        36 Bass Drum 1
-        37 Side Stick
-        38 Snare Drum 1 *
-        39 Hand Clap    *
-        40 Snare Drum 2 *
-        41 Low Tom 2
-        42 Closed Hi-hat *
-        43 Low Tom 1
-        44 Pedal Hi-hat
-        45 Mid Tom 2
-        46 Open Hi-hat
-        47 Mid Tom 1
-        48 High Tom 2
-        49 Crash Cymbal 1
-        50 High Tom 1
-        51 Ride Cymbal 1
-    """
+# class Grid():
+#     """
+#         General Midi drums note mapping :
+#         35 Bass Drum 2
+#         36 Bass Drum 1
+#         37 Side Stick
+#         38 Snare Drum 1 *
+#         39 Hand Clap    *
+#         40 Snare Drum 2 *
+#         41 Low Tom 2
+#         42 Closed Hi-hat *
+#         43 Low Tom 1
+#         44 Pedal Hi-hat
+#         45 Mid Tom 2
+#         46 Open Hi-hat
+#         47 Mid Tom 1
+#         48 High Tom 2
+#         49 Crash Cymbal 1
+#         50 High Tom 1
+#         51 Ride Cymbal 1
+#     """
     
-    def __init__(self, nsub=16, length=1):
-        self.grid = [ set() for _ in range(nsub) ]
-        self.length = length
+#     def __init__(self, nsub=16, length=1):
+#         self.grid = [ set() for _ in range(nsub) ]
+#         self.length = length
 
 
-    #def gridRepeat(self, pattern, )
+#     #def gridRepeat(self, pattern, )
 
-    def repeat(self, note, div, offset=0, preserve=False):
-        """
-            Repeats a note at regular intervals
+#     def repeat(self, note, div, offset=0, preserve=False):
+#         """
+#             Repeats a note at regular intervals
 
-            Parameters
-            ----------
-                note (int/Note)
-                    midi note [0-127] or Note instance
-                division (int)
-                    the note will be repeated every division of the grid
-                offset (int)
-                    offset beats in grid
-                preserve (bool)
-                    if True, will not overwrite if there's already a note registered for this beat
-        """
-        assert div > 0
-        assert offset < len(self.grid)
-        if type(note) != Note:
-            note = Note(note, 0.1)
+#             Parameters
+#             ----------
+#                 note (int/Note)
+#                     midi note [0-127] or Note instance
+#                 division (int)
+#                     the note will be repeated every division of the grid
+#                 offset (int)
+#                     offset beats in grid
+#                 preserve (bool)
+#                     if True, will not overwrite if there's already a note registered for this beat
+#         """
+#         assert div > 0
+#         assert offset < len(self.grid)
+#         if type(note) != Note:
+#             note = Note(note, 0.1)
 
-        i = offset
-        while i < len(self.grid):
-            if not preserve:
-                self.grid[i].add(note.copy())
-            i += div
+#         i = offset
+#         while i < len(self.grid):
+#             if not preserve:
+#                 self.grid[i].add(note.copy())
+#             i += div
     
 
-    def clear(self):
-        self.grid = [ set() for _ in range(len(self.grid)) ]
+#     def clear(self):
+#         self.grid = [ set() for _ in range(len(self.grid)) ]
 
 
-    def resize(self, new_size):
-        new_grid = [ set() for _ in range(new_size) ]
+#     def resize(self, new_size):
+#         new_grid = [ set() for _ in range(new_size) ]
 
-        for i, col in enumerate(self.grid):
-            new_i = round(new_size * i/len(self.grid))
-            for note in col:
-                new_grid[new_i].add(note)
+#         for i, col in enumerate(self.grid):
+#             new_i = round(new_size * i/len(self.grid))
+#             for note in col:
+#                 new_grid[new_i].add(note)
         
-        self.grid = new_grid
+#         self.grid = new_grid
 
 
-    def euclid(self, note, k, offset=0):
-        """ Euclidian rythm """
-        if type(note) != Note:
-            note = Note(note, dur=0.1)
-        n = len(self.grid)
-        offset = offset % n
-        onsets = [(offset+round(n*i/k))%n for i in range(k)]
-        # print(onsets)
-        for i in onsets:
-            self.grid[i].add(note.copy())
+#     def euclid(self, note, k, offset=0):
+#         """ Euclidian rythm """
+#         if type(note) != Note:
+#             note = Note(note, dur=0.1)
+#         n = len(self.grid)
+#         offset = offset % n
+#         onsets = [(offset+round(n*i/k))%n for i in range(k)]
+#         # print(onsets)
+#         for i in onsets:
+#             self.grid[i].add(note.copy())
 
-        # grid = [ 'x' if i in onsets else '.' for i in range(n) ]
-        # print(grid)
-
-
-    def toSeq(self):
-        s = Seq()
-        s.length = self.length
-        step = self.length / len(self.grid)
-        head = 0.0
-        for col in self.grid:
-            for note in col:
-                s.add(note, head)
-            head += step
-        return s
+#         # grid = [ 'x' if i in onsets else '.' for i in range(n) ]
+#         # print(grid)
 
 
-    def getMidiMessages(self, channel=1):
-        return self.toSeq().getMidiMessages(channel)
+#     def toSeq(self):
+#         s = Seq()
+#         s.length = self.length
+#         step = self.length / len(self.grid)
+#         head = 0.0
+#         for col in self.grid:
+#             for note in col:
+#                 s.add(note, head)
+#             head += step
+#         return s
 
 
-    def __str__(self):
-        s = '[ '
-        for b in [str(len(c)) if c else '.' for c in self.grid]:
-            s += b + ' '
-        s += ']'
-        return s
+#     def getMidiMessages(self, channel=1):
+#         return self.toSeq().getMidiMessages(channel)
+
+
+#     def __str__(self):
+#         s = '[ '
+#         for b in [str(len(c)) if c else '.' for c in self.grid]:
+#             s += b + ' '
+#         s += ']'
+#         return s
     
 
-    def __len__(self):
-        return len(self.grid)
+#     def __len__(self):
+#         return len(self.grid)
 
 
 
@@ -400,7 +403,7 @@ class Seq():
             raise TypeError("Only Notes, Silences, Chords or other Sequences can be added to a Sequence")
     
 
-    def addNotes(self, notes, dur=1, vel=127):
+    def addNotes(self, notes, dur=1, vel=100):
         """ Add many notes sequencially
 
             Parameters
@@ -426,18 +429,6 @@ class Seq():
             raise TypeError("argument `notes` must be a string or an iterable")
 
 
-    # def addChordNotes(self, notes, dur=0.25, vel=127):
-    #     """ Add a chord with the list of given notes/pitches """
-    #     if type(notes) == str:
-    #         notes = getNotesFromString(notes)
-    #     elif hasattr(notes, '__iter__'):
-    #         notes = [Note(pitch, dur, vel) for pitch in notes]
-    #     head = self.head
-    #     for n in notes:
-    #         if type(n) != Note:
-    #             n = Note(n, dur, vel)
-    #         self.add(n, head)
-
 
     def merge(self, other):
         if type(other) != type(self):
@@ -445,6 +436,22 @@ class Seq():
         for data in other.notes:
             self.notes.append(data)
         self.notes.sort(key=lambda x: x[0])
+
+
+    def randWalkProg(self, n=4, start=60, steps=[3, 2, 1, 0, 1, 2, 3]):
+        """ Create a sequence of notes moving from last note by a random interval
+
+            Parameters
+            ----------
+                steps (list of int):
+                    possible intervals to step from last note
+        """
+        pitch = start
+        for _ in range(n):
+            self.add(Note(pitch))
+            pitch = env.SCALE.getDegreeFrom(pitch, random.choice(steps))
+            # pitch = env.SCALE.getDegreeFrom(2, 2)
+        return self
 
 
     def fillSweep(self, from_pitch=42, to_pitch=64, num=4):
@@ -496,7 +503,7 @@ class Seq():
                 dev : float
                     Standard deviation
         """
-        if self.head + NOTE_LENGTH > self.length:
+        if self.head + env.NOTE_LENGTH > self.length:
             return
         
         # self.notes.append( (self.head, Note(self.tonic, dur)) )
@@ -700,6 +707,14 @@ class Seq():
         return midi_seq
     
 
+    def select(self, key_fn):
+        """ Return a list of notes selected by key_fn
+            Notes will be selected if key_fn returns True on them
+        """
+        selection = [n for _, n in self.notes if key_fn(n)]
+        return selection
+
+
     def __add__(self, other):
         if not type(other) in (type(self), Note, Sil, Chord):
             raise TypeError("Only Note, Sil, Chord and other Seq can be added to sequences")
@@ -734,6 +749,14 @@ class Seq():
     def __lshift__(self, other):
         if isinstance(other, float):
             return self.__rshift__(-other)
+    
+    def __getitem__(self, index):
+        return self.notes[index][1]
+    
+    def __delitem__(self, index):
+        del self.notes[index]
+    
+    # def __setitem(self, index, newval):
 
     def __len__(self):
         return len(self.notes)
@@ -874,7 +897,7 @@ def noteToPitch(name):
 
 
 
-def getNotesFromString(s, dur=1, vel=127, prob=1):
+def getNotesFromString(s, dur=1, vel=100, prob=1):
     """ Return a list of notes and silences from a string """
     if type(s) != str:
         raise TypeError('Argument must be a string. Ex: "do re mi" or "60 62 64"')
