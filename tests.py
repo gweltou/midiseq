@@ -4,7 +4,7 @@ import random
 import rtmidi
 import time
 
-from sequence import Note, Sil, Seq, Grid, getNotesFromString, noteToPitch, Scale, Track
+from sequence import Note, Sil, Seq, getNotesFromString, noteToPitch, Scale, Track
 import generators
 
 
@@ -103,24 +103,9 @@ def ex_01(midiout):
 
 
 
-def buildSeq():
-    s1 = Seq()
-    s1.length = 1
-    s1.fillRandom()
-
-    s2 = Seq()
-    s2.length = 1
-    s2.fillRandom()
-
-    s = s1 * 2 + s2 * 2
-    return s
-
-
-
 def test_basic_opps():
     s = Seq()
-    s.length = 1
-    s.fillRandom()
+    s.randNotes(4)
     assert len(s) == 4
 
     assert len(s+s) == 2 * len(s)
@@ -145,8 +130,7 @@ def test_basic_opps():
 
 def test_midimessage_truncate():
     s = Seq()
-    s.length = 1
-    s.fillRandom()
+    s.randNotes(4)
 
     s.length = 0.8
     mm = s.getMidiMessages() 
@@ -156,27 +140,25 @@ def test_midimessage_truncate():
     print("test_truncate", "pass")
 
 
-def test_gaussian_walk():
-    s = Seq()
-    s.length = 1
-    s.fillGaussianWalk()
-    assert len(s) == 4
-    s.clear()
-    s.fillGaussianWalk()
-    assert len(s) == 4
-    s.head = 0.0
-    s.tonic += 12
-    s.fillGaussianWalk()
-    assert len(s) == 8
+# def test_gaussian_walk():
+#     s = Seq()
+#     s.length = 1
+#     s.fillGaussianWalk()
+#     assert len(s) == 4
+#     s.clear()
+#     s.fillGaussianWalk()
+#     assert len(s) == 4
+#     s.head = 0.0
+#     s.tonic += 12
+#     s.fillGaussianWalk()
+#     assert len(s) == 8
 
-    print("test_gaussian_walk", "pass")
+#     print("test_gaussian_walk", "pass")
 
 
 def test_track():
     s = Seq()
-    s.scale = Scale("aeolian", "e")
-    s.length = 1
-    s.fillGaussianWalk()
+    s.randNotes(4)
 
     t = Track()
     t.add(s)
@@ -204,10 +186,7 @@ def test_generator():
     
     def gen():
         for _ in range(4):
-            s = Seq()
-            s.length = 1
-            s.scale = Scale("dorian", "a")
-            s.fillGaussianWalk(dev=4)
+            s = Seq().randNotes()
             # s.transpose(-12)
             yield s
     
@@ -215,7 +194,7 @@ def test_generator():
     t1.reset()
     assert len(t1.seqs) == 0
     t1.update(0.01)
-    assert t1._next_timer == 1.0
+    assert t1._next_timer == 0.99
     assert t1.ended == False
 
     print("test_generator", "pass")
@@ -248,17 +227,17 @@ def test_addchord():
     print("test_addchord", "deprecated")
 
 
-def test_grid():
-    g = Grid(8)
-    assert len(g) == 8
-    g.repeat("do", 2, 1)
-    s = g.toSeq()
-    assert len(s) == 4
-    g.clear()
-    g.euclid("38", 5)
-    assert len(g.toSeq()) == 5
+# def test_grid():
+#     g = Grid(8)
+#     assert len(g) == 8
+#     g.repeat("do", 2, 1)
+#     s = g.toSeq()
+#     assert len(s) == 4
+#     g.clear()
+#     g.euclid("38", 5)
+#     assert len(g.toSeq()) == 5
 
-    print("test_grid", "pass")
+#     print("test_grid", "pass")
 
 
 def test_scale():
@@ -283,8 +262,7 @@ def test_scale():
 def test_crop():
     s = Seq()
     s.head = -0.35
-    s.length = 1
-    s.fillRandom()
+    s.randNotes(6)
     s.add(Note(66))
     s.length = 1
     assert len(s) == 7
@@ -292,37 +270,57 @@ def test_crop():
     s.crop()
     assert len(s) == 5
 
+    print("test_crop", "pass")
+
 
 def test_merge():
     s = Seq("50 50 0 50")
     s.merge(Seq("0 60 60 0"))
     assert len(s) == 5
 
+    print("test_merge", "pass")
+
 
 def test_select():
     print("test_select")
     s = Seq("8 9 10 11 12 13")
-    selection = s.select(lambda x: x.pitch <= 10)
+    selection = s.selectNotes(lambda x: x.pitch <= 10)
     assert len(selection) == 3
-    
-    print(selection)
+
+    print("test_select", "pass")
+
+
+def test_index_slice():
+    print("test_index_slice")
+    s = Seq("60 61 62 63 64 65")
+    assert s[0] == Note(60)
+    assert len(s[0:3]) == 3
+    assert len(s[:3]) == 3
+    s = s[0.0:1.0]
+    assert len(s) == 4
+    assert s.length == 1.0
+
+    print("test_index_slice", "pass")
+
+
 
 
 if __name__ == "__main__":
     
     test_basic_opps()
     test_midimessage_truncate()
-    test_gaussian_walk()
+    # test_gaussian_walk()
     test_track()
     test_map()
     test_generator()
     test_getNotesFromString()
     test_addchord()
-    test_grid()
+    # test_grid()
     test_scale()
     test_crop()
     test_merge()
     test_select()
+    test_index_slice()
 
     print("Generators")
     for i in dir(generators):

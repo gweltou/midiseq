@@ -183,6 +183,13 @@ class Note():
         return self.__mul__(number)
 
 
+    def __eq__(self, other):
+        return self.pitch == other.pitch and \
+               self.dur == other.dur and \
+               self.vel == other.vel and \
+               self.prob == other.prob
+
+
     def __str__(self):
         return "{} {} {}".format(self.pitch, self.dur, self.vel)
     
@@ -363,9 +370,8 @@ class Seq():
     def __init__(self, notes=None, length=0):
         self.head = 0.0     # Recording head
         self.length = length
-        self.scale = None
-        self.tonic = 60
-        # self._dirty = True
+        # self.scale = None
+        # self.tonic = 60
         self.notes = []
         if notes:
             self.addNotes(notes)
@@ -438,7 +444,16 @@ class Seq():
         self.notes.sort(key=lambda x: x[0])
 
 
-    def randWalkProg(self, n=4, start=60, steps=[3, 2, 1, 0, 1, 2, 3]):
+    def randNotes(self, n=4, min=36, max=96):
+        for _ in range(n):
+            pitch = random.randint(min, max)
+            if type(env.SCALE) is Scale:
+                pitch = env.SCALE.getClosest(pitch)
+            self.add(Note(pitch))
+        return self
+
+
+    def randWalk(self, n=4, start=60, steps=[3, 2, 1, 0, 1, 2, 3], skip_first = False):
         """ Create a sequence of notes moving from last note by a random interval
 
             Parameters
@@ -447,79 +462,100 @@ class Seq():
                     possible intervals to step from last note
         """
         pitch = start
+        if skip_first:
+            pitch = env.SCALE.getDegreeFrom(pitch, random.choice(steps))
         for _ in range(n):
             self.add(Note(pitch))
             pitch = env.SCALE.getDegreeFrom(pitch, random.choice(steps))
-            # pitch = env.SCALE.getDegreeFrom(2, 2)
+        return self
+    
+
+    def randGauss(self, n=4, mean=60, dev=3):
+        for _ in range(n):
+            if type(env.SCALE) is Scale:
+                pitch = env.SCALE.getDegreeFrom(mean, round(random.gauss(0, dev)))
+            else:
+                pitch = round(random.gauss(mean, dev))
+            self.add(Note(pitch))
         return self
 
 
-    def fillSweep(self, from_pitch=42, to_pitch=64, num=4):
-        if type(from_pitch) == str:
-            from_pitch = noteToPitch(from_pitch)
-        if type(to_pitch) == str:
-            to_pitch = noteToPitch(to_pitch)
-        if type(self.scale) == Scale:
-            from_pitch = self.scale.getClosest(from_pitch)
-        pitch_step = int((to_pitch - from_pitch) / num)
-        time_step = (self.length - self.head) / num
-        head = self.head
-        for i in range(num):
-            pitch = from_pitch + i*pitch_step
-            if type(self.scale) == Scale:
-                pitch = self.scale.getClosest(pitch)
-            self.add( Note(pitch, time_step), head )
-            head += time_step
-
-        self.head = self.length
+    def randPick(self, n=4):
+        """ Pick randomly among previous notes in sequence """
+        new_notes = []
+        for _ in range(4):
+            new_notes.append(random.choice(self.notes)[1])
+        for note in new_notes:
+            self.add(note)
+        return self
 
 
-    def fillRandom(self, min=36, max=90):
-        """ Fill the sequence with random notes, starting from head position.
-            The generated notes will be choosen from the current musical scale.
-            This will not change the sequence's length.
-        """
-        while self.head + 0.001 < self.length:
-            if type(self.scale) == Scale:
-                pitch = self.scale.getClosest(random.randint(min, max))
-            else:
-                pitch = random.randint(min, max)
-            self.add(Note(pitch))
+    # def fillSweep(self, from_pitch=42, to_pitch=64, num=4):
+    #     if type(from_pitch) == str:
+    #         from_pitch = noteToPitch(from_pitch)
+    #     if type(to_pitch) == str:
+    #         to_pitch = noteToPitch(to_pitch)
+    #     if type(self.scale) == Scale:
+    #         from_pitch = self.scale.getClosest(from_pitch)
+    #     pitch_step = int((to_pitch - from_pitch) / num)
+    #     time_step = (self.length - self.head) / num
+    #     head = self.head
+    #     for i in range(num):
+    #         pitch = from_pitch + i*pitch_step
+    #         if type(self.scale) == Scale:
+    #             pitch = self.scale.getClosest(pitch)
+    #         self.add( Note(pitch, time_step), head )
+    #         head += time_step
+
+    #     self.head = self.length
+
+
+    # def fillRandom(self, min=36, max=90):
+    #     """ Fill the sequence with random notes, starting from head position.
+    #         The generated notes will be choosen from the current musical scale.
+    #         This will not change the sequence's length.
+    #     """
+    #     while self.head + 0.001 < self.length:
+    #         if type(self.scale) == Scale:
+    #             pitch = self.scale.getClosest(random.randint(min, max))
+    #         else:
+    #             pitch = random.randint(min, max)
+    #         self.add(Note(pitch))
     
 
-    def fillGaussianWalk(self, dev=2):
-        """ 
-            Fill the sequence with random notes, starting from head position.
-            In a random walk, each new note can go up, down or keep the same pitch as the previous note.
-            The generated notes will be choosen from the current musical scale, starting with the root note.
-            This will not change the sequence's length.
+    # def fillGaussianWalk(self, dev=2):
+    #     """ 
+    #         Fill the sequence with random notes, starting from head position.
+    #         In a random walk, each new note can go up, down or keep the same pitch as the previous note.
+    #         The generated notes will be choosen from the current musical scale, starting with the root note.
+    #         This will not change the sequence's length.
 
-            Parameters
-            ----------
-                start_note : int [0-127]
-                    The random walk will start with this note
-                dur : float
-                    Duration of the notes
-                dev : float
-                    Standard deviation
-        """
-        if self.head + env.NOTE_LENGTH > self.length:
-            return
+    #         Parameters
+    #         ----------
+    #             start_note : int [0-127]
+    #                 The random walk will start with this note
+    #             dur : float
+    #                 Duration of the notes
+    #             dev : float
+    #                 Standard deviation
+    #     """
+    #     if self.head + env.NOTE_LENGTH > self.length:
+    #         return
         
-        # self.notes.append( (self.head, Note(self.tonic, dur)) )
-        # self.head += dur
-        self.add(Note(self.tonic))
-        prev = 0
-        while self.head + 0.001 < self.length:
-            prev_degree = prev + round(random.gauss(0, dev))
-            if type(self.scale) == Scale:
-                pitch = self.scale.getDegree(prev_degree)
-            else:
-                pitch = 60 + prev_degree
-            prev = prev_degree
-            # self.notes.append( (self.head, Note(pitch, dur)) )
-            # self.head += dur
-            self.add(Note(pitch))
+    #     # self.notes.append( (self.head, Note(self.tonic, dur)) )
+    #     # self.head += dur
+    #     self.add(Note(self.tonic))
+    #     prev = 0
+    #     while self.head + 0.001 < self.length:
+    #         prev_degree = prev + round(random.gauss(0, dev))
+    #         if type(self.scale) == Scale:
+    #             pitch = self.scale.getDegree(prev_degree)
+    #         else:
+    #             pitch = 60 + prev_degree
+    #         prev = prev_degree
+    #         # self.notes.append( (self.head, Note(pitch, dur)) )
+    #         # self.head += dur
+    #         self.add(Note(pitch))
     
 
     def replacePitch(self, old, new):
@@ -559,9 +595,10 @@ class Seq():
         """ Transpose all notes in sequence by semitones. """
         for _, note in self.notes:
             note.pitch += semitones
+        return self
 
 
-    def expand(self, factor):
+    def expandPitch(self, factor):
         """ Expand or compress notes pitches around the mean value of the whole sequence """
         sum = 0
         for _, note in self.notes:
@@ -614,41 +651,12 @@ class Seq():
             note.vel = min(127, max(0, note.vel))
             new_notes.append( (t, note) )
         self.notes = new_notes
-        # self._dirty = True
+        return self
 
 
     def clear(self):
         self.notes.clear()
         self.head = 0.0
-    
-
-    def copy(self):
-        new = Seq()
-        new.notes = [ (t, note.copy()) for t, note in self.notes ]
-        new.length = self.length
-        new.head = self.head
-        new.tonic = self.tonic
-        new.scale = self.scale
-        # new._dirty = self._dirty
-        return new
-
-
-    # def freeze(self):
-    #     new_notes = []
-    #     for pos, note in self.notes:
-    #         # End of sequence
-    #         if pos >= self.length:
-    #             break
-    #         # Truncate last note if necesary
-    #         if pos + note.dur > self.length:
-    #             note = note.copy()
-    #             note.dur = self.length - pos
-    #         new_note = note.copy()
-    #         new_note.pitch = self.getClosestNoteInScale(note.pitch)
-    #         new_notes.append( (pos, new_note) )
-    #     self.notes = new_notes
-    #     # self.transpose = 0
-    #     return self
 
 
     def crop(self):
@@ -707,12 +715,39 @@ class Seq():
         return midi_seq
     
 
-    def select(self, key_fn):
+    def selectNotes(self, key_fn):
         """ Return a list of notes selected by key_fn
             Notes will be selected if key_fn returns True on them
+
+            Parameters
+            ----------
+                key_fn : lambda function
         """
         selection = [n for _, n in self.notes if key_fn(n)]
         return selection
+
+
+    def filter(self, key_fn):
+        """ Return copy of the sequence with notes filtered by key_fn
+            Notes will be kept if key_fn returns True on them
+
+            Parameters
+            ----------
+                key_fn : lambda function
+        """
+        new_seq = self.copy()
+        self.notes = [(t, n) for t, n in self.notes if key_fn(n)]
+        return new_seq
+
+
+    def copy(self):
+        new = Seq()
+        new.notes = [ (t, note.copy()) for t, note in self.notes ]
+        new.length = self.length
+        new.head = self.head
+        # new.tonic = self.tonic
+        # new.scale = self.scale
+        return new
 
 
     def __add__(self, other):
@@ -751,8 +786,32 @@ class Seq():
             return self.__rshift__(-other)
     
     def __getitem__(self, index):
-        return self.notes[index][1]
+        if type(index) is int:
+            return self.notes[index][1]
+        if type(index) is slice:
+            start = index.start
+            stop = index.stop
+            if type(start) is float or type(stop) is float:
+                if start == None: start = 0.0
+                if stop == None: stop = self.length
+                l = stop-start
+                assert l > 0.0
+                new_seq = Seq()
+                for t,n in self.notes:
+                    if t + n.dur >= start and t < stop:
+                        new_seq.notes.append( (t-start, n) )
+                new_seq.length = l
+                new_seq.crop()
+                return new_seq
+            else:
+                new_seq = Seq()
+                if start == None: start = 0
+                offset = self.notes[start][0]
+                new_seq.notes = [(t-offset, n.copy()) for t,n in self.notes[index]]
+                new_seq.length = new_seq.notes[-1][0] + new_seq.notes[-1][1].dur
+                return new_seq
     
+
     def __delitem__(self, index):
         del self.notes[index]
     
@@ -800,6 +859,17 @@ class Track():
         self.generator = None
         self.gen_args = None
     
+    
+    def reset(self, offset=0.0):
+        self._next_timer = offset
+        self.ended = False
+        self.seq_i = 0
+        if callable(self.gen_func):
+            if self.gen_args:
+                self.generator = self.gen_func(*self.gen_args)
+            else:
+                self.generator = self.gen_func()
+
 
     def update(self, timedelta):
         """ Returns MidiMessages when a new sequence just started """
@@ -813,15 +883,17 @@ class Track():
             # Send next sequence
             i = self.seq_i
             self.seq_i += 1
-            self._next_timer = self.seqs[i].length
-            return self.seqs[i].getMidiMessages(self.channel)
+            messages = self.seqs[i].getMidiMessages(self.channel)
+            messages = [ (t+self._next_timer, mess) for t, mess in messages ]
+            self._next_timer += self.seqs[i].length
+            return messages
 
         elif self.seq_i == len(self.seqs) and self._next_timer <= 0.0:
             #TODO: allow looping for finished generators
             if self.generator:
                 try:
                     new_seq = next(self.generator)
-                    self._next_timer = new_seq.length
+                    self._next_timer += new_seq.length
                     return new_seq.getMidiMessages(self.channel)
                 except StopIteration:
                     if self.loop:
@@ -829,20 +901,10 @@ class Track():
                     else:
                         self.ended = True
             elif self.loop:
-                self.reset()
+                self.reset(self._next_timer)
             else:
                 self.ended = True
-            
 
-    def reset(self):
-        self._next_timer = 0.0
-        self.seq_i = 0
-        self.ended = False
-        if callable(self.gen_func):
-            if self.gen_args:
-                self.generator = self.gen_func(*self.gen_args)
-            else:
-                self.generator = self.gen_func()
 
 
 

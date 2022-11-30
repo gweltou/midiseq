@@ -36,30 +36,15 @@ OHH = sit4
 
 
  
-def gen_sweeps(scale="minor", tonic="a"):
-    s = Seq()
-    s.scale = Scale(scale, tonic)
-    while True:
-        s = s.copy()
-        s.clear()
-        f, t = 0, 0
-        while abs(t-f) < 10:
-            f = random.randint(48, 88)
-            t = random.randint(48, 88)
-        if abs(t-f) > 30:
-            s.fillSweep(f, t, 8)
-        else:
-            s.fillSweep(f, t, 4)
-        yield s
 
 
-def gen_sweeps_pattern(pattern="ABAB", scale="minor", tonic="a"):
+def gen_pattern(generator, pattern="ABAB"):
     """
         pattern: (str)
             Ex: "ABAB" or "1112"
     """
     while True:
-        gen = gen_sweeps(scale, tonic)
+        gen = generator()
         seq = dict()
         for symbol in pattern:
             if not symbol in seq:
@@ -154,13 +139,13 @@ def gen_tintinnabuli():
 def gen_tintinnabuli2():
     note_dur = 0.6
     s = Seq()
-    s.scale = Scale("pentatonic_minor", "e")
+    scl = Scale("pentatonic_minor", "e")
 
     while True:
         s.clear()
-        pitch_low = s.tonic - 12
-        pitch_low = s.scale.getDegreeFrom(pitch_low, random.choice([0, 0, -len(s.scale), 1, 1, 2, 2]))
-        pitch_high = s.scale.getDegree(random.randrange(len(s.scale)))
+        pitch_low = scl.tonic - 12
+        pitch_low = scl.getDegreeFrom(pitch_low, random.choice([0, 0, -len(scl), 1, 1, 2, 2]))
+        pitch_high = scl.getDegree(random.randrange(len(scl)))
         s.add(Chord((pitch_low, pitch_high)))
         s.length = note_dur + abs(random.gauss(0, 3))
         yield s
@@ -168,13 +153,13 @@ def gen_tintinnabuli2():
 def gen_tintinnabuli3():
     note_dur = 0.4
     s = Seq()
-    s.scale = Scale("minor", "e")
+    scl = Scale("minor", "e")
 
     while True:
         s.clear()
-        pitch_low = s.tonic - 12
-        pitch_low = s.scale.getDegreeFrom(pitch_low, random.choice([0, 0, -len(s.scale), 2, 2, 4, 4]))
-        pitch_high = s.scale.getDegree(random.randrange(len(s.scale)))
+        pitch_low = scl.tonic - 12
+        pitch_low = scl.getDegreeFrom(pitch_low, random.choice([0, 0, -len(scl), 2, 2, 4, 4]))
+        pitch_high = scl.getDegree(random.randrange(len(scl)))
         s.add(Chord((pitch_low, pitch_high)))
         s.length = note_dur + abs(random.gauss(0, 3))
         s.humanize(0.02)
@@ -212,7 +197,7 @@ def gen_japscale():
         s.scale=sc
         if random.random() < 0.1:
             sc.tonic = random.randrange(42, 54)
-        s.fillGaussianWalk(dev=2)
+        s.randGauss(dev=2)
         s.stretch(16, False)
         yield s
 

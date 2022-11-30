@@ -1,7 +1,7 @@
 ### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
 
 import rtmidi
-from mido import MidiFile
+#from mido import MidiFile
 import mido
 import time
 import threading
@@ -28,10 +28,6 @@ _recording = False
 _recording_time = 0.0
 _record = None              # Where the recordings from midi in are stored
 
-_verbose = True
-_display = True
-_display_range = (36, 96)
-
 
 
 lock = threading.Lock()
@@ -52,6 +48,28 @@ t4.channel = 4
 #     for i in range(16):
 #         mess = rtmidi.MidiMessage.allNotesOff(i)
 #         _default_output.sendMessage(mess)
+
+import queue
+ 
+class PeekablePriorityQueue(queue.PriorityQueue):
+    def peek(self):
+        """Peeks the first element of the queue
+         
+        Returns
+        -------
+        item : object
+            First item in the queue
+         
+        Raises
+        ------
+        queue.Empty
+            No items in the queue
+        """
+        try:
+            with self.mutex:
+                return self.queue[0]
+        except IndexError:
+            raise queue.Empty
 
 
 def play(what=None, channel=1, loop=False):
@@ -81,33 +99,33 @@ def play(what=None, channel=1, loop=False):
         if type(what) is Seq:
             track = Track(channel)
             track.add(what)
-        _playing_thread = threading.Thread(target=_play, args=(track, channel, loop), daemon=True)
+        _playing_thread = threading.Thread(target=_play, args=([track], channel, loop), daemon=True)
     else:    # Play all tracks
         tracks = []
         for i in range(16):
             track_name = "t{}".format(i+1)
             if track_name in globals():
                 tracks.append(globals()[track_name])
-        _playing_thread = threading.Thread(target=_play, args=(tracks[0], channel, loop), daemon=True)
+        _playing_thread = threading.Thread(target=_play, args=(tracks, channel, loop), daemon=True)
     
     _must_stop = False
     _playing_thread.start()
 
 
-def _play(track, channel=1, loop=False):
+def _play(tracks, channel=1, loop=False):
     global _armed
     global _recording
     global _recording_time
     print("++++ PLAYBACK Started")
-    track.reset()
-    track.loop = loop
-    midi_seq = []
+    for track in tracks:
+        track.reset()
+        track.loop = loop
+    midi_messages = []
     active_notes = set()
-    seq_time = 0.0
-    seq_i = 0
     metronome_time = 0.0
     metronome_click_count = 0
     t0 = time.time()
+    song_time = 0.0
     t_prev = 0.0
     clicking = False
     click_note = None
@@ -123,13 +141,13 @@ def _play(track, channel=1, loop=False):
             env.DEFAULT_OUTPUT.send_message(note_off)
             click_note = None
 
-        t = time.time() - t0
-        timedelta = t - t_prev
+        t_frame = time.time() - t0
+        timedelta = t_frame - t_prev
         timedelta *= env.TEMPO / 120   # A time unit (Seq.length=1) is 1 second at 120bpm
-        t_prev = t
+        t_prev = t_frame
         assert 0 < timedelta < 99
         metronome_time += timedelta
-        seq_time += timedelta
+        song_time += timedelta
         if _recording:
             _recording_time += timedelta
         
@@ -152,46 +170,41 @@ def _play(track, channel=1, loop=False):
                 click_note = p
             metronome_time -= 0.5
 
-        if midi_seq and seq_i < len(midi_seq):
-            new_noteon = False
-            while seq_time >= midi_seq[seq_i][0]:
-                mess = midi_seq[seq_i][1]
-                env.DEFAULT_OUTPUT.send_message(mess)
-                if mess[0]>>4 == 9: # note on
-                    active_notes.add(mess[1])
-                    new_noteon = True
-                elif mess[0]>>4 == 8: # note off
-                    active_notes.discard(mess[1])
-                
-                if _verbose and not _display:
-                    print("Sent", mess)
-                    
-                seq_i += 1
-                if seq_i == len(midi_seq):
-                    break
-            
-            if _display and new_noteon:
-                # Visualize notes
-                notes_str = ['.'] * (_display_range[1] - _display_range[0] + 1)
-                for i in active_notes:
-                    if i < _display_range[0]: notes_str[0] = '<'
-                    elif i > _display_range[1]: notes_str[-1] = '>'
-                    else: notes_str[i - _display_range[0]] = 'x'
-                notes_str = "".join(notes_str)
-                print(str(_display_range[0]) + '[' + notes_str + ']' + str(_display_range[1]))
+        must_sort = False
+        for track in tracks:
+            new_messages = track.update(timedelta)
+            if new_messages:
+                must_sort = True
+                for t, mess in new_messages:
+                    midi_messages.append( (t + song_time, mess) )
+        if must_sort:
+            midi_messages.sort(reverse=True)
 
-        new_messages = track.update(timedelta)
-        if new_messages:
-            midi_seq = new_messages
-            seq_time = 0.0 #XXX Will introduce a time lag every time...
-            # t0 = time.time()
-            # t = 0.0
-            # t_prev = 0.0
-            seq_i = 0
+        new_noteon = False
+        while len(midi_messages) > 0 and midi_messages[-1][0] < song_time:
+            mess = midi_messages.pop()[1]
+            if mess[0]>>4 == 9: # note on
+                active_notes.add(mess[1])
+                new_noteon = True
+            elif mess[0]>>4 == 8: # note off
+                active_notes.discard(mess[1])
+            env.DEFAULT_OUTPUT.send_message(mess)
+            if env.VERBOSE and not env.DISPLAY:
+                print("Sent", mess)
+        
+        if env.DISPLAY and new_noteon:
+            # Visualize notes
+            notes_str = ['.'] * (env.DISPLAY_RANGE[1] - env.DISPLAY_RANGE[0] + 1)
+            for i in active_notes:
+                if i < env.DISPLAY_RANGE[0]: notes_str[0] = '<'
+                elif i > env.DISPLAY_RANGE[1]: notes_str[-1] = '>'
+                else: notes_str[i - env.DISPLAY_RANGE[0]] = 'x'
+            notes_str = "".join(notes_str)
+            print(str(env.DISPLAY_RANGE[0]) + '[' + notes_str + ']' + str(env.DISPLAY_RANGE[1]))
 
         # Check CPU load
-        t_frame = time.time() - t0 - t
-        load = t_frame / _timeres
+        t = time.time() - t0 - t_frame
+        load = t / _timeres
         if load > 0.2:
             print("++++ PLAYBACK [warning] load:", load, "%")
         time.sleep(min(0.2, max(0, _timeres)))
@@ -251,19 +264,19 @@ def _listen(forward=True, forward_channel=1):
                 if forward:
                     mess.setChannel(forward_channel)
                     env.DEFAULT_OUTPUT.send_message(mess)
-            if _verbose and not _display:
+            if env.VERBOSE and not env.DISPLAY:
                     print("Recieved", mess)
             mess = midiin.get_message()
         
-        if _display and new_noteon:
+        if env.DISPLAY and new_noteon:
             # Visualize notes
-            notes_str = ['.'] * (_display_range[1] - _display_range[0] + 1)
+            notes_str = ['.'] * (env.DISPLAY_RANGE[1] - env.DISPLAY_RANGE[0] + 1)
             for i in active_notes:
-                if i < _display_range[0]: notes_str[0] = '<'
-                elif i > _display_range[1]: notes_str[-1] = '>'
-                else: notes_str[i - _display_range[0]] = 'x'
+                if i < env.DISPLAY_RANGE[0]: notes_str[0] = '<'
+                elif i > env.DISPLAY_RANGE[1]: notes_str[-1] = '>'
+                else: notes_str[i - env.DISPLAY_RANGE[0]] = 'x'
             notes_str = "".join(notes_str)
-            print(str(_display_range[0]) + '[' + notes_str + ']' + str(_display_range[1]))
+            print(str(env.DISPLAY_RANGE[0]) + '[' + notes_str + ']' + str(env.DISPLAY_RANGE[1]))
         
         time.sleep(min(0.2, max(0, _timeres)))
     
