@@ -10,6 +10,9 @@ https://braid.live/
 MusicPy
 https://github.com/Rainbow-Dreamer/musicpy
 
+SCAMP
+https://github.com/MarcTheSpark/scamp
+
 
 ## Features
 
@@ -30,11 +33,30 @@ Pour un environnement de programmation toute options :
 
 ## Usage
 
+### Démarrage
+
+```python
+
+>>> from miditool import *
+
+>>> listOutputs()
+[0] Midi Through:Midi Through Port-0 14:0
+[1] VCV Rack:VCV Rack input 133:0
+
+>>> openOutput(1)
+Opening port 1 [VCV Rack:VCV Rack input 133:0]
+
+>>> setTempo(60)
+>>> play(Seq("do do6 do re sol") * 4, loop=True)
+>>> stop()
+```
+
+
 ### Le temps
 
 Pour changer la durée d'une séquence on modifie sa propriété `length`. On peut aussi la passer en argument au constructeur de la classe `Seq`.
 ```python
-s = Seq(4)
+s = Seq(length=4)
 # ou bien
 s = Seq()
 s.length = 4
@@ -81,7 +103,7 @@ Connecting devices together (sender to reciever)
 
 * shift(n, loop=False)
   décallage des notes
-* map(other:Seq)
+* map(other:Seq) # Nom à revoir, pas assez explicite
   Calque une mélodie sur un rythme
 * monophy()
   supprime la polyphonie
@@ -91,7 +113,7 @@ Connecting devices together (sender to reciever)
     Inverse de splitNotes
     Combine les séries de mêmes notes consécutives sans silences
     Ralonge les notes suivies de silences pour recouvrir la totalité des silences de la séquence
-* Sort
+* sort
   organise les notes temporelement par ordre de hauteur (sans cheuvauchement)
 * spread
   étale les notes qui se chevauchent de façon à ce qu'il n'y ai pas 2 notes qui se jouent au même moment.

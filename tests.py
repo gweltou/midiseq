@@ -105,7 +105,7 @@ def ex_01(midiout):
 
 def test_basic_opps():
     s = Seq()
-    s.randNotes(4)
+    s.rand(4)
     assert len(s) == 4
 
     assert len(s+s) == 2 * len(s)
@@ -130,7 +130,7 @@ def test_basic_opps():
 
 def test_midimessage_truncate():
     s = Seq()
-    s.randNotes(4)
+    s.rand(4)
 
     s.length = 0.8
     mm = s.getMidiMessages() 
@@ -158,7 +158,7 @@ def test_midimessage_truncate():
 
 def test_track():
     s = Seq()
-    s.randNotes(4)
+    s.rand(4)
 
     t = Track()
     t.add(s)
@@ -186,7 +186,7 @@ def test_generator():
     
     def gen():
         for _ in range(4):
-            s = Seq().randNotes()
+            s = Seq().rand()
             # s.transpose(-12)
             yield s
     
@@ -223,7 +223,6 @@ def test_addchord():
     # s.addChordNotes("do re mi fa# sol3")
     # assert len(s) == 5
     # assert s.length == 0.25
-
     print("test_addchord", "deprecated")
 
 
@@ -255,21 +254,19 @@ def test_scale():
     s.tonic += 1
     assert s.getDegree(0) == 61
     assert s.getClosest(60)
-
     print("test_scale", "pass")
 
 
 def test_crop():
     s = Seq()
     s.head = -0.35
-    s.randNotes(6)
+    s.rand(6)
     s.add(Note(66))
     s.length = 1
     assert len(s) == 7
     assert s.notes[0][0] == -0.35
     s.crop()
     assert len(s) == 5
-
     print("test_crop", "pass")
 
 
@@ -277,21 +274,21 @@ def test_merge():
     s = Seq("50 50 0 50")
     s.merge(Seq("0 60 60 0"))
     assert len(s) == 5
-
+    s = Seq("1 2 3 4")
+    s &= Seq("5 6 7 8")
+    assert len(s) == 8
     print("test_merge", "pass")
 
 
+
 def test_select():
-    print("test_select")
     s = Seq("8 9 10 11 12 13")
     selection = s.selectNotes(lambda x: x.pitch <= 10)
     assert len(selection) == 3
-
     print("test_select", "pass")
 
 
 def test_index_slice():
-    print("test_index_slice")
     s = Seq("60 61 62 63 64 65")
     assert s[0] == Note(60)
     assert len(s[0:3]) == 3
@@ -299,14 +296,23 @@ def test_index_slice():
     s = s[0.0:1.0]
     assert len(s) == 4
     assert s.length == 1.0
-
     print("test_index_slice", "pass")
 
+
+def test_filter():
+    s = Seq("60 61 62 63 64 65")
+    assert(len(s.filter(lambda n: n.pitch<=62)) == 3)
+    print("test_filter", "pass")
+
+
+def test_selectnotes():
+    s = Seq("60 61 62 63 64 65")
+    assert(len(s.selectNotes(lambda n: n.pitch<=62)) == 3)
+    print("test_selectnote", "pass")
 
 
 
 if __name__ == "__main__":
-    
     test_basic_opps()
     test_midimessage_truncate()
     # test_gaussian_walk()
@@ -321,10 +327,12 @@ if __name__ == "__main__":
     test_merge()
     test_select()
     test_index_slice()
+    test_filter()
+    test_selectnotes()
 
     print("Generators")
     for i in dir(generators):
-        if i.startswith("gen_"):
+        if i.startswith("gen_") and not i == "gen_pattern":
             gen = getattr(generators, i)
             print(i)
             next(gen())

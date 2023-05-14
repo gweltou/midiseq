@@ -13,10 +13,10 @@ import env
 # DEBUG = True
 
 
-_metronome_click = True
-_metronome_div = 4          # Number of quarter notes in a metronome cycle
-_metronome_pre = 1          # Number of metronome cycle before recording
-_metronome_port = None      # Midi port for metronome
+# _metronome_click = True
+# _metronome_div = 4          # Number of quarter notes in a metronome cycle
+# _metronome_pre = 1          # Number of metronome cycle before recording
+# _metronome_port = None      # Midi port for metronome
 
 _playing_thread = None
 _listening_thread = None
@@ -34,14 +34,27 @@ lock = threading.Lock()
 
 # midiout = rtmidi.MidiOut()
 midiin = rtmidi.MidiIn()
-t1 = Track()
-t2 = Track()
-t2.channel = 2
-t3 = Track()
-t3.channel = 3
-t4 = Track()
-t4.channel = 4
 
+
+env.TRACKS = [Track(i) for i in range(16)]
+
+
+def setNoteLen(d):
+    """ Set default note length """
+    env.NOTE_LENGTH = d
+
+
+def setScale(scale="chromatic", tonic="c"):
+    env.SCALE = Scale(scale, tonic)
+
+
+def setTempo(bpm):
+    env.TEMPO = bpm
+
+
+def clearAllTracks():
+    for track in env.TRACKS:
+        track.clear()
 
 
 # def panic(channel=1):
@@ -49,27 +62,6 @@ t4.channel = 4
 #         mess = rtmidi.MidiMessage.allNotesOff(i)
 #         _default_output.sendMessage(mess)
 
-import queue
- 
-class PeekablePriorityQueue(queue.PriorityQueue):
-    def peek(self):
-        """Peeks the first element of the queue
-         
-        Returns
-        -------
-        item : object
-            First item in the queue
-         
-        Raises
-        ------
-        queue.Empty
-            No items in the queue
-        """
-        try:
-            with self.mutex:
-                return self.queue[0]
-        except IndexError:
-            raise queue.Empty
 
 
 def play(what=None, channel=1, loop=False):
@@ -101,12 +93,7 @@ def play(what=None, channel=1, loop=False):
             track.add(what)
         _playing_thread = threading.Thread(target=_play, args=([track], channel, loop), daemon=True)
     else:    # Play all tracks
-        tracks = []
-        for i in range(16):
-            track_name = "t{}".format(i+1)
-            if track_name in globals():
-                tracks.append(globals()[track_name])
-        _playing_thread = threading.Thread(target=_play, args=(tracks, channel, loop), daemon=True)
+        _playing_thread = threading.Thread(target=_play, args=(env.TRACKS, channel, loop), daemon=True)
     
     _must_stop = False
     _playing_thread.start()
@@ -153,14 +140,14 @@ def _play(tracks, channel=1, loop=False):
         
         if metronome_time > 0.5:
             metronome_click_count += 1
-            if metronome_click_count % _metronome_div == 0:
+            if metronome_click_count % env.METRONOME_DIV == 0:
                 p = env.METRONOME_NOTES[0]
                 if _armed:
                     print("rec starting")
                     _recording = True
-                    _recording_time = 0.0 - _metronome_pre * _metronome_div
+                    _recording_time = 0.0 - env.METRONOME_PRE * env.METRONOME_DIV
                     _armed = False
-                    clicking = _metronome_click
+                    clicking = env.METRONOME_CLICK
             else:
                 p = env.METRONOME_NOTES[1]
             if clicking:
@@ -322,7 +309,7 @@ def listOutputs():
         print( "[{}] {}".format(i, midiout.get_port_name(i)) )
 
 
-def getOutputs():
+def _getOutputs():
     midiout = rtmidi.MidiOut()
     return [ (i, midiout.get_port_name(i)) for i in range(midiout.get_port_count()) ]
 
@@ -331,8 +318,9 @@ def openOutput(port_n):
     midiout = rtmidi.MidiOut()
     # if midiout.is_port_open():
     #     midiout.close_port()
-    print("Opening port {} [{}]".format(port_n, midiout.get_port_name(port_n)) )    
+    print("Opening port {} [{}], setting as env.DEFAULT_OUTPUT".format(port_n, midiout.get_port_name(port_n)) )    
     midiout.open_port(port_n)
+    env.DEFAULT_OUTPUT = midiout
     return midiout
 
 
@@ -354,7 +342,7 @@ def openFile(path, track=1):
         Rate of midi clock is 24 PPQ
     """
 
-    mid = MidiFile(path)
+    mid = mido.MidiFile(path)
     print("Midi file type", mid.type)
     print("ticks per beat:", mid.ticks_per_beat)
     print("number of tracks:", len(mid.tracks))
@@ -386,8 +374,8 @@ def openFile(path, track=1):
 
     for msg in mid.tracks[track]:
         if msg.is_meta:
-            print(msg)
-        
+            print(msg)        
+
         time += msg.time
         if msg.type == 'note_on':
             active_notes[msg.note] = (time, msg.velocity)
@@ -408,13 +396,16 @@ setScale("chromatic")
     
 midi_out = dict()
 midi_out["default"] = openOutput(0)
-for i, port_name in getOutputs():
+for i, port_name in _getOutputs():
     if "microfreak" in port_name.lower():
         midi_out["microfreak"] = openOutput(i)
         midi_out["mf"] = midi_out["microfreak"]
     if "fluid" in port_name.lower():
         midi_out["fluid"] = openOutput(i)
         midi_out["fl"] = midi_out["fluid"]
+    if "amsynth" in port_name.lower():
+        midi_out["amsynth"] = openOutput(i)
+        midi_out["am"] = midi_out["amsynth"]
 
 
 env.DEFAULT_OUTPUT = midi_out["default"]
@@ -423,3 +414,12 @@ if "microfreak" in midi_out:
     env.DEFAULT_OUTPUT = midi_out["microfreak"]
 elif "fluid" in midi_out:
     env.DEFAULT_OUTPUT = midi_out["fluid"]
+
+t1 = Track(0)
+t2 = Track(1)
+t3 = Track(2)
+t4 = Track(3)
+
+env.TRACKS = [t1, t2, t3, t4]
+
+# midi_file = openFile("FF7red13.mid")
