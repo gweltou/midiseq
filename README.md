@@ -1,6 +1,97 @@
-# MidiTool
+# PyMidiSeq
 
-D'autres programmes dans le genre:
+Polyphonic real-time midi sequencer in Python.
+With a strong emphasis on generative composition and live performances.
+Clear and short syntax while trying to remain as little esoteric as possible.
+Explicit docstrings and error messages.
+
+## Setup
+
+    pip install rtmidi
+
+Pour un environnement de programmation toute options :
+
+    sudo apt install jupyter-qtconsole
+
+## Usage
+
+### Basic usage
+
+```python
+>>> from miditool import *
+
+>>> listOutputs()
+[0] Midi Through:Midi Through Port-0 14:0
+[1] VCV Rack:VCV Rack input 133:0
+
+>>> openOutput(1)
+Opening port 1 [VCV Rack:VCV Rack input 133:0]
+
+>>> setTempo(60)
+>>> play(Seq("do do6 do re sol") * 4, loop=True)
+>>> stop()
+```
+
+### Le temps
+
+Pour changer la durée d'une séquence on modifie sa propriété `length`. On peut aussi la passer en argument au constructeur de la classe `Seq`.
+
+```python
+s = Seq(length=4)
+# ou bien
+s = Seq()
+s.length = 4
+```
+
+L'unité temporelle est égale à une seconde.
+
+### Sequences, Notes, Chords and Silences
+
+Create a random sequence of four notes:
+
+```python
+s = rand(4)
+```
+
+### String sequence notation
+
+English notation (a b c d e f g) as well as solfège notation (do re mi fa sol la si do) can be used to compose a sequence in a string.
+
+```python
+Seq("e b b f# e")
+```
+
+Sharp and flats are noted with the symbols `#` and `b` after the note name.
+
+### Scales
+
+You can constrain all generated notes in newly created sequences to a scale with the `setScale` function.
+
+  setScale("minor", "c")
+
+This won't affect previously created sequences.
+
+### Generators
+
+### Tracks
+
+Whenever you want to chain sequences or generators, or if you want to play sequences in parallel on different midi channels you can use tracks.
+
+## Alsa connect
+
+List midi inputs (devices that can recieve midi)
+
+    $ aconnect -i
+
+List midi outputs (devices that can send midi)
+  
+    $ aconnect -o
+
+Connecting devices together (sender to reciever)
+
+    $ aconnect 132:0 130:0
+
+## Other software / inspiration
 
 Sonic Pi
 https://sonic-pi.net/
@@ -23,108 +114,17 @@ https://en.wikipedia.org/wiki/JFugue
 pocketrockit
 https://projects.om-office.de/frans/pocketrockit
 
-Hardware:
+### Hardware
 
-Monome - Teletype (module Eurorack)
+Monome - Teletype (Eurorack module)
 https://monome.org/docs/teletype/
-
-
-## Features
-
-Polyphonic real-time midi sequencer in Python.
-With a strong emphasis on generative composition and live performances.
-Clear and short syntax while trying to remain as little esoteric as possible.
-Explicit docstrings and error messages.
-
-
-## Setup
-
- pip install rtmidi
- 
-Pour un environnement de programmation toute options :
- 
- sudo apt install jupyter-qtconsole
-
-
-## Usage
-
-### Démarrage
-
-```python
-
->>> from miditool import *
-
->>> listOutputs()
-[0] Midi Through:Midi Through Port-0 14:0
-[1] VCV Rack:VCV Rack input 133:0
-
->>> openOutput(1)
-Opening port 1 [VCV Rack:VCV Rack input 133:0]
-
->>> setTempo(60)
->>> play(Seq("do do6 do re sol") * 4, loop=True)
->>> stop()
-```
-
-
-### Le temps
-
-Pour changer la durée d'une séquence on modifie sa propriété `length`. On peut aussi la passer en argument au constructeur de la classe `Seq`.
-```python
-s = Seq(length=4)
-# ou bien
-s = Seq()
-s.length = 4
-```
-
-L'unité temporelle est égale à une seconde.
-
-### Notes, Chords and Silences
-
-### Sequences
-
-Create a random sequence of four notes:
-
-  s = Seq().rand(4)
-
-### Scales
-
-You can constrain all generated notes in newly created sequences to a scale with the `setScale` function.
-
-  setScale("minor", "c")
-
-This won't affect previously created sequences.
-
-### Generators
-
-### Tracks
-
-Whenever you want to chain sequences or generators, or if you want to play sequences in parallel on different midi channels you can use tracks.
-
-
-## Alsa connect
-
-List midi inputs (devices that can recieve midi)
-
-  $ aconnect -i
-
-List midi outputs (devices that can send midi)
-  
-  $ aconnect -o
-
-Connecting devices together (sender to reciever)
-
-  $ aconnect 132:0 130:0
-
 
 ## Développement futur / idées à explorer
 
 * Micro-tonalité avec le pitch bend
-* Classe Chord, additions Note-Note (=Seq), Chord-Note (=Seq), Seq-Note...
 * Pouvoir associer une fonction de callback à la réception d'un contrôle midi
 * Listen() devrait n'avoir à s'appeler qu'une seule fois. Créer une fonction stop_listen().
 * Possibilité de jouer des notes d'une séquence se trouvent au delà de la taille (param length) de la séquence.
-
 
 ### Méthodes de la classe Seq
 

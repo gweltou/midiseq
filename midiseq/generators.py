@@ -1,5 +1,5 @@
 import random
-from sequence import Note, Sil, Seq, Scale, modes, Chord
+from .sequence import Note, Sil, Seq, Scale, modes, Chord
 
 
 

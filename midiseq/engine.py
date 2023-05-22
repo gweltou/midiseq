@@ -7,24 +7,15 @@ import rtmidi
 #from mido import MidiFile
 import mido
 
-from .sequence import *
-from .generators import *
-import .env
+import midiseq.env as env
+from .sequence import Seq, Note, Chord, Track, Song
 
 
 # DEBUG = True
 
-
-# _metronome_click = True
-# _metronome_div = 4          # Number of quarter notes in a metronome cycle
-# _metronome_pre = 1          # Number of metronome cycle before recording
-# _metronome_port = None      # Midi port for metronome
-
-
 _playing_thread = None
 _listening_thread = None
 _timeres = 0.01
-# _tempo = 120
 _must_stop = False
 _armed = False              # Ready to record, waiting for the player thread to give the recording trigger
 _recording = False
@@ -32,32 +23,10 @@ _recording_time = 0.0
 _record = None              # Where the recordings from midi in are stored
 
 
-
-lock = threading.Lock()
+# lock = threading.Lock()
 
 # midiout = rtmidi.MidiOut()
 midiin = rtmidi.MidiIn()
-
-
-env.TRACKS = [Track(i) for i in range(16)]
-
-
-def setNoteLen(d):
-    """ Set default note length """
-    env.NOTE_LENGTH = d
-
-
-def setScale(scale="chromatic", tonic="c"):
-    env.SCALE = Scale(scale, tonic)
-
-
-def setTempo(bpm):
-    env.TEMPO = bpm
-
-
-def clearAllTracks():
-    for track in env.TRACKS:
-        track.clear()
 
 
 # def panic(channel=1):
@@ -390,39 +359,3 @@ def openFile(path, track=1):
     song.tracks.append(s)
 
     return song
-
-
-
-
-env.METRONOME_NOTES = (sit13, sit16)
-setScale("chromatic")
-    
-midi_out = dict()
-midi_out["default"] = openOutput(0)
-for i, port_name in _getOutputs():
-    if "microfreak" in port_name.lower():
-        midi_out["microfreak"] = openOutput(i)
-        midi_out["mf"] = midi_out["microfreak"]
-    if "fluid" in port_name.lower():
-        midi_out["fluid"] = openOutput(i)
-        midi_out["fl"] = midi_out["fluid"]
-    if "amsynth" in port_name.lower():
-        midi_out["amsynth"] = openOutput(i)
-        midi_out["am"] = midi_out["amsynth"]
-
-
-env.DEFAULT_OUTPUT = midi_out["default"]
-_metronome_port = midi_out["default"]
-if "microfreak" in midi_out:
-    env.DEFAULT_OUTPUT = midi_out["microfreak"]
-elif "fluid" in midi_out:
-    env.DEFAULT_OUTPUT = midi_out["fluid"]
-
-t1 = Track(0)
-t2 = Track(1)
-t3 = Track(2)
-t4 = Track(3)
-
-env.TRACKS = [t1, t2, t3, t4]
-
-# midi_file = openFile("FF7red13.mid")

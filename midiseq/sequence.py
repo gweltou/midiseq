@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Union
+from typing import Optional, Union
 import random
 import re
 
@@ -36,6 +36,127 @@ modes = {
 #     for i in range(len(s.scale) + 1):
 #         s.addNote(s.scale.getDegree(i))
 #     return s
+
+
+def str2seq(string: str):
+	NOTE_CHORD_PATTERN = re.compile(r"""([+-]?\d)?	# Octave transposition
+										(do|re|ré|mi|fa|sol|la|si|[a-g])
+										(b|\#)?		# Accidentals (flat or sharp)
+										(M|m|\+|°)?	# Maj, min, aug, dim
+										(7|9|11)?	# Seventh, ninth, eleventh
+										(%[\d/.]+)?	# Time multiplication factor
+										""", re.X|re.I)
+	
+	SILENCE_PATTERN = re.compile(r"(\.+)")
+
+	note_value = {	'c': 0,    'do': 0,
+					'd': 2,    're': 2,	'ré': 2,
+					'e': 4,    'mi': 4,
+					'f': 5,    'fa': 5,
+					'g': 7,    'sol': 7,
+					'a': 9,    'la': 9,
+					'b': 11,   'si': 11}
+	
+	def get_octave(s: Optional[str]) -> int:
+		if not s:
+			return 5 # Default octave is 5
+		if s[0] in ('-','+'):
+			return min(max(eval('5'+s), 0), 10)
+		return int(s)
+	
+	def parse_element(s: str) -> Union[Note, Chord, Sil]:
+		match = NOTE_CHORD_PATTERN.match(s)
+		if match:
+			octave = get_octave(match[1])
+			pitch = 12*octave + note_value[match[2]]
+			pitch += 1 if s=='#' else -1 if s=='b' else 0
+			is_chord = match[2][0].isupper()
+			if is_chord:
+				return Chord((pitch))
+			else:### Sequences
+
+				return Note(pitch)
+		match = SILENCE_PATTERN.match(s)
+		if match:
+			return Sil(len(match[0]))
+
+	elts = []
+	for s in string.split():
+		if '_' in s:
+			# Tuplet
+			tup_notes = s.split('_')
+			elts.extend([ parse_element(t)/len(tup_notes) for t in tup_notes ])
+		else:
+			# Single element
+			elts.append(parse_element(s))
+		
+	return sum(elts, Seq()) if len(elts) > 1 else elts[0]
+
+
+
+def noteToPitch(name):
+    """ Returns the midi pitch number given a spelled note """
+    
+    if type(name) != str:
+        raise TypeError('Argument must be a string. Ex: "do", "c#4", "60... ')
+
+    notes = {'c': 0,    'do': 0,
+             'c+': 1,   'c#': 1,    'do#': 1,
+             'd': 2,    're': 2,
+             'd+' : 3,  'd#' : 3,   're#': 3,
+             'e': 4,    'mi': 4,
+             'f': 5,    'fa': 5,
+             'f+': 6,   'f#': 6,    'fa#': 6,
+             'g': 7,    'sol': 7,
+             'g+': 8,   'g#': 8,    'sol#': 8,
+             'a': 9,    'la': 9,
+             'a+': 10,  'a#': 10,   'la#': 10,
+             'b': 11,   'si': 11,
+             }
+    p = re.compile(r'([a-z]+[#\-+]?)(\d?)', re.IGNORECASE)
+
+    name = name.strip()
+    if name.isdecimal():
+        return int(name)
+    
+    m = p.match(name)
+    if m:
+        tone = m.groups()[0]
+        if m.groups()[1] != '':
+            oct = int(m.groups()[1])
+            return 12*oct + notes[tone]
+        else:
+            return 12*5 + notes[tone] # Defaults to fifth octave ?
+    
+    return -1
+
+
+
+def getNotesFromString(s, dur=1, vel=100, prob=1):
+    """ Return a list of notes and silences from a string """
+    if type(s) != str:
+        raise TypeError('Argument must be a string. Ex: "do re mi" or "60 62 64"')
+    
+    notes = []
+    for t in s.split():
+        pitch = noteToPitch(t)
+        if 0 < pitch < 128:
+            notes.append( Note(pitch, dur, vel, prob) )
+        elif pitch == 0:
+            notes.append(Sil(dur))
+
+    return notes
+
+
+def noob2seq(noob: str):
+	""" https://noobnotes.net/ """
+
+	o = env.DEFAULT_OCTAVE
+	s = noob.replace('^', str(o+1)).replace('*', str(o+2)) # Octave transpose, up
+	s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
+	s = s.replace('-', '_') # Tuplets
+	s = ' '.join(s.split())
+	return s.lower()
 
 
 
@@ -146,39 +267,37 @@ class Note():
         self.vel = vel
         self.prob = prob
     
-    
-    def copy(self):
+    def copy(self) -> Note:
         n = Note(self.pitch, self.dur, self.vel, self.prob)
-        n.dur = self.dur # Overrides the note_length multiplier
+        n.dur = self.dur # Overrides the env note_length multiplier
         return n
 
+    def __add__(self, other) -> Seq:
+        return Seq().add(self).add(other)
 
-    def __add__(self, other):
-        if type(other) in (Note, Sil):
+    def __mul__(self, factor: Union[int, float]) -> Union[Note, Seq]:
+        if isinstance(factor, int):
+            # Multiply number of notes
             s = Seq()
-            s.add(self)
-            s.add(other)
-        if isinstance(other, Seq):
-            s = other.copy()
-            old_head = other.head
-            s.shift(self.dur)
-            s.add(self, head=0)
-            s.head = old_head + self.dur
-        return s
-
-
-    def __mul__(self, number):
-        if type(number) != int:
-            raise TypeError
-        s = Seq()
-        for _ in range(number):
-            s.add(self.copy())
-        s.length = self.dur * number
-        return s
+            for _ in range(factor):
+                s.add(self.copy())
+            # s.length = self.dur * factor
+            return s
+        elif isinstance(factor, float):
+            # New note with length multiplied
+            n = self.copy()
+            n.dur = self.dur
+            return n
+        else:
+            raise TypeError("Can only multiply Note by an int or a float")
     
-    def __rmul__(self, number):
-        return self.__mul__(number)
-
+    def __rmul__(self, factor: Union[int, float]) -> Union[Note, Seq]:
+        return self.__mul__(factor)
+    
+    def __truediv__(self, factor: Union[int, float]):
+        n = self.copy()
+        n.dur = self.dur / factor
+        return n
 
     def __eq__(self, other):
         return self.pitch == other.pitch and \
@@ -211,12 +330,7 @@ class Sil():
     def __add__(self, other) -> Union[Sil, Seq]:
         if isinstance(other, Sil):
             return Sil((self.dur + other.dur) / env.NOTE_LENGTH)
-        elif type(other) in (Note, Chord, Seq):
-            s = Seq()
-            s.add(self).add(other)
-            return s
-        else:
-            raise TypeError("Only instances of Sil, Note, Chord or Seq can be added to a Silence")
+        return Seq().add(self).add(other)
 
     def __mul__(self, factor: Union[int, float]) -> Sil:
         return Sil(self.dur * factor / env.NOTE_LENGTH)
@@ -250,6 +364,9 @@ class Chord():
         else:
             raise TypeError("argument `notes` must be a string or an iterable")
     
+    def __add__(self, other):
+        return Seq().add(self).add(other)
+
     def __eq__(self, other):
         return self.notes == other.notes and \
                self.dur == other.dur and \
@@ -379,15 +496,22 @@ class Seq():
     """ Sequence of notes """
 
     def __init__(self, notes=None, length=0):
-        self.head = 0.0     # Recording head
-        self.length = length
-        # self.scale = None
-        # self.tonic = 60
+        self.head = 0.0       # Recording head
+        self.length = length  # Can be further than the end of the last note
         self.notes = []
         if notes:
             self.addNotes(notes)
-        # self.next = None    # Plug a sequence to be played after this one
 
+    
+    def copy(self) -> Seq:
+        new = Seq()
+        new.notes = [ (t, note.copy()) for t, note in self.notes ]
+        new.length = self.length
+        new.head = self.head
+        # new.tonic = self.tonic
+        # new.scale = self.scale
+        return new
+    
 
     def add(self, other, head=-1) -> Seq:
         """ Add notes or whole sequences starting from head position
@@ -395,25 +519,27 @@ class Seq():
         """
         if head >= 0:
             self.head = head
-        if type(other) is Note:
+        
+        if isinstance(other, Note):
             self.notes.append( (self.head, other) )
             self.head += other.dur
             self.length = max(self.length, self.head)
-        elif type(other) is Sil:
+            self.notes.sort(key=lambda x: x[0])
+        elif isinstance(other, Sil):
             self.head += other.dur
             self.length = max(self.length, self.head)
-        elif type(other) is Chord:
+        elif isinstance(other, Chord):
             for note in other.notes:
                 self.notes.append( (self.head, note) )
             self.head += other.dur
             self.length = max(self.length, self.head)
             self.notes.sort(key=lambda x: x[0])
-        elif type(other) is type(self):
-            other = other.copy()
+        elif isinstance(other, Seq):
             for (t, note) in other.notes:
                 self.notes.append( (self.head + t, note) )
             self.head += other.length
             self.length = max(self.length, self.head)
+            self.notes.sort(key=lambda x: x[0])
         else:
             raise TypeError("Only instances of Note, Sil, Chord or Seq can be added to a Sequence")
         return self
@@ -448,6 +574,7 @@ class Seq():
     def merge(self, other) -> Seq:
         """ Merge sequences, preserving every note's time position
             Modify this sequence in place
+            Doesn't change this Sequence's length
         """
         if type(other) != type(self):
             raise TypeError("Can only merge other Sequences")
@@ -708,16 +835,6 @@ class Seq():
         new_seq = self.copy()
         new_seq.notes = [(t, n) for t, n in self.notes if key_fn(n)]
         return new_seq
-
-
-    def copy(self) -> Seq:
-        new = Seq()
-        new.notes = [ (t, note.copy()) for t, note in self.notes ]
-        new.length = self.length
-        new.head = self.head
-        # new.tonic = self.tonic
-        # new.scale = self.scale
-        return new
 
 
     def __and__(self, other) -> Seq:
@@ -995,62 +1112,3 @@ class Song():
         self.tempo = 120
         self.time_signature = (4, 4)
         self.tracks = []
-
-
-
-###########
-## UTILS ##
-###########
-
-def noteToPitch(name):
-    """ Returns the midi pitch number given a spelled note """
-    
-    if type(name) != str:
-        raise TypeError('Argument must be a string. Ex: "do", "c#4", "60... ')
-
-    notes = {'c': 0,    'do': 0,
-             'c+': 1,   'c#': 1,    'do#': 1,
-             'd': 2,    're': 2,
-             'd+' : 3,  'd#' : 3,   're#': 3,
-             'e': 4,    'mi': 4,
-             'f': 5,    'fa': 5,
-             'f+': 6,   'f#': 6,    'fa#': 6,
-             'g': 7,    'sol': 7,
-             'g+': 8,   'g#': 8,    'sol#': 8,
-             'a': 9,    'la': 9,
-             'a+': 10,  'a#': 10,   'la#': 10,
-             'b': 11,   'si': 11,
-             }
-    p = re.compile(r'([a-z]+[#\-+]?)(\d?)', re.IGNORECASE)
-
-    name = name.strip()
-    if name.isdecimal():
-        return int(name)
-    
-    m = p.match(name)
-    if m:
-        tone = m.groups()[0]
-        if m.groups()[1] != '':
-            oct = int(m.groups()[1])
-            return 12*oct + notes[tone]
-        else:
-            return 12*5 + notes[tone] # Defaults to fifth octave ?
-    
-    return -1
-
-
-
-def getNotesFromString(s, dur=1, vel=100, prob=1):
-    """ Return a list of notes and silences from a string """
-    if type(s) != str:
-        raise TypeError('Argument must be a string. Ex: "do re mi" or "60 62 64"')
-    
-    notes = []
-    for t in s.split():
-        pitch = noteToPitch(t)
-        if 0 < pitch < 128:
-            notes.append( Note(pitch, dur, vel, prob) )
-        elif pitch == 0:
-            notes.append(Sil(dur))
-
-    return notes
