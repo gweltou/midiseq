@@ -1,10 +1,10 @@
-# !/usr/bin/env python3
+#!/usr/bin/env python3
 
 import random
 import rtmidi
 import time
 
-from sequence import Note, Sil, Seq, getNotesFromString, noteToPitch, Scale, Track
+from sequence import *
 import generators
 
 
@@ -16,96 +16,12 @@ def ex_04(midiout):
     t.gen_func = gen_sweeps_pattern
     t.gen_args = ("AbbCbbAddCdd", "pentatonic_minor", "e4")
     _play(t)
-
-
-def ex_03(midiout):
-    print("EX 03")
-
-    s = Seq()
-    s.scale = Scale("aeolian", "e")
-    s.length = 1
-    s.fillGaussianWalk()
-    s2 = s.copy()
-    s2.clear()
-    s2.fillGaussianWalk()
-
-    s3 = s.copy()
-    s3.clear()
-    s3.fillGaussianWalk()
-
-    t = Track()
-    t.add(s)
-    t.add(s2)
-    t.add(s)
-    t.add(s3)
-    
-    _play(t)
-
-
-def ex_02(midiout):
-    print("EX 02")
-
-    s = Seq()
-    s.scale = Scale("aeolian")
-    s.length = 1
-    s.fillGaussianWalk()
-    cp = s.copy()
-    cp.transpose(-12)
-    cp.expand(0.8)
-    s.add(cp, 0.0)
-    
-    s2 = s.copy()
-    s2.clear()
-    s2.fillGaussianWalk()
-    cp = s2.copy()
-    cp.transpose(-12)
-    cp.expand(0.8)
-    s2.add(cp, 0.0)
-
-    p1 = (s + s2) * 2
-    p2 = p1.copy()
-    p2.expand(1.4)
-    p2.setScale("locrian")
-    p2.tonic = 62
-
-    _play(p1)
-    _play(p2)
-    _play(p1)
-    _play(p2)
-
-
-def ex_01(midiout):
-    s = Seq()
-    s.scale = Scale("aeolian")
-    s.length = 1
-    s.fillGaussianWalk()
-    s.head = 0.0
-    s.fillGaussianWalk()
-    
-    s2 = s.copy()
-    s2.clear()
-    s2.fillGaussianWalk()
-    s2.head = 0.0
-    s2.fillGaussianWalk()
-
-    p1 = (s + s2) * 2
-    p1 *= 0.9
-    p2 = p1.copy()
-    p2.expand(1.2)
-    #p2.setScale("aeolian")
-    p2.tonic = 2
-
-    _play(p1)
-    _play(p2)
-    _play(p1)
-    _play(p2)
 """
 
 
 
 def test_basic_opps():
-    s = Seq()
-    s.rand(4)
+    s = rand(4)
     assert len(s) == 4
 
     assert len(s+s) == 2 * len(s)
@@ -214,16 +130,6 @@ def test_getNotesFromString():
 
     print("test_getNotesFromString", "pass")
 
-
-def test_addchord():
-    # s = Seq()
-    # s.addChordNotes((48, 50, 64,))
-    # assert len(s) == 3
-    # s.clear()
-    # s.addChordNotes("do re mi fa# sol3")
-    # assert len(s) == 5
-    # assert s.length == 0.25
-    print("test_addchord", "deprecated")
 
 
 # def test_grid():

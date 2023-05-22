@@ -1,10 +1,14 @@
 # MidiTool
 
 D'autres programmes dans le genre:
-WarpSeq:
-https://bitbucket.org/laserllama/warpseq/src/master/
 
-Braid:
+Sonic Pi
+https://sonic-pi.net/
+
+FoxDot
+https://github.com/Qirky/FoxDot
+
+Braid
 https://braid.live/
 
 MusicPy
@@ -12,6 +16,17 @@ https://github.com/Rainbow-Dreamer/musicpy
 
 SCAMP
 https://github.com/MarcTheSpark/scamp
+
+JFugue
+https://en.wikipedia.org/wiki/JFugue
+
+pocketrockit
+https://projects.om-office.de/frans/pocketrockit
+
+Hardware:
+
+Monome - Teletype (module Eurorack)
+https://monome.org/docs/teletype/
 
 
 ## Features
@@ -68,6 +83,18 @@ L'unité temporelle est égale à une seconde.
 
 ### Sequences
 
+Create a random sequence of four notes:
+
+  s = Seq().rand(4)
+
+### Scales
+
+You can constrain all generated notes in newly created sequences to a scale with the `setScale` function.
+
+  setScale("minor", "c")
+
+This won't affect previously created sequences.
+
 ### Generators
 
 ### Tracks
@@ -101,13 +128,13 @@ Connecting devices together (sender to reciever)
 
 ### Méthodes de la classe Seq
 
-* shift(n, loop=False)
-  décallage des notes
+* opérateur XOR (^) -> transpose la séquence de n demi-tons
+* Autoriser les pitch négatifs (utile lorsqu'on utilise la transposition)
 * map(other:Seq) # Nom à revoir, pas assez explicite
   Calque une mélodie sur un rythme
 * monophy()
   supprime la polyphonie
-* flatten()
+* flatten() # Nom à revoir
   Supprime tous les silences et mets toutes les notes à la suite, sans chevauchement
 * joinNotes()
     Inverse de splitNotes
@@ -115,7 +142,8 @@ Connecting devices together (sender to reciever)
     Ralonge les notes suivies de silences pour recouvrir la totalité des silences de la séquence
 * sort
   organise les notes temporelement par ordre de hauteur (sans cheuvauchement)
+  Paramètre 'reverse'.
 * spread
-  étale les notes qui se chevauchent de façon à ce qu'il n'y ai pas 2 notes qui se jouent au même moment.
+  Étale les notes qui se chevauchent, de façon à ce qu'il n'y ai pas 2 notes qui se jouent au même moment. Proposer un paramètre de façon à décider si les notes démarrant au même instant s'étalent en montant (de grave à aigüe) ou en descendant (aigüe à grave).
 * générateur de la suite de Recaman
 * Fonction de selection des notes d'après critères. Possibilité d'appliquer une transfo quelconque sur la séléction de notes (transpose, vel, dur)

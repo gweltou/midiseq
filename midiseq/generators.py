@@ -2,30 +2,6 @@ import random
 from sequence import Note, Sil, Seq, Scale, modes, Chord
 
 
-# Sitala drum sampler mapping to midi pitch
-# Clean 808
-sit1 = 36 # Kick
-sit2 = 37 # Snare
-sit3 = 38 # Closed HH
-sit4 = 39 # Open HH
-sit5 = 40 # Cymbal
-sit6 = 41 # Low Tom
-sit7 = 42 # Mid Tom
-sit8 = 43 # High Tom
-sit9 = 44 # Low Conga
-sit10 = 45 # Mid Conga
-sit11 = 46 # High Conga
-sit12 = 47 # Hand Clap
-sit13 = 48 # Clave
-sit14 = 49 # Maraca
-sit15 = 50 # Cowbell
-sit16 = 51 # Rim shot
-
-K = sit1
-S = sit2
-HH = sit3
-OHH = sit4
-
 
 ####  ALIASES
 # n = Note
@@ -33,9 +9,6 @@ OHH = sit4
 # c = Chord
 # sq = Seq
 
-
-
- 
 
 
 def gen_pattern(generator, pattern="ABAB"):
@@ -231,59 +204,103 @@ def gen_japscale():
 
 
 
+
+###############################################################################
+####                            DRUM PATTERNS                              ####
+###############################################################################
+
+
+# Sitala drum sampler mapping to midi pitch
+# Clean 808
+sit1 = 36 # Kick
+sit2 = 37 # Snare
+sit3 = 38 # Closed HH
+sit4 = 39 # Open HH
+sit5 = 40 # Cymbal
+sit6 = 41 # Low Tom
+sit7 = 42 # Mid Tom
+sit8 = 43 # High Tom
+sit9 = 44 # Low Conga
+sit10 = 45 # Mid Conga
+sit11 = 46 # High Conga
+sit12 = 47 # Hand Clap
+sit13 = 48 # Clave
+sit14 = 49 # Maraca
+sit15 = 50 # Cowbell
+sit16 = 51 # Rim shot
+
+K = sit1    # Kick
+Sn = sit2   # Snare
+H = sit3    # Closed Hats
+OH = sit4   # Open Hats
+T = sit8    # Tom
+Cl = sit12  # Clap
+Cb = sit15  # Cowbell
+
+
 def gen_drum_8thNoteGrove():
-    s = Seq((sit3, 0) * 4)  # High-hats
-    s.merge(Seq((sit1, 0, 0, 0, sit2, 0, 0, 0)))   # Kick and Snare
+    s = Seq((H, 0) * 4)  # High-hats
+    s.merge(Seq((K, 0, 0, 0, Sn, 0, 0, 0)))   # Kick and Snare
     s *= 2
     yield s
 
 def gen_drum_4toTheFloor():
-    s = Seq((sit3, 0) * 4)  # High-hats
-    s.merge(Seq( (sit1, 0, 0, 0) * 2) )   # Kick and Snare
-    s.merge(Seq( (0, 0, 0, 0, sit2, 0, 0, 0) ))
+    s = Seq((H, 0) * 4)  # High-hats
+    s.merge(Seq( (K, 0, 0, 0) * 2) )   # Kick and Snare
+    s.merge(Seq( (0, 0, 0, 0, K, 0, 0, 0) ))
     s *= 2
     yield s
 
 def gen_drum_shuffleGroove():
-    s = Seq( (sit3, 0, sit3) * 2)   # HH
-    s.merge(Seq( (sit1, 0, 0, sit2, 0, 0) ))    # K & S
+    s = Seq( (H, 0, H) * 2)   # HH
+    s.merge(Seq( (K, 0, 0, Sn, 0, 0) ))    # K & S
     s *= 2
     yield s
 
 def gen_drum_discoGroove():
-    s = Seq( ( HH, 0, OHH, 0) * 2 )
-    s.merge( Note(K) + 3 * Sil() + Chord((K, S)) + 3 * Sil() )
+    s = Seq( ( H, 0, OH, 0) * 2 )
+    s.merge( Note(K) + 3 * Sil() + Chord((K, Sn)) + 3 * Sil() )
     s *= 2
     yield s
 
-def gen_drum_halfTimeShuffle():
-    s = Seq((HH,), length=1)
-    s.add(Note(HH), 0.72)
+def drum_halfTimeShuffle():
+    s = Seq((H,), length=1)
+    s.add(Note(H), 0.72)
     s *= 4
     s.add(Note(K), 0)
-    s.add(Note(S), 1.27)
-    s.add(Note(S), 2)
-    s.add(Note(S), 3.27)
-    yield s
-# t1.gen_func = gen_drum_shuffleGrove
+    s.add(Note(Sn), 1.27)
+    s.add(Note(Sn), 2)
+    s.add(Note(Sn), 3.27)
+    return s
 
-def gen_drum_funkyDrummer():
-    s =     Seq((K, 0, K, 0, S, 0, K, S, 0, S, K, S, S, K, 0, S))
-    s.merge(Seq((HH,HH,HH,HH,HH,HH,HH,OHH,HH,HH,HH,HH,HH,OHH,HH,HH)))
-    yield s
+def drum_funkyDrummer():
+    s =  Seq((K, 0, K, 0, Sn,0, K, Sn,0, Sn,K, Sn,Sn,K, 0, S))
+    s &= Seq((H, H, H, H, H, H, H, OH,H, H, H, H, H, OH,H, H))
+    return s
 
 def gen_drum_drunkenDrummer():
     s =     Seq((K, 0, K, 0, 0, 0, K, 0, 0, 0, K, 0, 0, K, 0, 0))
     s.humanize(0.8, 4)
-    snares = Seq((0, 0, 0, 0, S, 0, 0, S, 0, S, 0, S, S, 0, 0, S))
+    snares = Seq((0, 0, 0, 0, Sn ,0, 0, Sn, 0, Sn, 0, Sn, Sn, 0, 0, Sn))
     snares.humanize(0.8, 4)
     s.merge(snares)
-    hh = Seq((HH,HH,HH,HH,HH,HH,HH,0, HH,HH,HH,HH,HH,0, HH,HH))
+    hh = Seq((H, H, H, H, H, H, H, 0, H, H, H, H, H, 0, H, H))
     hh.humanize(veldev=20)
     s.merge(hh)
-    s.merge(Seq((0, 0, 0, 0, 0, 0, 0,OHH,0, 0, 0, 0, 0,OHH,0, 0)))
+    s.merge(Seq((0, 0, 0, 0, 0, 0, 0,OH,0, 0, 0, 0, 0,OH,0, 0)))
     yield s
 
+def drum_house():
+    s =  Seq( (K, 0, 0, 0) * 2 )
+    s &= Seq( (H,) * 8)
+    s &= Seq( (0, 0, OH, 0, 0, OH, 0, 0) )
+    s &= Seq( (0, 0, T) )
+    s &= Seq( (0, 0, 0, 0, Sn) )
+    return s * 2
+
+def drum_house2():
+    s =  Seq((K, 0, OH, 0)*3 + (K, 0, OH, OH))
+    s &= Seq((H, 0, 0, H, H, 0, 0, H, H, H, 0, H, H, H, 0, H))
 
 def gen_mf_mel1():
     """ 22/11/2022

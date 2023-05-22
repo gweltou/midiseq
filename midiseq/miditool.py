@@ -1,13 +1,15 @@
 ### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
 
+import time
+import threading
+
 import rtmidi
 #from mido import MidiFile
 import mido
-import time
-import threading
-from sequence import *
-from generators import *
-import env
+
+from .sequence import *
+from .generators import *
+import .env
 
 
 # DEBUG = True
@@ -17,6 +19,7 @@ import env
 # _metronome_div = 4          # Number of quarter notes in a metronome cycle
 # _metronome_pre = 1          # Number of metronome cycle before recording
 # _metronome_port = None      # Midi port for metronome
+
 
 _playing_thread = None
 _listening_thread = None
