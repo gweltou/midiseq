@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Union
+from typing import Optional, Union, List
 import random
 import re
 
@@ -37,60 +37,89 @@ modes = {
 #         s.addNote(s.scale.getDegree(i))
 #     return s
 
+NOTE_CHORD_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
+                                    (do|re|ré|mi|fa|sol|la|si|ti|[a-g])
+                                    (b|\#)?		# Accidentals (flat or sharp)
+                                    (M|m|mM|\+|°|sus2|sus4)? # Maj, min, min/Maj, aug,...
+                                    (7|9|11)?	# Seventh, ninth, eleventh
+                                    (%[\d/.]+)?	# Time multiplication factor
+                                    """, re.X|re.I)
 
-def str2seq(string: str):
-	NOTE_CHORD_PATTERN = re.compile(r"""([+-]?\d)?	# Octave transposition
-										(do|re|ré|mi|fa|sol|la|si|[a-g])
-										(b|\#)?		# Accidentals (flat or sharp)
-										(M|m|\+|°)?	# Maj, min, aug, dim
-										(7|9|11)?	# Seventh, ninth, eleventh
-										(%[\d/.]+)?	# Time multiplication factor
-										""", re.X|re.I)
-	
-	SILENCE_PATTERN = re.compile(r"(\.+)")
 
-	note_value = {	'c': 0,    'do': 0,
-					'd': 2,    're': 2,	'ré': 2,
-					'e': 4,    'mi': 4,
-					'f': 5,    'fa': 5,
-					'g': 7,    'sol': 7,
-					'a': 9,    'la': 9,
-					'b': 11,   'si': 11}
-	
-	def get_octave(s: Optional[str]) -> int:
-		if not s:
-			return 5 # Default octave is 5
-		if s[0] in ('-','+'):
-			return min(max(eval('5'+s), 0), 10)
-		return int(s)
-	
-	def parse_element(s: str) -> Union[Note, Chord, Sil]:
-		match = NOTE_CHORD_PATTERN.match(s)
-		if match:
-			octave = get_octave(match[1])
-			pitch = 12*octave + note_value[match[2]]
-			pitch += 1 if s=='#' else -1 if s=='b' else 0
-			is_chord = match[2][0].isupper()
-			if is_chord:
-				return Chord((pitch))
-			else:### Sequences
+def str2seq(string: str) -> Union[Note, Chord, Sil, Seq]:
+    """ Return a Sequence, given its string representation """
 
-				return Note(pitch)
-		match = SILENCE_PATTERN.match(s)
-		if match:
-			return Sil(len(match[0]))
+    MIDI_PITCH_PATTERN = re.compile(r"(\d+)(%[\d/.]+)?")
 
-	elts = []
-	for s in string.split():
-		if '_' in s:
-			# Tuplet
-			tup_notes = s.split('_')
-			elts.extend([ parse_element(t)/len(tup_notes) for t in tup_notes ])
-		else:
-			# Single element
-			elts.append(parse_element(s))
-		
-	return sum(elts, Seq()) if len(elts) > 1 else elts[0]
+    SILENCE_PATTERN = re.compile(r"(\.+)")
+
+    note_value = {  'c': 0,    'do': 0,
+                    'd': 2,    're': 2,	'ré': 2,
+                    'e': 4,    'mi': 4,
+                    'f': 5,    'fa': 5,
+                    'g': 7,    'sol': 7,
+                    'a': 9,    'la': 9,
+                    'b': 11,   'si': 11}
+    
+    intervals = {   'M': (0, 4, 7), '': (0, 4, 7), # Major
+                    'm': (0, 3, 7), # Minor
+                    '+': (0, 4, 9), # Augmented
+                    '°': (0, 3, 6), # Diminished
+                    'sus2':(0, 2, 7), # Suspended second
+                    'sus4':(0, 5, 7), # Suspended fourth
+                    '7': (0, 4, 7, 10), # Dominant seventh
+                    'M7':(0, 4, 7, 11), # Major seventh
+                    'm7':(0, 3, 7, 10), # Minor seventh
+                    'mM7':(0, 3, 7, 11),# Minor/Major seventh
+                    '°7':(0, 3, 6, 9),   # Diminished seventh
+                }
+
+    def get_octave(s: Optional[str]) -> int:
+        if not s:
+            return env.DEFAULT_OCTAVE
+        if s[0] in ('-','+'):
+            if len(s) == 1:
+                s += '1'
+            octave = eval(str(env.DEFAULT_OCTAVE) + s)
+            return min(max(octave, 0), 10)
+        return int(s)
+
+    def parse_element(s: str) -> Union[Note, Chord, Sil]:
+        match = MIDI_PITCH_PATTERN.fullmatch(s)
+        if match:
+            pitch = int(match[1])
+            dur = 1 if not match[2] else eval(match[2][1:])
+            return Note(pitch, dur=dur)
+
+        match = NOTE_CHORD_PATTERN.fullmatch(s)
+        if match:
+            octave = get_octave(match[1])
+            pitch = 12*octave + note_value[match[2].lower()]
+            pitch += 1 if match[3]=='#' else -1 if match[3]=='b' else 0
+            is_chord = match[2][0].isupper()
+            dur = 1 if not match[6] else eval(match[6][1:])
+            if is_chord:
+                chord_type = (match[4] or '') + (match[5] or '')
+                pitches = ( pitch + i for i in intervals[chord_type] )
+                return Chord(*pitches, dur=dur)
+            else:
+                return Note(pitch, dur=dur)
+        
+        match = SILENCE_PATTERN.fullmatch(s)
+        if match:
+            return Sil(len(match[0]))
+
+    elts = []
+    for s in string.split():
+        if '_' in s:
+            # Tuplet
+            tup_notes = s.split('_')
+            elts.extend([ parse_element(t)/len(tup_notes) for t in tup_notes ])
+        else:
+            # Single element
+            elts.append(parse_element(s))
+    
+    return sum(elts, Seq()) if len(elts) > 1 else elts[0]
 
 
 
@@ -148,15 +177,19 @@ def getNotesFromString(s, dur=1, vel=100, prob=1):
     return notes
 
 
-def noob2seq(noob: str):
-	""" https://noobnotes.net/ """
 
-	o = env.DEFAULT_OCTAVE
-	s = noob.replace('^', str(o+1)).replace('*', str(o+2)) # Octave transpose, up
-	s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
-	s = s.replace('-', '_') # Tuplets
-	s = ' '.join(s.split())
-	return s.lower()
+def noob2seq(noob: str):
+    """ https://noobnotes.net/
+        https://www.piano-letters.com/
+    """
+
+    o = env.DEFAULT_OCTAVE
+    s = noob.replace('^', str(o+1)).replace('*', str(o+2)) # Octave transpose, up
+    s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
+    s = s.replace('-', '_') # Tuplets
+    s = ' '.join(s.split()).lower()
+    return s
+    # return str2seq(s)
 
 
 
@@ -181,10 +214,10 @@ class Scale():
             self.scale = scale
         
     
-    def getClosest(self, note) -> int:
-        """ Find closest note in scale given a pitch.
-            Returns a corrected pitch, in range [0-127].
-            Lower pitch takes precedence.
+    def getClosest(self, note: Union[str, int]) -> int:
+        """ Find closest note in scale given a pitch
+            Returns a corrected pitch, in range [0-127]
+            If the correct pitch is right in the middle, lower pitch takes precedence
         """
         if type(note) == int:
             pitch = min(127, max(0, note))
@@ -235,13 +268,8 @@ class Scale():
 
     def triad(self, degree=0, dur=1, vel=100, prob=1):
         """ Returns a triad Chord of the nth degree in the scale """
-        # notes = []
-        # for chord_deg in [0, 2, 4]:
-        #     notes.append( self.getDegree(degree+chord_deg) )
-
         return Chord([self.getDegree(degree+deg) for deg in [0,2,4]],
                      dur=dur, vel=vel, prob=prob)
-        # return Chord(notes, dur=dur)
 
 
     def __str__(self):
@@ -267,10 +295,12 @@ class Note():
         self.vel = vel
         self.prob = prob
     
+
     def copy(self) -> Note:
         n = Note(self.pitch, self.dur, self.vel, self.prob)
         n.dur = self.dur # Overrides the env note_length multiplier
         return n
+
 
     def __add__(self, other) -> Seq:
         return Seq().add(self).add(other)
@@ -284,9 +314,9 @@ class Note():
             # s.length = self.dur * factor
             return s
         elif isinstance(factor, float):
-            # New note with length multiplied
+            # New note with dur multiplied
             n = self.copy()
-            n.dur = self.dur
+            n.dur = self.dur * factor
             return n
         else:
             raise TypeError("Can only multiply Note by an int or a float")
@@ -351,21 +381,28 @@ class Sil():
 
 class Chord():
 
-    def __init__(self, notes, dur=1, vel=100, prob=1):
+    def __init__(self, *notes, dur=1, vel=100, prob=1):
         self.notes = []
         self.dur = dur * env.NOTE_LENGTH
         self.prob = prob
-        if type(notes) == str:
-            for note in getNotesFromString(notes, dur, vel, prob):
+
+        for note in notes:
+            if isinstance(note, Note):
                 self.notes.append(note)
-        elif hasattr(notes, '__iter__'):
-            for pitch in notes:
-                self.notes.append(Note(pitch, dur, vel, prob))
-        else:
-            raise TypeError("argument `notes` must be a string or an iterable")
+            elif isinstance(note, str):
+                for n in getNotesFromString(note, dur, vel, prob):
+                    self.notes.append(n)
+            elif isinstance(note, int):
+                self.notes.append(Note(note, dur, vel, prob))
+            else:
+                raise TypeError("argument `notes` must be a string or integers")
     
     def __add__(self, other):
         return Seq().add(self).add(other)
+    
+    def __iter__(self):
+        # Do we really need it ?
+        return self.notes.__iter__()
 
     def __eq__(self, other):
         return self.notes == other.notes and \
@@ -373,7 +410,12 @@ class Chord():
                self.prob == other.prob
 
     def __repr__(self):
-        return "Chord({},{},{})".format(self.notes, self.dur/env.NOTE_LENGTH, self.prob)
+        if self.dur / env.NOTE_LENGTH == 1.0:
+            return "Chord({})".format(', '.join( [str(n.pitch) for n in self.notes] ))
+        return "Chord({}, dur={})".format(
+                ', '.join( [str(n.pitch) for n in self.notes] ),
+                self.dur / env.NOTE_LENGTH
+                )
 
 
 
@@ -485,7 +527,6 @@ class Chord():
 #             s += b + ' '
 #         s += ']'
 #         return s
-    
 
 #     def __len__(self):
 #         return len(self.grid)
@@ -508,8 +549,6 @@ class Seq():
         new.notes = [ (t, note.copy()) for t, note in self.notes ]
         new.length = self.length
         new.head = self.head
-        # new.tonic = self.tonic
-        # new.scale = self.scale
         return new
     
 
@@ -546,7 +585,9 @@ class Seq():
     
 
     def addNotes(self, notes, dur=1, vel=100):
-        """ Add notes sequencially
+        """ Add notes sequencially from a string sequence or and iterable.
+            If an iterable is given, it can contain sub-lists,
+            which will subdivide the time
 
             Parameters
             ----------
@@ -554,9 +595,8 @@ class Seq():
                     A list of note pitches, can be a string or an iterable
                     Ex: "c# d f2 do re mi" or (61, 62, 29, 60, 62, 64)
                     If the value 0 is given in place of a pitch it will be treated as a silence
-
         """
-        if type(notes) == str:
+        if isinstance(notes, str):
             for note in getNotesFromString(notes, dur, vel):
                 self.add(note)
         elif hasattr(notes, '__iter__'):
@@ -592,31 +632,6 @@ class Seq():
         for note in new_notes:
             self.add(note)
         return self
-    
-
-    def euclid(self, note=36, n=4, grid=16, offset=0) -> Seq:
-        """ Generate a Euclidian rythm sequence
-
-            Parameters
-            ----------
-                n : int
-                    Number of notes to generate
-                grid : int
-                    Size of the grid (should be bigger than `n`)
-                offset : int
-                    Number of rests before first note
-        """
-        if type(note) != Note:
-            note = Note(note)
-        
-        offset = offset % grid
-        onsets = [ (offset+round(grid*i/n)) % grid for i in range(n) ]
-        for i in onsets:
-            t = i * env.NOTE_LENGTH
-            self.notes.append( (t, note.copy()) )
-        self.notes.sort(key=lambda x: x[0])
-        self.head += grid * env.NOTE_LENGTH
-        return self
 
 
     def replacePitch(self, old, new) -> Seq:
@@ -646,13 +661,13 @@ class Seq():
         return self
 
 
-    def stretch(self, factor, stretch_notes_dur=True) -> Seq:
+    def stretch(self, factor, stretch_notes=True) -> Seq:
         """ Stretch sequence in time (modify sequence in place)
             Modifies sequence in-place
         """
         for i in range(len(self.notes)):
             t, note = self.notes[i]
-            if stretch_notes_dur:
+            if stretch_notes:
                 note.dur *= factor
             self.notes[i] = t * factor, note
         self.length *= factor
@@ -793,8 +808,6 @@ class Seq():
             
             # pitch = self.getClosestNoteInScale(note.pitch)
 
-            # note_on = Message.noteOn(channel, note.pitch, note.vel)
-            # note_off = Message.noteOff(channel, note.pitch)
             note_on = [0x90+channel, note.pitch, note.vel]
             note_off = [0x80+channel, note.pitch, 0]
             midi_seq.append( (pos, note_on) )
@@ -844,9 +857,8 @@ class Seq():
 
 
     def __add__(self, other) -> Seq:
-        if not type(other) in (type(self), Note, Sil, Chord):
-            raise TypeError("Only Note, Sil, Chord and other Seq can be added to sequences")
-        
+        if type(other) not in (Seq, Note, Sil, Chord):
+            raise TypeError(f"Only Note, Sil, Chord or Seq can be added to sequences (got {type(other)})")
         new_seq = self.copy()
         new_seq.add(other)
         return new_seq
@@ -927,94 +939,21 @@ class Seq():
     
     def __len__(self):
         return len(self.notes)
+    
+    # def __lt__(self, other):
+    #     return self.length < other.length
+    
+    def __eq__(self, other):
+        return (
+            self.length == other.length
+            and self.notes == other.notes
+        )
 
     def __str__(self):
         return str(self.notes)
     
     def __repr__(self):
         return str(self)    
-
-
-
-# Sequence building functions
-
-def rand(n=4, min=36, max=96, scale:Scale=None) -> Seq:
-    """ Generate a sequence of random notes
-
-        Parameters
-        ----------
-            n : int
-                Number of notes to generate
-            min : int
-                Minimum midi pitch boundary
-            max : int
-                Maximum midi pitch boundary
-            scale : Scale
-                Constrain generated notes to the given scale
-    """
-    seq = Seq()
-    for _ in range(n):
-        pitch = random.randint(min, max)
-        if scale:
-            pitch = env.SCALE.getClosest(pitch)
-        elif type(env.SCALE) is Scale:
-            pitch = env.SCALE.getClosest(pitch)
-        seq.add(Note(pitch))
-    return seq
-
-
-def randWalk(n=4, start=60, steps=[-3,-2,-1,0,1,2,3], skip_first=False, scale:Scale=None) -> Seq:
-    """ Create a sequence of notes moving from last note by a random interval
-
-        Parameters
-        ----------
-            n : int
-                Number of notes to generate
-            start : int or str
-                Starting note of the sequence
-            steps : list of int
-                Possible intervals to step from last note
-            skip_first:
-                Skip starting note
-            scale : Scale
-                Constrain generated notes to the given scale
-    """
-    if type(start) is str:
-        start = noteToPitch(start)
-    pitch = start
-    if not scale:
-        scale = env.SCALE
-    if skip_first:
-        pitch = scale.getDegreeFrom(pitch, random.choice(steps))
-    seq = Seq()
-    for _ in range(n):
-        seq.add(Note(pitch))
-        pitch = env.SCALE.getDegreeFrom(pitch, random.choice(steps))
-    return seq
-
-
-def randGauss(n=4, mean=60, dev=3, scale:Scale=None) -> Seq:
-    """ Generate random notes with a normal distribution around a mean value
-
-        Parameters
-        ----------
-            n : int
-                Number of notes to generate
-            mean : int
-                Mean pitch value
-            dev : float
-                Standard deviation
-    """
-    if not scale:
-        scale = env.SCALE
-    seq = Seq()
-    for _ in range(n):
-        if type(scale) is Scale:
-            pitch = scale.getDegreeFrom(mean, round(random.gauss(0, dev)))
-        else:
-            pitch = round(random.gauss(mean, dev))
-        seq.add(Note(pitch))
-    return seq
 
 
 
@@ -1033,21 +972,26 @@ class Track():
     # Looping from the start or looping the last sequence/generator 
 
     def __init__(self, channel=0):
-        self.midiport = None
+        self.port = None
         self.channel = channel
         self.instrument = None
         self.gen_func =  None
         self.gen_args = None
         self.generator = None
-        self.seqs = []
+        self.seqs: List[Seq] = []
         self.loop = False
+        self.loop_type = "all" # "all"/"last", Not Implemented
+        self.shuffle = False    # Not Implemented
         self.reset()
     
 
-    def add(self, sequence):
+    def add(self, sequence: Union[Seq, str]) -> Track:
+        if isinstance(sequence, str):
+            sequence = str2seq(sequence)
         self.seqs.append(sequence)
         self.ended = False
-    
+        return self
+
 
     def clear(self):
         self.seqs.clear()

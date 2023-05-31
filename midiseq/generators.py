@@ -1,5 +1,7 @@
+from typing import Union
 import random
-from .sequence import Note, Sil, Seq, Scale, modes, Chord
+from .sequence import Note, Sil, Seq, Scale, Chord, str2seq, modes
+import midiseq.env as env
 
 
 
@@ -9,6 +11,164 @@ from .sequence import Note, Sil, Seq, Scale, modes, Chord
 # c = Chord
 # sq = Seq
 
+
+###############################################################################
+####                           Exemple sequences                           ####
+###############################################################################
+
+seq_kaini_industries = """
+    -g#%1.5 -a#%.5 b_b -g#_b -g#_a# f#_-g# -2b -g#_-f#
+    c# -c#%4 f#%2 g#
+    -2g#%1.5 -a#_d# -a#_d# -a#_-f# f#_f# -a#_f# g#%.5 g#
+    -c# -d#_e# -d# e# b e#_b e#_a# f#
+    """
+seq_never_gonna_gyu = "a#_+c +c#_a# +f +f +d# . g#_a# +c#_a# +d# +d# +c# +c_a#"
+seq_mario = "e_e ._e ._c e_. g . -g"
+
+
+###############################################################################
+####                       Simple sequence generators                      ####
+###############################################################################
+
+
+def rand(n=4, min=36, max=96, scale:Scale=None) -> Seq:
+    """ Generate a sequence of random notes
+
+        Parameters
+        ----------
+            n : int
+                Number of notes to generate
+            min : int
+                Minimum midi pitch boundary
+            max : int
+                Maximum midi pitch boundary
+            scale : Scale
+                Constrain generated notes to the given scale
+    """
+    if not scale:
+        scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
+    s = Seq()
+    for _ in range(n):
+        pitch = env.SCALE.getClosest(random.randint(min, max))
+        s.add(Note(pitch))
+    return s
+
+
+
+def randWalk(
+        n=4,
+        start: Union[str,int]=60,
+        steps=[-3,-2,-1,0,1,2,3],
+        skip_first=False, scale:Scale=None
+    ) -> Seq:
+    """ Create a sequence of notes moving from last note by a random interval
+
+        Parameters
+        ----------
+            n : int
+                Number of notes to generate
+            start : int or str
+                Starting note of the sequence
+            steps : list of int
+                Possible intervals to step from last note
+            skip_first:
+                Skip starting note
+            scale : Scale
+                Constrain generated notes to the given scale
+    """
+    if not scale:
+        scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
+    if isinstance(start, str):
+        start = noteToPitch(start)
+    pitch = scale.getClosest(start)
+    if skip_first:
+        pitch = scale.getDegreeFrom(pitch, random.choice(steps))
+    s = Seq()
+    for _ in range(n):
+        s.add(Note(pitch))
+        pitch = env.SCALE.getDegreeFrom(pitch, random.choice(steps))
+    return s
+
+
+
+def randGauss(n=4, mean=60, dev=3, scale:Scale=None) -> Seq:
+    """ Generate random notes with a normal distribution around a mean value
+
+        Parameters
+        ----------
+            n : int
+                Number of notes to generate
+            mean : int
+                Mean pitch value
+            dev : float
+                Standard deviation
+    """
+    if not scale:
+        scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
+    s = Seq()
+    for _ in range(n):
+        pitch = scale.getDegreeFrom(mean, round(random.gauss(0, dev)))
+        s.add(Note(pitch))
+    return s
+
+
+    
+def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
+    """ Generate a Euclidian rythm sequence
+
+        Parameters
+        ----------
+            n : int
+                Number of notes to generate
+            grid : int
+                Size of the grid (should be bigger than `n`)
+            offset : int
+                Number of rests before first note
+    """
+    if not isinstance(note, Note):
+        note = Note(note)
+    
+    offset = offset % grid
+    onsets = [ (offset+round(grid*i/n)) % grid for i in range(n) ]
+    s = Seq()
+    for i in onsets:
+        t = i * env.NOTE_LENGTH
+        s.add(note.copy(), head=t)
+    return s
+
+
+def lcm(*seqs):
+    """ Combine two or more sequence to build
+        the least common multiplier of them all
+    """
+    def samelen(seqs):
+        first = seqs[0]
+        for s in seqs[1:]:
+            if s.length != first.length:
+                return False
+        return True
+
+    seqs_init = [ str2seq(s) if isinstance(s, str) else s for s in seqs ]
+    seqs = [ s.copy() for s in seqs_init ]
+    while not samelen(seqs):
+        # Find index of shortest seq:
+        shortest = (-1, 9999)
+        for i, s in enumerate(seqs):
+            if s.length < shortest[1]:
+                shortest = (i, s.length)
+        # Extend shortest seq
+        seqs[shortest[0]] += seqs_init[shortest[0]]
+    # Merge all sequences
+    merged = seqs[0]
+    for s in seqs[1:]:
+        merged &= s
+    return merged
+
+
+
+###############################################################################
+####                      Complex sequence generators                      ####
+###############################################################################
 
 
 def gen_pattern(generator, pattern="ABAB"):
@@ -43,17 +203,16 @@ def gen_chords1():
 
 def gen_chords2():
     d = 0
+    scl = Scale(random.choice(list(modes.keys())))
     while True:
         s = Seq()
         if d%4 == 0:
-            scl = random.choice(list(modes.keys()))
-            s.scale = Scale(scl)
+            scl = Scale(random.choice(list(modes.keys())))
             print(scl)
-        s.clear()
         chord_prog = [ random.choice(list(range(7))) for _ in range(4) ]
         print(chord_prog)
         for i in chord_prog:
-            s.add(s.scale.triad(i))
+            s.add(scl.triad(i))
         s.add(Sil())
         s.stretch(2, False)# *= 2.0
         d+= 1
@@ -244,6 +403,7 @@ def gen_drum_8thNoteGrove():
     s *= 2
     yield s
 
+
 def gen_drum_4toTheFloor():
     s = Seq((H, 0) * 4)  # High-hats
     s.merge(Seq( (K, 0, 0, 0) * 2) )   # Kick and Snare
@@ -251,17 +411,20 @@ def gen_drum_4toTheFloor():
     s *= 2
     yield s
 
+
 def gen_drum_shuffleGroove():
     s = Seq( (H, 0, H) * 2)   # HH
     s.merge(Seq( (K, 0, 0, Sn, 0, 0) ))    # K & S
     s *= 2
     yield s
 
+
 def gen_drum_discoGroove():
     s = Seq( ( H, 0, OH, 0) * 2 )
     s.merge( Note(K) + 3 * Sil() + Chord((K, Sn)) + 3 * Sil() )
     s *= 2
     yield s
+
 
 def drum_halfTimeShuffle():
     s = Seq((H,), length=1)
@@ -273,10 +436,12 @@ def drum_halfTimeShuffle():
     s.add(Note(Sn), 3.27)
     return s
 
+
 def drum_funkyDrummer():
     s =  Seq((K, 0, K, 0, Sn,0, K, Sn,0, Sn,K, Sn,Sn,K, 0, S))
     s &= Seq((H, H, H, H, H, H, H, OH,H, H, H, H, H, OH,H, H))
     return s
+
 
 def gen_drum_drunkenDrummer():
     s =     Seq((K, 0, K, 0, 0, 0, K, 0, 0, 0, K, 0, 0, K, 0, 0))
@@ -290,6 +455,7 @@ def gen_drum_drunkenDrummer():
     s.merge(Seq((0, 0, 0, 0, 0, 0, 0,OH,0, 0, 0, 0, 0,OH,0, 0)))
     yield s
 
+
 def drum_house():
     s =  Seq( (K, 0, 0, 0) * 2 )
     s &= Seq( (H,) * 8)
@@ -298,9 +464,11 @@ def drum_house():
     s &= Seq( (0, 0, 0, 0, Sn) )
     return s * 2
 
+
 def drum_house2():
     s =  Seq((K, 0, OH, 0)*3 + (K, 0, OH, OH))
     s &= Seq((H, 0, 0, H, H, 0, 0, H, H, H, 0, H, H, H, 0, H))
+
 
 def gen_mf_mel1():
     """ 22/11/2022

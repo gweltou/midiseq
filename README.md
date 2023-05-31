@@ -28,7 +28,7 @@ Pour un environnement de programmation toute options :
 Opening port 1 [VCV Rack:VCV Rack input 133:0]
 
 >>> setTempo(60)
->>> play(Seq("do do6 do re sol") * 4, loop=True)
+>>> play("c 5c c d g " * 4, loop=True)
 >>> stop()
 ```
 
@@ -45,23 +45,45 @@ s.length = 4
 
 L'unité temporelle est égale à une seconde.
 
-### Sequences, Notes, Chords and Silences
+### Notes, Silences and Sequences
 
-Create a random sequence of four notes:
+Here's a note :
+
+    Note("c")
+
+You can sets its length with the `dur` parameter and add a silence/rest after it :
+
+    Note("c", dur=2) + Sil(1.5)
+
+Now, the duration of a note is not an absolute value. It's a relative value by which the default length is multiplied to give the note's true length (same for the silence).\
+If the default length was set with `setNoteLen(1/4)` (default value), the previous sequence would play as a 'c' half note, followed by a dotted quarter rest.
+
+### Chords
+
+Chords can be created like so :
+
+    Chord("Cmaj")
+
+Same as `Chord([48, 52, 56])` or `Chord("do mi sol")`
+
+Possible type of chords:
+* Triads: "C" or "CM" (major), "Cm" (minor), "C+" (augmented), "C°" (diminished)
+* Seventh: "C7" (dominant seventh), "CM7" (major seventh), "Cm7" (minor seventh), "C+7" (augmented seventh)
+* Ninth: "C9" (dominant ninth), "CM9" (major ninth)
+
+### Writing sequences
+
+English notation (c d e f g a b) as well as solfège notation (do re mi fa sol la si) can be used to compose a sequence in a string.
 
 ```python
-s = rand(4)
+Seq("e b f# eb")
 ```
 
-### String sequence notation
-
-English notation (a b c d e f g) as well as solfège notation (do re mi fa sol la si do) can be used to compose a sequence in a string.
+Sharp and flats are noted with the symbols `#` and `b` after the note name. Octave transposition is done by prepending the note name by a single number (absolute octave transposition) and with a +/- sign for relative transposition. The number can be omitted for a transposition of just 1 octave up or down.
 
 ```python
-Seq("e b b f# e")
+play("+e d -e +2b")
 ```
-
-Sharp and flats are noted with the symbols `#` and `b` after the note name.
 
 ### Scales
 
@@ -71,7 +93,39 @@ You can constrain all generated notes in newly created sequences to a scale with
 
 This won't affect previously created sequences.
 
-### Generators
+### Generating sequences
+
+Many built-in functions can be use to generate sequences.
+
+#### Random generators
+
+```python
+rand(n)
+```
+
+```python
+randWalk(n)
+```
+
+```python
+randGauss(n)
+```
+
+#### Deterministic generators
+
+```python
+euclid(n)
+```
+
+The `lcm` function will build a sequence combining all given sequences with the "least common multiple" of their lengths.
+
+Use quantized sequences, lest obtaining a memory shortage !
+
+See : https://en.wikipedia.org/wiki/Least_common_multiple
+
+```python
+lcm("a ..", "c ...", "e ....")
+```
 
 ### Tracks
 

@@ -8,7 +8,7 @@ import mido
 
 from .sequence import Seq, Chord, Note, Sil, Track, str2seq
 from .generators import *
-from .engine import openOutput, _getOutputs, play
+from .engine import listOutputs, openOutput, _getOutputs, play, stop
 import midiseq.env as env
 
 

@@ -1,5 +1,6 @@
 ### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
 
+from typing import Union, List
 import time
 import threading
 
@@ -8,7 +9,7 @@ import rtmidi
 import mido
 
 import midiseq.env as env
-from .sequence import Seq, Note, Chord, Track, Song
+from .sequence import Seq, Note, Chord, Track, Song, str2seq
 
 
 # DEBUG = True
@@ -23,6 +24,10 @@ _recording_time = 0.0
 _record = None              # Where the recordings from midi in are stored
 
 
+past_opened = list()
+def getPastOpened():
+    return [ (p, p.is_port_open()) for p in past_opened ]
+
 # lock = threading.Lock()
 
 # midiout = rtmidi.MidiOut()
@@ -36,7 +41,7 @@ midiin = rtmidi.MidiIn()
 
 
 
-def play(what=None, channel=1, loop=False):
+def play(what: Union[Note, Seq, None]=None, channel=1, loop=False):
     """ Play a Song, a Track, a Sequence or a single Note
 
         Parameters
@@ -54,15 +59,11 @@ def play(what=None, channel=1, loop=False):
         _playing_thread.join()
     
     if what:
-        track = what
-        if type(what) is Note:
-            s = Seq()
-            s.length=0
-            s.add(what)
-            what = s
-        if type(what) is Seq:
-            track = Track(channel)
-            track.add(what)
+        if isinstance(what, str):
+            what = str2seq(what)    # 'what' can be a single Note/Chord/Sil at this point
+        if isinstance(what, Note):
+            what = Seq().add(what)
+        track = Track(channel).add(what)
         _playing_thread = threading.Thread(target=_play, args=([track], channel, loop), daemon=True)
     else:    # Play all tracks
         _playing_thread = threading.Thread(target=_play, args=(env.TRACKS, channel, loop), daemon=True)
@@ -71,7 +72,7 @@ def play(what=None, channel=1, loop=False):
     _playing_thread.start()
 
 
-def _play(tracks, channel=1, loop=False):
+def _play(tracks: List[Track], channel=1, loop=False):
     global _armed
     global _recording
     global _recording_time
@@ -79,7 +80,7 @@ def _play(tracks, channel=1, loop=False):
     for track in tracks:
         track.reset()
         track.loop = loop
-    midi_messages = []
+    midi_events = []
     active_notes = set()
     metronome_time = 0.0
     metronome_click_count = 0
@@ -131,23 +132,24 @@ def _play(tracks, channel=1, loop=False):
 
         must_sort = False
         for track in tracks:
-            new_messages = track.update(timedelta)
-            if new_messages:
+            new_events = track.update(timedelta)
+            if new_events:
                 must_sort = True
-                for t, mess in new_messages:
-                    midi_messages.append( (t + song_time, mess) )
+                for t, mess in new_events:
+                    midi_events.append( (t + song_time, mess, track.port) )
         if must_sort:
-            midi_messages.sort(reverse=True)
+            midi_events.sort(reverse=True)
 
         new_noteon = False
-        while len(midi_messages) > 0 and midi_messages[-1][0] < song_time:
-            mess = midi_messages.pop()[1]
+        while len(midi_events) > 0 and midi_events[-1][0] < song_time:
+            _, mess, port = midi_events.pop()
             if mess[0]>>4 == 9: # note on
                 active_notes.add(mess[1])
                 new_noteon = True
             elif mess[0]>>4 == 8: # note off
                 active_notes.discard(mess[1])
-            env.DEFAULT_OUTPUT.send_message(mess)
+            port = port or env.DEFAULT_OUTPUT
+            port.send_message(mess)
             if env.VERBOSE and not env.DISPLAY:
                 print("Sent", mess)
         
@@ -166,11 +168,12 @@ def _play(tracks, channel=1, loop=False):
         load = t / _timeres
         if load > 0.2:
             print("++++ PLAYBACK [warning] load:", load, "%")
-        time.sleep(min(0.2, max(0, _timeres)))
+        time.sleep(min(max(_timeres, 0), 0.2))
 
     print("++++ PLAYBACK Stopped")
     global _playing_thread
     _playing_thread = None
+
 
 
 def listen(forward=True, forward_channel=1):
@@ -244,6 +247,7 @@ def _listen(forward=True, forward_channel=1):
     _listening_thread = None
 
 
+
 def rec():
     if not _listening_thread:
         print("Listening thread is not started")
@@ -256,6 +260,7 @@ def rec():
     print("++++ RECORDING to global var '_record'")
 
 
+
 def stop():
     global _must_stop
     global _recording
@@ -266,12 +271,13 @@ def stop():
     #panic()
 
 
+
 def listInputs():
     for i in range(midiin.get_port_count()):
         print( "[{}] {}".format(i, midiin.getPortName(i)) )
 
 
-def getInputs():
+def _getInputs():
     return [ (i, midiin.getPortName(i)) for i in range(midiin.get_port_count()) ]
 
 
@@ -280,10 +286,10 @@ def listOutputs():
     for i in range(midiout.get_port_count()):
         print( "[{}] {}".format(i, midiout.get_port_name(i)) )
 
-
 def _getOutputs():
     midiout = rtmidi.MidiOut()
     return [ (i, midiout.get_port_name(i)) for i in range(midiout.get_port_count()) ]
+
 
 
 def openOutput(port_n):
@@ -293,6 +299,7 @@ def openOutput(port_n):
     print("Opening port {} [{}], setting as env.DEFAULT_OUTPUT".format(port_n, midiout.get_port_name(port_n)) )    
     midiout.open_port(port_n)
     env.DEFAULT_OUTPUT = midiout
+    past_opened.append(midiout)
     return midiout
 
 
@@ -301,6 +308,7 @@ def openInput(port_n):
         midiin.close_port()
     print("Opening port {} [{}]".format(port_n, midiin.get_port_name(port_n)) )    
     midiin.open_port(port_n)
+
 
 
 def openFile(path, track=1):
