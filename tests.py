@@ -4,8 +4,8 @@ import random
 import rtmidi
 import time
 
-from sequence import *
-import generators
+from midiseq.sequence import *
+import midiseq.generators as generators
 
 
 """
@@ -23,15 +23,6 @@ def ex_04(midiout):
 def test_basic_opps():
     s = rand(4)
     assert len(s) == 4
-
-    assert len(s+s) == 2 * len(s)
-    assert (s+s).length == 2 * s.length
-    assert len(s*2) == 2 * len(s)
-    assert (s*2).length == 2 * s.length
-
-    s = Seq()
-    s.addNotes("do si la sol fa mi2 re# c")
-    assert len(s) == 8
 
     s = Note(35) + Note(36) + Sil()
     assert len(s) == 2
@@ -114,35 +105,6 @@ def test_generator():
     assert t1.ended == False
 
     print("test_generator", "pass")
-
-
-def test_getNotesFromString():
-    n = getNotesFromString("60 62 64", dur=2)
-    assert len(n) == 3
-    assert n[0].pitch == 60
-    assert n[0].dur == 0.5
-    n = getNotesFromString("do re mi fa sol")
-    assert len(n) == 5
-
-    s = Seq()
-    s.addNotes("do si la sol")
-    assert len(s) == 4
-
-    print("test_getNotesFromString", "pass")
-
-
-
-# def test_grid():
-#     g = Grid(8)
-#     assert len(g) == 8
-#     g.repeat("do", 2, 1)
-#     s = g.toSeq()
-#     assert len(s) == 4
-#     g.clear()
-#     g.euclid("38", 5)
-#     assert len(g.toSeq()) == 5
-
-#     print("test_grid", "pass")
 
 
 def test_scale():

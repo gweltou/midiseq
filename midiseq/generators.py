@@ -1,6 +1,6 @@
 from typing import Union
 import random
-from .sequence import Note, Sil, Seq, Scale, Chord, str2seq, modes
+from .sequence import Note, Sil, Seq, Scale, Chord, str2elt, str2pitch, modes
 import midiseq.env as env
 
 
@@ -79,7 +79,7 @@ def randWalk(
     if not scale:
         scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
     if isinstance(start, str):
-        start = noteToPitch(start)
+        start = str2pitch(start)
     pitch = scale.getClosest(start)
     if skip_first:
         pitch = scale.getDegreeFrom(pitch, random.choice(steps))
@@ -148,7 +148,7 @@ def lcm(*seqs):
                 return False
         return True
 
-    seqs_init = [ str2seq(s) if isinstance(s, str) else s for s in seqs ]
+    seqs_init = [ str2elt(s) if isinstance(s, str) else s for s in seqs ]
     seqs = [ s.copy() for s in seqs_init ]
     while not samelen(seqs):
         # Find index of shortest seq:
@@ -438,7 +438,7 @@ def drum_halfTimeShuffle():
 
 
 def drum_funkyDrummer():
-    s =  Seq((K, 0, K, 0, Sn,0, K, Sn,0, Sn,K, Sn,Sn,K, 0, S))
+    s =  Seq((K, 0, K, 0, Sn,0, K, Sn,0, Sn,K, Sn,Sn,K, 0, Sn))
     s &= Seq((H, H, H, H, H, H, H, OH,H, H, H, H, H, OH,H, H))
     return s
 

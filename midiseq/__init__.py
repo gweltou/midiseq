@@ -6,7 +6,7 @@ import rtmidi
 #from mido import MidiFile
 import mido
 
-from .sequence import Seq, Chord, Note, Sil, Track, str2seq
+from .sequence import Seq, Chord, Note, Sil, Track, str2elt, str2seq
 from .generators import *
 from .engine import listOutputs, openOutput, _getOutputs, play, stop
 import midiseq.env as env

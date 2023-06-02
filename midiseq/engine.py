@@ -60,8 +60,8 @@ def play(what: Union[Note, Seq, None]=None, channel=1, loop=False):
     
     if what:
         if isinstance(what, str):
-            what = str2seq(what)    # 'what' can be a single Note/Chord/Sil at this point
-        if isinstance(what, Note):
+            what = str2seq(what)
+        elif type(what) in (Note, Chord):
             what = Seq().add(what)
         track = Track(channel).add(what)
         _playing_thread = threading.Thread(target=_play, args=([track], channel, loop), daemon=True)
