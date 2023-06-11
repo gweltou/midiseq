@@ -1038,6 +1038,10 @@ class Track():
             messages = [ (t+self._next_timer, mess) for t, mess in messages ]
             self._next_timer += self.seqs[self.seq_i].length
             self.seq_i += 1
+
+            if self.instrument:
+                program_change = [0xC0 + self.channel, self.instrument]
+                return [ (self._next_timer, program_change) ] + messages
             return messages
 
         elif self.seq_i == len(self.seqs):
