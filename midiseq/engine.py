@@ -23,6 +23,9 @@ _recording = False
 _recording_time = 0.0
 _record = None              # Where the recordings from midi in are stored
 
+_active_notes = [ [False]*128 for _ in range(16) ] # Active notes lookup table
+
+
 
 past_opened = list()
 def getPastOpened():
@@ -39,6 +42,15 @@ midiin = rtmidi.MidiIn()
 #         mess = rtmidi.MidiMessage.allNotesOff(i)
 #         _default_output.sendMessage(mess)
 
+
+def allNotesOff() -> None:
+    # XXX: What about midi ports
+    for chan in range(16):
+        for note in range(128):
+            if _active_notes[chan][note]:
+                note_off = [0x80 + chan, note, 0]
+                env.DEFAULT_OUTPUT.send_message(note_off)
+                _active_notes[chan][note] = False
 
 
 def play(what: Union[Note, Seq, None]=None, channel=1, loop=False):
@@ -81,7 +93,6 @@ def _play(tracks: List[Track], channel=1, loop=False):
         track.reset()
         track.loop = loop
     midi_events = []
-    active_notes = set()
     metronome_time = 0.0
     metronome_click_count = 0
     t0 = time.time()
@@ -89,11 +100,10 @@ def _play(tracks: List[Track], channel=1, loop=False):
     t_prev = 0.0
     clicking = False
     click_note = None
+    active_notes_allchan = [False] * 128
     while True:
         if _must_stop:
-            for note in active_notes:
-                note_off = [0x80 + channel-1, note, 0]
-                env.DEFAULT_OUTPUT.send_message(note_off)
+            allNotesOff()
             break
         
         if click_note: # Metronome click
@@ -141,13 +151,17 @@ def _play(tracks: List[Track], channel=1, loop=False):
             midi_events.sort(reverse=True)
 
         new_noteon = False
-        while len(midi_events) > 0 and midi_events[-1][0] < song_time:
+        while midi_events and midi_events[-1][0] < song_time:
+            # A midi event is made of : absolute_t, midi_mess, midi_port
+            # A midi_mess is made of : status, pitch, vel
             _, mess, port = midi_events.pop()
             if mess[0]>>4 == 9: # note on
-                active_notes.add(mess[1])
+                chan = mess[0] & 0xf
+                _active_notes[chan][mess[1]] = True
                 new_noteon = True
             elif mess[0]>>4 == 8: # note off
-                active_notes.discard(mess[1])
+                chan = mess[0] & 0xf
+                _active_notes[chan][mess[1]] = False
             port = port or env.DEFAULT_OUTPUT
             port.send_message(mess)
             if env.VERBOSE and not env.DISPLAY:
@@ -155,12 +169,23 @@ def _play(tracks: List[Track], channel=1, loop=False):
         
         if env.DISPLAY and new_noteon:
             # Visualize notes
+
+            for note in range(128):
+                active_notes_allchan[note] = False
+                for chan in range(16):
+                    if _active_notes[chan][note]:
+                        active_notes_allchan[note] = True
+                        break
+            
             notes_str = ['.'] * (env.DISPLAY_RANGE[1] - env.DISPLAY_RANGE[0] + 1)
-            for i in active_notes:
+            for i, n in enumerate(active_notes_allchan):
+                if not n:
+                    continue
                 if i < env.DISPLAY_RANGE[0]: notes_str[0] = '<'
                 elif i > env.DISPLAY_RANGE[1]: notes_str[-1] = '>'
                 else: notes_str[i - env.DISPLAY_RANGE[0]] = 'x'
-            notes_str = "".join(notes_str)
+            
+            notes_str = ''.join(notes_str)
             print(str(env.DISPLAY_RANGE[0]) + '[' + notes_str + ']' + str(env.DISPLAY_RANGE[1]))
 
         # Check CPU load

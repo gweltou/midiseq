@@ -137,6 +137,7 @@ def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
     return s
 
 
+
 def lcm(*seqs):
     """ Combine two or more sequence to build
         the least common multiplier of them all

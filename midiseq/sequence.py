@@ -635,7 +635,7 @@ class Seq():
     def randPick(self, n=4) -> Seq:
         """ Pick randomly among previous notes in sequence """
         new_notes = []
-        for _ in range(4):
+        for _ in range(n):
             new_notes.append(random.choice(self.notes)[1])
         for note in new_notes:
             self.add(note)
@@ -793,7 +793,7 @@ class Seq():
         return self
 
 
-    def getMidiMessages(self, channel=0):
+    def getMidiMessages(self, channel=0) -> List[tuple]:
         """
             Parameters
             ----------
@@ -1031,9 +1031,9 @@ class Track():
         if self.seq_i < len(self.seqs) and self._next_timer <= 0.0:
             # Send next sequence
             i = self.seq_i
-            self.seq_i += 1
             messages = self.seqs[i].getMidiMessages(self.channel)
             messages = [ (t+self._next_timer, mess) for t, mess in messages ]
+            self.seq_i += 1
             self._next_timer += self.seqs[i].length
             return messages
 
