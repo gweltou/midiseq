@@ -91,7 +91,7 @@ def _play(tracks: List[Track], channel=1, loop=False):
     print("++++ PLAYBACK Started")
     for track in tracks:
         track.reset()
-        track.loop = loop
+        track.loop |= loop
     midi_events = []
     metronome_time = 0.0
     metronome_click_count = 0

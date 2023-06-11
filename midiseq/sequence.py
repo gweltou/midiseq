@@ -1022,38 +1022,53 @@ class Track():
 
     def update(self, timedelta):
         """ Returns MidiMessages when a new sequence just started """
-        #TODO: write a function "next" or something instead
+        # TODO: allow looping for finished generators
 
-        if self.ended:
+        if self.ended or not self.seqs:
             return
+        
         self._next_timer -= timedelta
 
-        if self.seq_i < len(self.seqs) and self._next_timer <= 0.0:
+        if self._next_timer > 0.0:
+            return
+
+        if self.seq_i < len(self.seqs):
             # Send next sequence
-            i = self.seq_i
-            messages = self.seqs[i].getMidiMessages(self.channel)
+            messages = self.seqs[self.seq_i].getMidiMessages(self.channel)
             messages = [ (t+self._next_timer, mess) for t, mess in messages ]
+            self._next_timer += self.seqs[self.seq_i].length
             self.seq_i += 1
-            self._next_timer += self.seqs[i].length
             return messages
 
-        elif self.seq_i == len(self.seqs) and self._next_timer <= 0.0:
-            #TODO: allow looping for finished generators
-            if self.generator:
-                try:
-                    new_seq = next(self.generator)
-                    self._next_timer += new_seq.length
-                    return new_seq.getMidiMessages(self.channel)
-                except StopIteration:
-                    if self.loop:
-                        self.reset()
-                    else:
-                        self.ended = True
-            elif self.loop:
-                self.reset(self._next_timer)
-            else:
+        elif self.seq_i == len(self.seqs):
+            # End of track reached
+            if not self.loop:
                 self.ended = True
-
+                return
+            
+            # Looping
+            if self.loop_type == "all":
+                self.seq_i = 0
+                return self.update(0.0)
+            elif self.loop_type == "last":
+                self.seq_i -= 1
+                return self.update(0.0)
+            else:
+                raise Exception(f"'loop_type' property should be set to 'all' or 'last', but got '{self.loop_type}' instead")
+            
+            # if self.generator:
+            #     try:
+            #         new_seq = next(self.generator)
+            #         self._next_timer += new_seq.length
+            #         return new_seq.getMidiMessages(self.channel)
+            #     except StopIteration:
+            #         if self.loop:
+            #             self.reset()
+            #         else:
+            #             self.ended = True
+    
+    def __len__(self):
+        return len(self.seqs)
 
 
 

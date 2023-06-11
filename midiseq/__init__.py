@@ -2,9 +2,9 @@ import time
 import threading
 ### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
 
-import rtmidi
 #from mido import MidiFile
 import mido
+import rtmidi
 
 from .sequence import Seq, Chord, Note, Sil, Track, str2elt, str2seq
 from .generators import *
