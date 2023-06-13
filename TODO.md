@@ -8,3 +8,5 @@
 - [ ] Émission de messages de tempo
 - [ ] Améliorer l'ajout de générateurs (avec et sans arguments) à une Track
 - [ ] Permettre des enregistrements midi live silencieux
+- [X] Paramètre `silprob` pour les fonctions randXXX
+- [X] Track instrument selection (via midi program changes)

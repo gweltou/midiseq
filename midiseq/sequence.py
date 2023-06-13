@@ -178,12 +178,15 @@ class Scale():
         if type(scale) == str:
             if scale.lower() in scales:
                 self.scale = scales[scale.lower()]
+                self.scale_name = scale.lower()
             elif scale.lower() in modes:
                 self.scale = modes[scale.lower()]
+                self.scale_name = scale.lower()
             else:
                 raise TypeError('scale "{}" is unknown'.format(scale))
         elif type(scale) == list:
             self.scale = scale
+            self.scale_name = str(scale)
         
     
     def getClosest(self, note: Union[str, int]) -> int:
@@ -246,6 +249,10 @@ class Scale():
 
     def __str__(self):
         return "{} {}".format(self.scale, self.tonic)
+    
+    def __repr__(self):
+        scale_name = f"'{self.scale_name}'" if isinstance(self.scale_name, str) else self.scale_name
+        return f"Scale({scale_name}, {self.tonic})"
 
     def __len__(self):
         return len(self.scale)
@@ -322,7 +329,7 @@ class Note():
 
 
 class Sil():
-    """ Silence """
+    """ Silence (non-mutable) """
     
     def __init__(self, dur=1):
         self.dur = dur * env.NOTE_LENGTH
@@ -538,6 +545,8 @@ class Seq():
         self.head = 0.0       # Recording head
         self.length = length  # Can be further than the end of the last note
         self.notes = []
+        self.silences = []  # Keep a record of silence, used for random picking
+                            # so no need to sort it
         for elt in notes:
             if isinstance(elt, int):
                 self.add(Note(elt))
@@ -551,14 +560,15 @@ class Seq():
     
     def copy(self) -> Seq:
         new = Seq()
-        new.notes = [ (t, note.copy()) for t, note in self.notes ]
+        new.notes = [ (t, n.copy()) for t, n in self.notes ]
+        new.silences = [ (t, s) for t, s in self.silences ]
         new.length = self.length
         new.head = self.head
         return new
     
 
     def add(self, other, head=-1) -> Seq:
-        """ Add notes or whole sequences at the recording head position
+        """ Add a single musical element or whole sequences at the recording head position
             This will grow the sequence's length if necessary
         """
         if head >= 0:
@@ -569,22 +579,25 @@ class Seq():
         elif isinstance(other, str):
             self.add(str2seq(other))
         elif isinstance(other, Note):
-            self.notes.append( (self.head, other) )
+            self.notes.append( (self.head, other.copy()) )
             self.head += other.dur
             self.length = max(self.length, self.head)
             self.notes.sort(key=lambda x: x[0])
         elif isinstance(other, Sil):
+            self.silences.append( (self.head, other) )
             self.head += other.dur
             self.length = max(self.length, self.head)
         elif isinstance(other, Chord):
             for note in other.notes:
-                self.notes.append( (self.head, note) )
+                self.notes.append( (self.head, note.copy()) )
             self.head += other.dur
             self.length = max(self.length, self.head)
             self.notes.sort(key=lambda x: x[0])
         elif isinstance(other, Seq):
             for (t, note) in other.notes:
-                self.notes.append( (self.head + t, note) )
+                self.notes.append( (self.head + t, note.copy()) )
+            for (t, sil) in other.silences:
+                self.silences.append( (self.head + t, sil) )
             self.head += other.length
             self.length = max(self.length, self.head)
             self.notes.sort(key=lambda x: x[0])
@@ -594,6 +607,7 @@ class Seq():
     
 
     def addNotes(self, notes, dur=1, vel=100):
+        # XXX: maybe do without this method altogether
         """ Add notes sequencially from a string sequence or an iterable.
             If an iterable is given, it can contain sub-lists,
             which will subdivide the time
@@ -626,19 +640,26 @@ class Seq():
         """
         if type(other) != type(self):
             raise TypeError("Can only merge other Sequences")
-        for data in other.notes:
-            self.notes.append(data)
+        for t, n in other.notes:
+            self.notes.append( (t, n.copy()) )
+        for t, s in other.silences:
+            self.silences.append( (t, s) )
         self.notes.sort(key=lambda x: x[0])
         return self
 
 
-    def randPick(self, n=4) -> Seq:
+    def randPick(self, n=4, sil=True) -> Seq:
         """ Pick randomly among previous notes in sequence """
-        new_notes = []
+        num_n = len(self.notes)
+        num_s = len(self.silences) if sil else 0
         for _ in range(n):
-            new_notes.append(random.choice(self.notes)[1])
-        for note in new_notes:
-            self.add(note)
+            r = random.randrange(num_n + num_s)
+            if r < num_n:
+                # Pick a note
+                self.add(self.notes[r][1])
+            else:
+                # Pick a silence
+                self.add(self.silences[r-num_n][1])
         return self
 
 
@@ -646,6 +667,7 @@ class Seq():
         """ Replace notes with given pitch to a new pitch
             Modifies sequence in-place
         """
+        # TODO: `all_octaves` option
         if type(old) == str:
             old = str2pitch(old)
         if type(new) == str:
