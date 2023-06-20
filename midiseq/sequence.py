@@ -165,6 +165,27 @@ def noob2seq(noob: str):
 
 
 
+def pattern(pat: str, note: Union[int, str, Note, Chord], vel=100) -> Seq:
+    """
+        Build a Sequence from a Sonic Pi type pattern
+        Ex: pattern("x--- --x- --x- -x--", 36)
+    """
+    seq = Seq()
+    if isinstance(note, int):
+        note = Note(note)
+    elif isinstance(note, str):
+        note = str2elt(note)
+    if isinstance(note, Note):
+        note.vel = vel
+    for c in pat:
+        if c == 'x':
+            seq.add(note)
+        elif c == '-':
+            seq.add(Sil())
+    return seq
+
+
+
 class Scale():
 
     def __init__(self, scale="major", tonic=60):
@@ -909,6 +930,11 @@ class Seq():
     def __rmul__(self, factor: Union[int, float]) -> Seq:
         return self.__mul__(factor)
     
+    def __truediv__(self, factor: Union[int, float]):
+        new_sequence = self.copy()
+        new_sequence.stretch(1/factor)
+        return new_sequence
+    
     def __rshift__(self, other) -> Seq:
         if isinstance(other, float):
             copy = self.copy()
@@ -998,9 +1024,13 @@ class Track():
     """
 
     # We should define different types of looping:
-    # Looping from the start or looping the last sequence/generator 
+    # Looping from the start or looping the last sequence/generator
 
-    def __init__(self, channel=0):
+    #_all_tracks = set() # All instanciated tracks
+    #_priority_list = [] # Class variable to synchronize update order
+    #_top_priority = []  # list of tracks to update first
+
+    def __init__(self, channel=0, loop=True, name=None, sync_from: Optional[Track] = None):
         self.port = None
         self.channel = channel
         self.instrument = None
@@ -1008,17 +1038,26 @@ class Track():
         self.gen_args = None
         self.generator = None
         self.seqs: List[Seq] = []
-        self.loop = False
-        self.loop_type = "all" # "all"/"last", Not Implemented
+        self.muted = False
+        self.loop = loop
+        self.loop_type = "last" # "last" / "all"
         self.shuffle = False    # Not Implemented
-        self.reset()
+        self.name = name #or f"Track{len(Track._all_tracks)+1}"
+        self.ended = True
+        #self.reset()
+
+        self._sync_children: List[Track] = []
+        self._sync_from: Optional[Track] = sync_from
+        if sync_from != None:
+            sync_from._sync_children.append(self)
+        # if self._sync_from != None and:
+        #     self._build_sync_priority_list()
     
 
     def add(self, sequence: Union[Seq, str]) -> Track:
         if isinstance(sequence, str):
             sequence = str2elt(sequence)
         self.seqs.append(sequence)
-        self.ended = False
         return self
 
 
@@ -1032,14 +1071,48 @@ class Track():
     
     
     def reset(self, offset=0.0):
+        if not self.seqs:
+            return
+        
         self._next_timer = offset
         self.ended = False
         self.seq_i = 0
+        # self.signal_sequence_end = True
         if callable(self.gen_func):
             if self.gen_args:
                 self.generator = self.gen_func(*self.gen_args)
             else:
                 self.generator = self.gen_func()
+
+
+    def setGroup(self, track_group):
+        self._sync_group = track_group
+        for t in self._sync_children:
+            t.setGroup(track_group)
+
+    def syncFrom(self, other: Track) -> None:
+        self._sync_from = other
+    
+    def _sync(self) -> None:
+        if not self.seqs:
+            return
+        
+        if self.ended:
+            self.reset()
+        else:
+            self.seq_i += 1
+            if self.seq_i == len(self.seqs):
+                if self.loop_type == "all":
+                    self.reset()
+                elif self.loop_type == "last":
+                    self.seq_i -= 1
+                    self._next_timer = 0.0
+    
+    def _get_priority_list(self) -> List[Track]:
+        pl = [self]
+        for t in self._sync_children:
+            pl.extend(t._get_priority_list())
+        return pl
 
 
     def update(self, timedelta):
@@ -1049,10 +1122,13 @@ class Track():
         if self.ended or not self.seqs:
             return
         
+        # Time flowing
         self._next_timer -= timedelta
-
         if self._next_timer > 0.0:
             return
+        
+        for t in self._sync_children:
+            t._sync()
 
         if self.seq_i < len(self.seqs):
             # Send next sequence
@@ -1063,10 +1139,10 @@ class Track():
 
             if self.instrument:
                 program_change = [0xC0 + self.channel, self.instrument]
-                return [ (self._next_timer, program_change) ] + messages
-            return messages
+                return [ (0.0, program_change) ] + messages
+            return messages if not self.muted else None
 
-        elif self.seq_i == len(self.seqs):
+        elif self.seq_i >= len(self.seqs):
             # End of track reached
             if not self.loop:
                 self.ended = True
@@ -1095,6 +1171,11 @@ class Track():
     
     def __len__(self):
         return len(self.seqs)
+    
+    def __repr__(self):
+        if self._sync_from != None:
+            return f"Track({self.channel=},{self.loop=}, {self.name=}, {self._sync_from.name=})"
+        return f"Track({self.channel=},{self.loop=}, {self.name=})"
 
 
 

@@ -1,6 +1,6 @@
 from typing import Union
 import random
-from .sequence import Note, Sil, Seq, Scale, Chord, str2elt, str2pitch, modes
+from .sequence import Note, Sil, Seq, Scale, Chord, str2elt, str2pitch, modes, pattern
 import midiseq.env as env
 
 
@@ -42,6 +42,8 @@ def rand(n=4, min=36, max=96, silprob=0.0, scale:Scale=None) -> Seq:
                 Minimum midi pitch boundary
             max : int
                 Maximum midi pitch boundary
+            silprob : float
+                Silence probability [0.0-1.0]
             scale : Scale
                 Constrain generated notes to the given scale
     """
@@ -77,6 +79,8 @@ def randWalk(
                 Possible intervals to step from last note
             skip_first:
                 Skip starting note
+            silprob : float
+                Silence probability [0.0-1.0]
             scale : Scale
                 Constrain generated notes to the given scale
     """
@@ -109,6 +113,10 @@ def randGauss(n=4, mean=60, dev=3, silprob=0.0, scale:Scale=None) -> Seq:
                 Mean pitch value
             dev : float
                 Standard deviation
+            silprob : float
+                Silence probability [0.0-1.0]
+            scale : Scale
+                Constrain generated notes to the given scale
     """
     if not scale:
         scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
@@ -128,6 +136,7 @@ def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
 
         Parameters
         ----------
+            note : Union[Note, int, str]
             n : int
                 Number of notes to generate
             grid : int
@@ -248,22 +257,6 @@ def gen_chords3():
         yield s
 
 
-# def gen_drums1():
-#     g = Grid()
-#     g.length = 1.5
-#     g.euclid(35, 2)     # Kick
-#     g.euclid(38, 2, 4)  # Snare
-#     # g.euclid(42, 11, 1) # Hihats
-#     g2 = Grid(8)
-#     g2.length = 0.5
-#     g2.euclid(35, 1)
-#     g2.euclid(39, 1, 4)
-#     g2.euclid(42, 6, 1)
-#     while True:
-#         yield g.toSeq() + g2.toSeq()
-
-
-
 def gen_tintinnabuli():
     # Tintinnabuli
     note_dur = 1.0
@@ -334,13 +327,12 @@ def gen_fratres():
     
 
 def gen_japscale():
-    sc = Scale("japanese")
+    jap = Scale("japanese")
     while True:
         s=Seq() 
-        s.scale=sc
         if random.random() < 0.1:
-            sc.tonic = random.randrange(42, 54)
-        s.randGauss(dev=2)
+            jap.tonic = random.randrange(42, 54)
+        s.add(randGauss(dev=2, scale=jap))
         s.stretch(16, False)
         yield s
 
@@ -399,6 +391,54 @@ sit14 = 49 # Maraca
 sit15 = 50 # Cowbell
 sit16 = 51 # Rim shot
 
+gm_bass_drum_acoustic = 35
+gm_bass_drum_1 = 36
+gm_side_stick = 37
+gm_snare_acoustic = 38
+gm_hand_clap = 39
+gm_snare_electric = 40
+gm_tom_low_floor = 41
+gm_hh_closed = 42
+gm_tom_high_floor = 43
+gm_hh_pedal = 44
+gm_tom_low = 45
+gm_hh_open = 46
+gm_tom_low_mid = 47
+gm_tom_hi_mid = 48
+gm_cymbal_crash_1 = 49
+gm_tom_high = 50
+gm_cymbal_ride_1 = 51
+gm_cymbal_chinese = 52
+gm_bell_ride = 53
+gm_tambourine = 54
+gm_cymbal_splash = 55
+gm_cowbell = 56
+gm_cymbal_crash_2 = 57
+gm_vibraslap = 58
+gm_cymbal_ride_2 = 59
+gm_bongo_hi = 60
+gm_bongo_low = 61
+gm_conga_hi_mute = 62
+gm_conga_hi_open = 63
+gm_conga_low = 64
+gm_timbale_high = 65
+gm_timbale_low = 66
+gm_agogo_high = 67
+gm_agogo_low = 68
+gm_cabasa = 69
+gm_maracas = 70
+gm_whistle_short = 71
+gm_whistle_long = 72
+gm_guiro_short = 73
+gm_guiro_long = 74
+gm_claves = 75
+gm_wood_block_hi = 76
+gm_wood_block_low = 77
+gm_cuica_mute = 78
+gm_cuica_open = 79
+gm_triangle_mute = 80
+gm_triangle_open = 81
+
 K = sit1    # Kick
 Sn = sit2   # Snare
 H = sit3    # Closed Hats
@@ -408,34 +448,26 @@ Cl = sit12  # Clap
 Cb = sit15  # Cowbell
 
 
-def gen_drum_8thNoteGrove():
+def drum_8thNoteGrove():
     s = Seq((H, 0) * 4)  # High-hats
     s.merge(Seq((K, 0, 0, 0, Sn, 0, 0, 0)))   # Kick and Snare
-    s *= 2
-    yield s
+    return s*2
 
-
-def gen_drum_4toTheFloor():
+def drum_4toTheFloor():
     s = Seq((H, 0) * 4)  # High-hats
     s.merge(Seq( (K, 0, 0, 0) * 2) )   # Kick and Snare
     s.merge(Seq( (0, 0, 0, 0, K, 0, 0, 0) ))
-    s *= 2
-    yield s
+    return s*2
 
-
-def gen_drum_shuffleGroove():
+def drum_shuffleGroove():
     s = Seq( (H, 0, H) * 2)   # HH
     s.merge(Seq( (K, 0, 0, Sn, 0, 0) ))    # K & S
-    s *= 2
-    yield s
+    return s*2
 
-
-def gen_drum_discoGroove():
+def drum_discoGroove():
     s = Seq( ( H, 0, OH, 0) * 2 )
     s.merge( Note(K) + 3 * Sil() + Chord((K, Sn)) + 3 * Sil() )
-    s *= 2
-    yield s
-
+    return s*2
 
 def drum_halfTimeShuffle():
     s = Seq((H,), length=1)
@@ -475,10 +507,30 @@ def drum_house():
     s &= Seq( (0, 0, 0, 0, Sn) )
     return s * 2
 
-
 def drum_house2():
     s =  Seq((K, 0, OH, 0)*3 + (K, 0, OH, OH))
     s &= Seq((H, 0, 0, H, H, 0, 0, H, H, H, 0, H, H, H, 0, H))
+
+
+# From Pocket Operations PDF
+
+def drum_good2go():
+    s = pattern("x--x --x- --x- ----", K)
+    s &= pattern("---- x--- ---- x---", Sn)
+    return s
+
+def drum_standard_break_1():
+    s = pattern("x--- ---- --x- ----", K)
+    s &= pattern("---- x--- ---- x---", Sn)
+    s &= pattern("x-x- x-x- xxx- x-x-", H)
+    return s
+
+def drum_standard_break_2():
+    s = pattern("x--- ---- --x- ----", K)
+    s &= pattern("---- x--- ---- x---", Sn)
+    s &= pattern("x-x- x-xx x-x- --x-", H)
+    return s
+
 
 
 def gen_mf_mel1():
@@ -501,3 +553,16 @@ def gen_mf_mel1():
         s.humanize()
         yield s
         s.clear()
+
+
+def drm_djdave1():
+    kick = Seq(K,0,0,0, 0,0,K,0, 0,0,K,0, 0,K,0,0)
+    clap = Seq(0,0,0,0, Cl,0,0,0) * 2
+    hh   = Seq(H,0,H,0, H,0,H,0, H,H,H,0, H,0,H,0)
+    ohh  = Seq(0,0,OH,0) * 4
+    return kick & clap & hh & ohh
+
+def drm_djdave_easy():
+    kick = pattern("x--x--x---x--x--", K)
+    clap = pattern("----x---"*2, Cl)
+    return kick & clap

@@ -53,8 +53,47 @@ def allNotesOff() -> None:
                 _active_notes[chan][note] = False
 
 
-def play(what: Union[Note, Seq, None]=None, channel=1, loop=False):
-    """ Play a Song, a Track, a Sequence or a single Note
+
+
+
+class TrackGroup:
+
+    def __init__(self):
+        self.tracks = set()
+        self.priority_list = [] # Must update in this order
+        # self.top_priority = []  # list of tracks to update first
+
+    def addTrack(self, track: Track):
+        self.tracks.add(track)
+        track.setGroup(self)
+        for t in track._get_priority_list():
+            self.tracks.add(t)
+        self._build_priority_list()
+
+    def _build_priority_list(self) -> None:
+        # Build priority tree
+        self.priority_list = []
+        top_priority = []
+        for track in self.tracks:
+            track._sync_children = []
+        
+        for track in self.tracks:
+            if track._sync_from != None:
+                track._sync_from._sync_children.append(track)
+            else:
+                top_priority.append(track)
+        
+        # Build list from tree
+        for track in top_priority:
+            self.priority_list.append(track)
+            for children_track in track._sync_children:
+                self.priority_list.extend( children_track._get_priority_list() )
+                
+
+
+
+def play(what: Union[Track, Note, Seq, None]=None, channel=0, loop=False):
+    """ Play a Track, a Sequence or a single Note
 
         Parameters
         ----------
@@ -71,27 +110,34 @@ def play(what: Union[Note, Seq, None]=None, channel=1, loop=False):
         _playing_thread.join()
     
     if what:
+        # Play solo track, seq or note
         if isinstance(what, str):
             what = str2seq(what)
         elif type(what) in (Note, Chord):
             what = Seq().add(what)
-        track = Track(channel).add(what)
-        _playing_thread = threading.Thread(target=_play, args=([track], channel, loop), daemon=True)
-    else:    # Play all tracks
+        track_group = TrackGroup()
+        if isinstance(what, Track):
+            track_group.addTrack(what)
+        else:
+            track_group.addTrack(Track(channel, loop=loop).add(what))
+        _playing_thread = threading.Thread(target=_play, args=(track_group, channel, loop), daemon=True)
+    else:
+        # Play all tracks
         _playing_thread = threading.Thread(target=_play, args=(env.TRACKS, channel, loop), daemon=True)
     
     _must_stop = False
     _playing_thread.start()
 
 
-def _play(tracks: List[Track], channel=1, loop=False):
+def _play(track_group: TrackGroup, channel=0, loop=False):
     global _armed
     global _recording
     global _recording_time
+
     print("++++ PLAYBACK Started")
-    for track in tracks:
+    for track in track_group.tracks:
         track.reset()
-        track.loop |= loop
+        track.loop |= loop  # Looping tracks will continue to loop
     midi_events = []
     metronome_time = 0.0
     metronome_click_count = 0
@@ -141,7 +187,7 @@ def _play(tracks: List[Track], channel=1, loop=False):
             metronome_time -= 0.5
 
         must_sort = False
-        for track in tracks:
+        for track in track_group.priority_list:
             new_events = track.update(timedelta)
             if new_events:
                 must_sort = True

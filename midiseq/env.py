@@ -1,9 +1,9 @@
 # !/usr/bin/env python3
 
-TRACKS = []
+TRACKS = None
 
 TEMPO = 120
-NOTE_LENGTH = 1/4
+NOTE_LENGTH = 1/8
 SCALE = None
 DEFAULT_OCTAVE = 4
 
@@ -14,6 +14,6 @@ METRONOME_PRE = 1          # Number of metronome cycle before recording
 METRONOME_PORT = None      # Midi port for metronome
 
 DEFAULT_OUTPUT = None
-DISPLAY = True
+DISPLAY = False
 DISPLAY_RANGE = (36, 96)
 VERBOSE = False

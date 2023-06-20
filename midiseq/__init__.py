@@ -6,9 +6,9 @@ import threading
 import mido
 import rtmidi
 
-from .sequence import Seq, Chord, Note, Sil, Track, str2elt, str2seq
+from .sequence import Seq, Chord, Note, Sil, Track, str2elt, str2seq, pattern
 from .generators import *
-from .engine import listOutputs, openOutput, _getOutputs, play, stop
+from .engine import listOutputs, openOutput, _getOutputs, play, stop, TrackGroup
 import midiseq.env as env
 
 
@@ -52,9 +52,22 @@ if "microfreak" in midi_out:
 elif "fluid" in midi_out:
     env.DEFAULT_OUTPUT = midi_out["fluid"]
 
-t1 = Track(0)
-t2 = Track(1)
-t3 = Track(2)
-t4 = Track(3)
+t1 = Track(0, name="t1")
+t2 = Track(1, name="t2", sync_from=t1)
+t3 = Track(2, name="t3", sync_from=t1)
+t4 = Track(3, name="t4", sync_from=t1)
+t5 = Track(4, name="t5", sync_from=t1)
+t6 = Track(5, name="t6", sync_from=t1)
+t7 = Track(6, name="t7", sync_from=t1)
+t8 = Track(7, name="t8", sync_from=t1)
+t9 = Track(8, name="t9", sync_from=t1)
+t10 = Track(9, name="t10", sync_from=t1)
+t11 = Track(10, name="t11", sync_from=t1)
+t12 = Track(11, name="t12", sync_from=t1)
+t13 = Track(12, name="t13", sync_from=t1)
+t14 = Track(13, name="t14", sync_from=t1)
+t15 = Track(14, name="t15", sync_from=t1)
+t16 = Track(15, name="t16", sync_from=t1)
 
-env.TRACKS = [t1, t2, t3, t4]
+env.TRACKS = TrackGroup()
+env.TRACKS.addTrack(t1)
