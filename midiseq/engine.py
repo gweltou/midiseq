@@ -92,7 +92,10 @@ class TrackGroup:
 
 
 
-def play(what: Union[Track, Note, Seq, None]=None, channel=0, loop=False):
+def play(
+        what: Union[Track, Note, Seq, None]=None,
+        channel=0, instrument=0,
+        loop=False):
     """ Play a Track, a Sequence or a single Note
 
         Parameters
@@ -119,17 +122,17 @@ def play(what: Union[Track, Note, Seq, None]=None, channel=0, loop=False):
         if isinstance(what, Track):
             track_group.addTrack(what)
         else:
-            track_group.addTrack(Track(channel, loop=loop).add(what))
-        _playing_thread = threading.Thread(target=_play, args=(track_group, channel, loop), daemon=True)
+            track_group.addTrack(Track(channel, instrument=instrument, loop=loop).add(what))
+        _playing_thread = threading.Thread(target=_play, args=(track_group, loop), daemon=True)
     else:
         # Play all tracks
-        _playing_thread = threading.Thread(target=_play, args=(env.TRACKS, channel, loop), daemon=True)
+        _playing_thread = threading.Thread(target=_play, args=(env.TRACKS, loop), daemon=True)
     
     _must_stop = False
     _playing_thread.start()
 
 
-def _play(track_group: TrackGroup, channel=0, loop=False):
+def _play(track_group: TrackGroup, loop=False):
     global _armed
     global _recording
     global _recording_time

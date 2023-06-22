@@ -4,30 +4,8 @@ import random
 import re
 
 import midiseq.env as env
+from .definitions import scales, modes
 
-
-scales = {
-    "chromatic":        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-    "major":            [0, 2, 4, 5, 7, 9, 11],
-    "minor":            [0, 2, 3, 5, 7, 8, 10],
-    "harmonic_minor":   [0, 2, 3, 5, 7, 8, 11],
-    # what about the melodic minor (ascending and descending) ?
-    "whole_tone":       [0, 2, 4, 6, 8, 10],
-    "pentatonic":       [0, 2, 4, 7, 9],
-    "pentatonic_minor": [0, 3, 5, 7, 10],
-    "japanese":         [0, 1, 5, 7, 8],
-    "zelda_ocarnia":    [0, 3, 7, 9],
-}
-
-modes = {
-    "ionian":       [0, 2, 4, 5, 7, 9, 11],
-    "dorian":       [0, 2, 3, 5, 7, 9, 10],
-    "phrygian":     [0, 1, 3, 5, 7, 8, 10],
-    "lydian":       [0, 2, 4, 6, 7, 9, 11],
-    "mixolidian":   [0, 2, 4, 5, 7, 9, 10],
-    "aeolian":      [0, 2, 3, 5, 7, 8, 10],
-    "locrian":      [0, 1, 3, 5, 6, 8, 10],
-}
 
 
 # def buildScale(scale, tonic):
@@ -405,6 +383,17 @@ class Chord():
                 raise TypeError("Argument `notes` must be Notes, strings or integers")
     
 
+    def arp(self, type="up", times=1, octaves=1) -> Seq:
+        arp_seq = Seq()
+        if type == "up":
+            for oct in range(octaves):
+                for n in sorted(self.notes, key=lambda n: n.pitch):
+                    new_note = n.copy()
+                    new_note.pitch += 12*oct
+                    arp_seq.add(new_note)
+        return arp_seq
+
+
     def _parse_string(self, string: str) -> None:
         for elt in string.split():
             elt = str2elt(elt)
@@ -725,6 +714,16 @@ class Seq():
         return self
 
 
+    def reverse(self) -> Seq:
+        """ Reverse notes order
+        """
+        new_notes = []
+        for t, n in self.notes:
+            new_notes.append( (self.length - t - n.dur, n) )
+        self.notes = new_notes
+        return self
+
+
     def transpose(self, semitones: int) -> Seq:
         """ Transpose all notes in sequence by semitones
             Modifies sequence in-place
@@ -1030,10 +1029,14 @@ class Track():
     #_priority_list = [] # Class variable to synchronize update order
     #_top_priority = []  # list of tracks to update first
 
-    def __init__(self, channel=0, loop=True, name=None, sync_from: Optional[Track] = None):
+    def __init__(self,
+                channel=0, instrument=None,
+                name=None, loop=True,
+                sync_from: Optional[Track] = None
+                ):
         self.port = None
         self.channel = channel
-        self.instrument = None
+        self.instrument = instrument
         self.gen_func =  None
         self.gen_args = None
         self.generator = None
@@ -1070,11 +1073,11 @@ class Track():
         self.gen_args = None
     
     
-    def reset(self, offset=0.0):
+    def reset(self):
         if not self.seqs:
             return
         
-        self._next_timer = offset
+        self._next_timer = 0.0
         self.ended = False
         self.seq_i = 0
         # self.signal_sequence_end = True
@@ -1139,7 +1142,8 @@ class Track():
 
             if self.instrument:
                 program_change = [0xC0 + self.channel, self.instrument]
-                return [ (0.0, program_change) ] + messages
+                # Make sure the instrument change precedes the notes
+                return [ (-0.0001, program_change) ] + messages
             return messages if not self.muted else None
 
         elif self.seq_i >= len(self.seqs):

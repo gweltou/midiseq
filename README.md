@@ -58,9 +58,10 @@ You can sets its length with the `dur` parameter and add a silence/rest after it
 Now, the duration of a note is not an absolute value. It's a relative value by which the default length is multiplied to give the note's true length (same for the silence).\
 If the default length was set with `setNoteLen(1/4)` (default value), the previous sequence would play as a 'c' half note, followed by a dotted quarter rest.
 
+
 ### Chords
 
-Chords can be created like so :
+Chords can be created like so, using a capital letter. :
 
     Chord("Cmaj")
 
@@ -71,7 +72,7 @@ Possible type of chords:
 * Seventh: "C7" (dominant seventh), "CM7" (major seventh), "Cm7" (minor seventh), "C+7" (augmented seventh)
 * Ninth: "C9" (dominant ninth), "CM9" (major ninth)
 
-### Writing sequences
+### String sequences
 
 English notation (c d e f g a b) as well as solfège notation (do re mi fa sol la si) can be used to compose a sequence in a string.
 
@@ -82,8 +83,18 @@ Seq("e b f# eb")
 Sharp and flats are noted with the symbols `#` and `b` after the note name. Octave transposition is done by prepending the note name by a single number (absolute octave transposition) and with a +/- sign for relative transposition. The number can be omitted for a transposition of just 1 octave up or down.
 
 ```python
-play("+e d -e +2b")
+play("+e d -e +2b") # The play function will automatically convert a string to a Seq
 ```
+
+Silences can be added in a string sequence with dots `.`. Many silences can be chained by concanetating the dots together.
+Thus, `. . . .` is equivalent to `....`.
+
+A note's duration can be subdivided by suffixing it with the `%`, symbol followed by a factor applied to the default duration of the note.
+
+	"c#%.5" divides the note's duration by two
+	"d%1/3" divides the note's duration by three
+
+Tuplets
 
 ### Scales
 
@@ -130,6 +141,24 @@ lcm("a ..", "c ...", "e ....")
 ### Tracks
 
 Whenever you want to chain sequences or generators, or if you want to play sequences in parallel on different midi channels you can use tracks.
+
+When importing `midiseq`, you will have 16 tracks defined by default, named `t1` to `t16` . Each one set to midi channels 0 to 15.
+
+Tracks lets are set to a single midi channel and instrument :
+
+```python
+t1 = Track(channel=0, instrument=23, name="harmonica")
+
+# You can later change channel or instrument
+t1.channel = 1
+t1.instrument = 59 # tuba
+```
+
+## IDE
+
+* [iPython](https://ipython.org/)
+* jupyter-qtconsole
+* [ptpython](https://github.com/prompt-toolkit/ptpython/)
 
 ## Alsa connect
 

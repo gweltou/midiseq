@@ -6,9 +6,10 @@ import threading
 import mido
 import rtmidi
 
-from .sequence import Seq, Chord, Note, Sil, Track, str2elt, str2seq, pattern
-from .generators import *
 from .engine import listOutputs, openOutput, _getOutputs, play, stop, TrackGroup
+from .sequence import Seq, Chord, Note, Sil, Track, str2elt, str2seq, pattern
+from .definitions import *
+from .generators import *
 import midiseq.env as env
 
 
