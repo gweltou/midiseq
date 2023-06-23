@@ -186,6 +186,7 @@ class Scale():
         elif type(scale) == list:
             self.scale = scale
             self.scale_name = str(scale)
+        self.notes = self._getNotes()
         
     
     def getClosest(self, note: Union[str, int]) -> int:
@@ -210,7 +211,7 @@ class Scale():
         return int(12 * octave + degree + min_dist)
 
 
-    def getDegree(self, n) -> int:
+    def getDegree(self, n: int) -> int:
         """ get the pitch of the n-th degree note in the current musical scale, relative to the rootnote
             Beware : degrees start at 0. The fifth degree would be n=4.
         """
@@ -226,24 +227,46 @@ class Scale():
         return self.tonic + 12 * nth_oct + distances[nth_degree]
 
 
-    def getDegreeFrom(self, pitch, n) -> int:
+    def getDegreeFrom(self, pitch: Union[str, int], n: int) -> int:
         """ Returns pitch +/- n degrees in the current scale """
-        oct, semi = divmod(pitch, 12)
-        for i, s in enumerate(self.scale):
-            if s >= semi: break
-        oct_off, deg = divmod(round(n) + i, len(self.scale))
-        return (oct+oct_off)*12 + self.scale[deg]
-    
+        if isinstance(pitch, str):
+            pitch = str2pitch(pitch)
+        
+        for i, p in enumerate(self.notes):
+            if p == pitch:
+                # Pitch is in scale
+                idx = i
+                break
+            if p > pitch:
+                # Find closest between prev an next
+                d_prev = pitch - self.notes[i-1]
+                d_next = p - pitch
+                if d_prev <= d_next:
+                    idx = i-1
+                idx = i
+                break
+        return self.notes[idx+n]
 
-    def getNotes(self):
+ 
+
+    def _getNotes(self):
         """ Returns all midi pitches in scale """
-        raise NotImplementedError
+        pitches = []
+        smallest_tonic = self.tonic % 12
+        for oct in range(-1, 11):
+            for d in self.scale:
+                pitch = oct*12 + smallest_tonic + d
+                if 0 <= pitch < 128:
+                    pitches.append(pitch)
+        return pitches
 
 
-    def triad(self, degree=0, dur=1, vel=100, prob=1):
-        """ Returns a triad Chord of the nth degree in the scale """
-        return Chord([self.getDegree(degree+deg) for deg in [0,2,4]],
-                     dur=dur, vel=vel, prob=prob)
+
+
+    # def triad(self, degree=0, dur=1, vel=100, prob=1):
+    #     """ Returns a triad Chord of the nth degree in the scale """
+    #     return Chord([self.getDegree(degree+deg) for deg in [0,2,4]],
+    #                  dur=dur, vel=vel, prob=prob)
 
 
     def __str__(self):
@@ -554,7 +577,7 @@ class Seq():
     def __init__(self, *notes, length=0):
         self.head = 0.0       # Recording head
         self.length = length  # Can be further than the end of the last note
-        self.notes = []
+        self.notes: List[Tuple[float, Note]] = []
         self.silences = []  # Keep a record of silence, used for random picking
                             # so no need to sort it
         for elt in notes:
@@ -720,7 +743,7 @@ class Seq():
         new_notes = []
         for t, n in self.notes:
             new_notes.append( (self.length - t - n.dur, n) )
-        self.notes = new_notes
+        self.notes = sorted(new_notes)
         return self
 
 
@@ -820,7 +843,7 @@ class Seq():
 
 
     def shift(self, dt, wrap=False) -> Seq:
-        """ Shift note onset times by a given delta time
+        """ Shift note onset times by a given *absolute* delta time
             Modifies sequence in-place.
 
             Parameters
@@ -830,8 +853,14 @@ class Seq():
         """
         new_notes = []
         for t, n in self.notes:
-            new_notes.append( (t+dt, n) )
-        self.notes = new_notes
+            new_time = t+dt
+            if wrap:
+                if t+dt >= self.length:
+                    new_time -= self.length
+                elif t+dt < 0:
+                    new_time += self.length
+            new_notes.append( (new_time, n) )
+        self.notes = sorted(new_notes)
         return self
 
 
@@ -905,7 +934,6 @@ class Seq():
         new.merge(other)
         return new
 
-
     def __add__(self, other) -> Seq:
         new_seq = self.copy()
         new_seq.add(other)
@@ -944,6 +972,11 @@ class Seq():
         if isinstance(other, float):
             return self.__rshift__(-other)
     
+    def __mod__(self, factor: float) -> Seq:
+        copy = self.copy()
+        for _, n in copy.notes:
+            n.dur *= factor
+        return copy
 
     def __setitem__(self, index, newvalue):
         if type(newvalue) is Note:

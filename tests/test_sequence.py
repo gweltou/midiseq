@@ -2,7 +2,7 @@ from midiseq import Seq, Note, Chord, Sil
 from midiseq import env as env
 
 
-def test_sequence_init():
+def test_seq_init():
     def test3notes(s):
         assert s.length == 3 * env.NOTE_LENGTH
         assert len(s) == 3
@@ -20,7 +20,7 @@ def test_sequence_init():
     assert len(s) == 2
 
 
-def test_sequence_operators():
+def test_seq_operators():
     def test3notes(s):
         assert s.length == 3 * env.NOTE_LENGTH
         assert len(s) == 3
@@ -53,6 +53,25 @@ def test_sil_operators():
 
     assert type(Sil() + Seq((60, 62, 66))) == Seq
     assert (Sil() + Seq((60, 62, 66))).length == 4*env.NOTE_LENGTH
+
+
+def test_seq_reverse():
+    s = Seq("do re mi")
+    assert s.reverse() == Seq("mi re do")
+
+
+def test_seq_shift():
+    s = Seq("do re mi")
+    sc = s.copy()
+    assert s == sc.shift(1).shift(-1)
+    s.shift(1)
+    assert s.notes[0][0] == 1.0
+    s.shift(-1)
+    s.shift(env.NOTE_LENGTH, wrap=True)
+    assert s == Seq("mi do re")
+    sc.shift(-env.NOTE_LENGTH, wrap=True)
+    assert sc == Seq("re mi do")
+
 
 
 def test_note_operators():
