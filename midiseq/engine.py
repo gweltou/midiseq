@@ -1,6 +1,6 @@
 ### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
 
-from typing import Union, List
+from typing import Union, List, Generator
 import time
 import threading
 
@@ -41,6 +41,19 @@ midiin = rtmidi.MidiIn()
 #     for i in range(16):
 #         mess = rtmidi.MidiMessage.allNotesOff(i)
 #         _default_output.sendMessage(mess)
+
+def mute(*tracks) -> None:
+    for t in tracks:
+        t.muted = True
+
+def unmute(*tracks) -> None:
+    for t in tracks:
+        t.muted = False
+
+def mutesw(*tracks) -> None:
+    for t in tracks:
+        t.muted = not t.muted
+
 
 
 def allNotesOff() -> None:
@@ -118,6 +131,8 @@ def play(
             what = str2seq(what)
         elif type(what) in (Note, Chord):
             what = Seq().add(what)
+        elif isinstance(what, Generator):
+            what = Track().add(what)
         track_group = TrackGroup()
         if isinstance(what, Track):
             track_group.addTrack(what)

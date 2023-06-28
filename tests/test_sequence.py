@@ -34,10 +34,21 @@ def test_seq_operators():
     assert Seq("c d e") == Seq(48, 50, 52)
     assert Seq("c d e") != Seq(48, 50, 51)
 
+    # add/mul
     s = Seq("do re mi fa")
     assert 2 * s == s + s
     assert s[0] == Note("do")
     assert s[-1] == Note("fa")
+
+    # neg
+    assert Seq("do re mi") == -Seq("mi re do")
+
+    # xor (transpose)
+    assert Seq(50, 52, 54)^2 == Seq(52, 54, 56)
+    assert Seq(50, 52, 54)^-5 == Seq(45, 47, 49)
+
+    # modulo (gate)
+    assert (Seq(50)%0.5)[0].dur == env.NOTE_LENGTH * 0.5
 
 
 def test_sil_operators():
@@ -71,7 +82,6 @@ def test_seq_shift():
     assert s == Seq("mi do re")
     sc.shift(-env.NOTE_LENGTH, wrap=True)
     assert sc == Seq("re mi do")
-
 
 
 def test_note_operators():

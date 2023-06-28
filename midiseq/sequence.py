@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Tuple, Generator
 import random
 import re
 
@@ -261,12 +261,10 @@ class Scale():
         return pitches
 
 
-
-
-    # def triad(self, degree=0, dur=1, vel=100, prob=1):
-    #     """ Returns a triad Chord of the nth degree in the scale """
-    #     return Chord([self.getDegree(degree+deg) for deg in [0,2,4]],
-    #                  dur=dur, vel=vel, prob=prob)
+    def triad(self, degree=0, dur=1, vel=100, prob=1):
+        """ Returns a triad Chord of the nth degree in the scale """
+        return Chord([self.getDegree(degree+deg) for deg in [0,2,4]],
+                     dur=dur, vel=vel, prob=prob)
 
 
     def __str__(self):
@@ -681,21 +679,6 @@ class Seq():
         return self
 
 
-    def randPick(self, n=4, sil=True) -> Seq:
-        """ Pick randomly among previous notes in sequence """
-        num_n = len(self.notes)
-        num_s = len(self.silences) if sil else 0
-        for _ in range(n):
-            r = random.randrange(num_n + num_s)
-            if r < num_n:
-                # Pick a note
-                self.add(self.notes[r][1])
-            else:
-                # Pick a silence
-                self.add(self.silences[r-num_n][1])
-        return self
-
-
     def replacePitch(self, old, new) -> Seq:
         """ Replace notes with given pitch to a new pitch
             Modifies sequence in-place
@@ -708,19 +691,6 @@ class Seq():
         for note in self.notes:
             if note.pitch == old:
                 note.pitch == new
-        return self
-
-
-    def map(self, grid, duty_cycle=0.2) -> Seq:
-        # XXX: Not usefull right now
-        beat_len = (self.length - self.head) / len(grid)
-        note_dur = duty_cycle * beat_len
-        for pitch in grid:
-            if 0 < pitch <= 127:
-                self.add(Note(pitch, note_dur))
-                self.head += beat_len - note_dur
-            else:
-                self.head += beat_len
         return self
 
 
@@ -799,7 +769,7 @@ class Seq():
     
 
     def humanize(self, tfactor=0.02, veldev=10) -> Seq:
-        """ Randomly changes the notes time and duration
+        """ Randomly offsets the notes time and duration
             Modifies sequence in-place
 
             Parameters
@@ -862,6 +832,10 @@ class Seq():
             new_notes.append( (new_time, n) )
         self.notes = sorted(new_notes)
         return self
+    
+
+    def shuffle(self):
+        """ Shuffle the sequence """
 
 
     def getMidiMessages(self, channel=0) -> List[tuple]:
@@ -977,6 +951,14 @@ class Seq():
         for _, n in copy.notes:
             n.dur *= factor
         return copy
+    
+    def __neg__(self):
+        """ Reverse sequence """
+        return self.copy().reverse()
+    
+    def __xor__(self, semitones):
+        """ Transpose sequence in semitones """
+        return self.copy().transpose(semitones)
 
     def __setitem__(self, index, newvalue):
         if type(newvalue) is Note:
@@ -1033,7 +1015,7 @@ class Seq():
     def __eq__(self, other):
         return (
             self.length == other.length
-            and self.notes == other.notes
+                and self.notes == other.notes
         )
 
     def __str__(self):
@@ -1070,16 +1052,18 @@ class Track():
         self.port = None
         self.channel = channel
         self.instrument = instrument
-        self.gen_func =  None
-        self.gen_args = None
-        self.generator = None
-        self.seqs: List[Seq] = []
+        # self.gen_func =  None
+        # self.gen_args = None
+        # self.generator = None
+        self.seqs: List[Union[Seq, Generator]] = []
         self.muted = False
         self.loop = loop
         self.loop_type = "last" # "last" / "all"
         self.shuffle = False    # Not Implemented
         self.name = name #or f"Track{len(Track._all_tracks)+1}"
         self.ended = True
+        self.offset = 0.0
+        self.send_program_change = True
         #self.reset()
 
         self._sync_children: List[Track] = []
@@ -1090,7 +1074,7 @@ class Track():
         #     self._build_sync_priority_list()
     
 
-    def add(self, sequence: Union[Seq, str]) -> Track:
+    def add(self, sequence: Union[Seq, str, Generator]) -> Track:
         if isinstance(sequence, str):
             sequence = str2elt(sequence)
         self.seqs.append(sequence)
@@ -1101,24 +1085,24 @@ class Track():
         self.seqs.clear()
         self.seq_i = 0
         self.ended = True
-        self.gen_func = None
-        self.generator = None
-        self.gen_args = None
+        # self.gen_func = None
+        # self.generator = None
+        # self.gen_args = None
     
     
     def reset(self):
         if not self.seqs:
             return
         
-        self._next_timer = 0.0
+        self._next_timer = self.offset
         self.ended = False
         self.seq_i = 0
         # self.signal_sequence_end = True
-        if callable(self.gen_func):
-            if self.gen_args:
-                self.generator = self.gen_func(*self.gen_args)
-            else:
-                self.generator = self.gen_func()
+        # if callable(self.gen_func):
+        #     if self.gen_args:
+        #         self.generator = self.gen_func(*self.gen_args)
+        #     else:
+        #         self.generator = self.gen_func()
 
 
     def setGroup(self, track_group):
@@ -1135,14 +1119,14 @@ class Track():
         
         if self.ended:
             self.reset()
-        else:
-            self.seq_i += 1
-            if self.seq_i == len(self.seqs):
-                if self.loop_type == "all":
-                    self.reset()
-                elif self.loop_type == "last":
-                    self.seq_i -= 1
-                    self._next_timer = 0.0
+        # else:
+        #     self.seq_i += 1
+        #     if self.seq_i == len(self.seqs):
+        #         if self.loop_type == "all":
+        #             self.reset()
+        #         elif self.loop_type == "last":
+        #             self.seq_i -= 1
+        #             self._next_timer = 0.0
     
     def _get_priority_list(self) -> List[Track]:
         pl = [self]
@@ -1168,12 +1152,22 @@ class Track():
 
         if self.seq_i < len(self.seqs):
             # Send next sequence
-            messages = self.seqs[self.seq_i].getMidiMessages(self.channel)
+            sequence = self.seqs[self.seq_i]
+            if isinstance(sequence, Generator):
+                try:
+                    sequence = next(sequence)
+                except StopIteration:
+                    self.seq_i += 1
+                    return self.update(0.0)
+                finally:
+                    self.seq_i -= 1
+            
+            messages = sequence.getMidiMessages(self.channel)
             messages = [ (t+self._next_timer, mess) for t, mess in messages ]
-            self._next_timer += self.seqs[self.seq_i].length
+            self._next_timer += sequence.length
             self.seq_i += 1
 
-            if self.instrument:
+            if self.instrument and self.send_program_change:
                 program_change = [0xC0 + self.channel, self.instrument]
                 # Make sure the instrument change precedes the notes
                 return [ (-0.0001, program_change) ] + messages

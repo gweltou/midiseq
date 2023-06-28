@@ -28,7 +28,7 @@ Pour un environnement de programmation toute options :
 Opening port 1 [VCV Rack:VCV Rack input 133:0]
 
 >>> setTempo(60)
->>> play("c 5c c d g " * 4, loop=True)
+>>> play("c 5c c d g", loop=True)
 >>> stop()
 ```
 
@@ -180,7 +180,11 @@ Sonic Pi
 https://sonic-pi.net/
 
 FoxDot
+https://foxdot.org/
 https://github.com/Qirky/FoxDot
+
+Sardine
+https://github.com/Bubobubobubobubo/sardine
 
 Braid
 https://braid.live/

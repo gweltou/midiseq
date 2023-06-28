@@ -62,6 +62,13 @@ def rand(n=4, min=36, max=96, silprob=0.0, scale:Scale=None) -> Seq:
     return s
 
 
+def rand2(
+        silprob=0.0
+    ) -> Seq:
+    raise NotImplementedError
+
+
+
 def randWalk(
         n=4,
         start: Union[str,int]=60,
@@ -129,6 +136,22 @@ def randGauss(n=4, mean=60, dev=3, silprob=0.0, scale:Scale=None) -> Seq:
         else:
             s.add(Sil())
     return s
+
+
+def randPick(sequence: Seq, n=4, sil=True) -> Seq:
+        """ Pick randomly among previous notes in sequence """
+        num_n = len(sequence.notes)
+        num_s = len(sequence.silences) if sil else 0
+        new_seq = Seq()
+        for _ in range(n):
+            r = random.randrange(num_n + num_s)
+            if r < num_n:
+                # Pick a note
+                new_seq.add(sequence.notes[r][1])
+            else:
+                # Pick a silence
+                new_seq.add(sequence.silences[r-num_n][1])
+        return new_seq
 
     
 def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
@@ -208,8 +231,7 @@ def gen_chords1():
     while True:
         s = Seq()
         scl = Scale(random.choice(list(modes.keys())))
-        s.scale = Scale(scl)
-        s.clear()
+        #s.scale = Scale(scl)
         for _ in range(4):
             s.add(scl.triad([0, 1, 2, 3][d%3]))
             d+= 1
@@ -442,13 +464,13 @@ def gen_mf_mel1():
 
 
 def drm_djdave1():
-    kick = Seq(K,0,0,0, 0,0,K,0, 0,0,K,0, 0,K,0,0)
-    clap = Seq(0,0,0,0, Cl,0,0,0) * 2
-    hh   = Seq(H,0,H,0, H,0,H,0, H,H,H,0, H,0,H,0)
-    ohh  = Seq(0,0,OH,0) * 4
+    kick = pattern("x--- --x- --x- -x--", K)
+    clap = pattern("---- x---", Cl) * 2
+    hh = pattern("x-x- x-x- xxx- x-x-", H)
+    ohh = pattern("--x-", OH) * 4
     return kick & clap & hh & ohh
 
 def drm_djdave_easy():
-    kick = pattern("x--x--x---x--x--", K)
-    clap = pattern("----x---"*2, Cl)
+    kick = pattern("x--x --x- --x- -x--", K)
+    clap = pattern("---- x---", Cl) * 2
     return kick & clap

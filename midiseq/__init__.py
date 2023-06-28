@@ -6,7 +6,7 @@ import threading
 import mido
 import rtmidi
 
-from .engine import listOutputs, openOutput, _getOutputs, play, stop, TrackGroup
+from .engine import listOutputs, openOutput, _getOutputs, play, stop, TrackGroup, getPastOpened
 from .sequence import Seq, Chord, Note, Sil, Track, str2elt, str2seq, pattern
 from .definitions import *
 from .generators import *

@@ -29,4 +29,4 @@ def test_scale_getclosest():
 def test_scale_getdegreefrom():
     sc = Scale("minor", "b")
     assert sc.getDegreeFrom("b", 0) == Note("b").pitch
-    
+    assert sc.getDegreeFrom("b", 1) == 61
