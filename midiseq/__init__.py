@@ -7,7 +7,8 @@ import mido
 import rtmidi
 
 from .engine import listOutputs, openOutput, _getOutputs, play, stop, TrackGroup, getPastOpened
-from .sequence import Seq, Chord, Note, Sil, Track, str2elt, str2seq, pattern
+from .elements import Seq, Chord, Note, Sil, Track
+from .utils import pattern, noob2seq, rand, randWalk, randGauss, randPick, euclid, lcm
 from .definitions import *
 from .generators import *
 import midiseq.env as env

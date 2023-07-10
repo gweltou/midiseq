@@ -1,5 +1,5 @@
 
-from midiseq.sequence import Track, Seq
+from midiseq.elements import Track, Seq
 from midiseq.engine import TrackGroup
 
 

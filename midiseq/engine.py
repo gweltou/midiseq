@@ -5,11 +5,11 @@ import time
 import threading
 
 import rtmidi
-#from mido import MidiFile
 import mido
+#from mido import MidiFile
 
 import midiseq.env as env
-from .sequence import Seq, Note, Chord, Track, Song, str2seq
+from .elements import Seq, Note, Chord, Track, Song, str2seq
 
 
 # DEBUG = True

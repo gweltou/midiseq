@@ -1,0 +1,227 @@
+from typing import Optional, Union
+import re
+import random
+
+from .elements import Note, Sil, Chord, Seq, Scale, str2pitch, str2elt, str2seq
+import midiseq.env as env
+
+
+
+def pattern(pat: str, note: Union[int, str, Note, Chord], vel=100) -> Seq:
+    """
+        Build a Sequence from a Sonic Pi type pattern
+        Ex: pattern("x--- --x- --x- -x--", 36)
+    """
+    seq = Seq()
+    if isinstance(note, int):
+        note = Note(note)
+    elif isinstance(note, str):
+        note = str2elt(note)
+    if isinstance(note, Note):
+        note.vel = vel
+    for c in pat:
+        if c == 'x':
+            seq.add(note)
+        elif c == '-':
+            seq.add(Sil())
+    return seq
+
+
+
+def noob2seq(noob: str):
+    """ https://noobnotes.net/
+        https://www.piano-letters.com/letter-notes
+    """
+
+    o = env.DEFAULT_OCTAVE
+    s = noob.replace('^', str(o+1)).replace('*', str(o+2)) # Octave transpose, up
+    s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
+    s = s.replace('-', '_') # Tuplets
+    s = ' '.join(s.split()).lower()
+    return str2seq(s)
+
+
+
+###############################################################################
+####                       Random sequence generators                      ####
+###############################################################################
+
+
+def rand(n=4, min=36, max=96, silprob=0.0, scale:Scale=None) -> Seq:
+    """ Generate a sequence of random notes
+
+        Parameters
+        ----------
+            n : int
+                Number of notes to generate
+            min : int
+                Minimum midi pitch boundary
+            max : int
+                Maximum midi pitch boundary
+            silprob : float
+                Silence probability [0.0-1.0]
+            scale : Scale
+                Constrain generated notes to the given scale
+    """
+    if not scale:
+        scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
+    s = Seq()
+    for _ in range(n):
+        if not silprob or random.random() > silprob:
+            pitch = env.SCALE.getClosest(random.randint(min, max))
+            s.add(Note(pitch))
+        else:
+            s.add(Sil())
+    return s
+
+
+
+def rand2(
+        notes=[],
+        durs=[],
+        silprob=0.0,
+    ) -> Seq:
+    raise NotImplementedError
+
+
+
+def randWalk(
+        n=4,
+        start: Union[str,int]=60,
+        steps=[-3,-2,-1,0,1,2,3],
+        silprob=0.0,
+        skip_first=False, scale:Scale=None
+    ) -> Seq:
+    """ Create a sequence of notes moving from last note by a random interval
+
+        Parameters
+        ----------
+            n : int
+                Number of notes to generate
+            start : int or str
+                Starting note of the sequence
+            steps : list of int
+                Possible intervals to step from last note
+            skip_first:
+                Skip starting note (False by default)
+            silprob : float
+                Silence probability [0.0-1.0]
+            scale : Scale
+                Constrain generated notes to the given scale
+    """
+    if not scale:
+        scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
+    if isinstance(start, str):
+        start = str2pitch(start)
+    pitch = scale.getClosest(start)
+    if skip_first:
+        pitch = scale.getDegreeFrom(pitch, random.choice(steps))
+    s = Seq()
+    for _ in range(n):
+        if not silprob or random.random() > silprob:
+            s.add(Note(pitch))
+            pitch = env.SCALE.getDegreeFrom(pitch, random.choice(steps))
+        else:
+            s.add(Sil())
+    return s
+
+
+
+def randGauss(n=4, mean=60, dev=3, silprob=0.0, scale:Scale=None) -> Seq:
+    """ Generate random notes with a normal distribution around a mean value
+
+        Parameters
+        ----------
+            n : int
+                Number of notes to generate
+            mean : int
+                Mean pitch value
+            dev : float
+                Standard deviation
+            silprob : float
+                Silence probability [0.0-1.0]
+            scale : Scale
+                Constrain generated notes to the given scale
+    """
+    if not scale:
+        scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
+    s = Seq()
+    for _ in range(n):
+        if not silprob or random.random() > silprob:
+            pitch = scale.getDegreeFrom(mean, round(random.gauss(0, dev)))
+            s.add(Note(pitch))
+        else:
+            s.add(Sil())
+    return s
+
+
+
+def randPick(sequence: Seq, n=4, sil=True) -> Seq:
+        """ Pick randomly among previous notes in sequence """
+        num_n = len(sequence.notes)
+        num_s = len(sequence.silences) if sil else 0
+        new_seq = Seq()
+        for _ in range(n):
+            r = random.randrange(num_n + num_s)
+            if r < num_n:
+                # Pick a note
+                new_seq.add(sequence.notes[r][1])
+            else:
+                # Pick a silence
+                new_seq.add(sequence.silences[r-num_n][1])
+        return new_seq
+
+
+
+def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
+    """ Generate a Euclidian rythm sequence
+
+        Parameters
+        ----------
+            note : Union[Note, int, str]
+            n : int
+                Number of notes to generate
+            grid : int
+                Size of the grid (should be bigger than `n`)
+            offset : int
+                Number of rests before first note
+    """
+    if not isinstance(note, Note):
+        note = Note(note)
+    
+    offset = offset % grid
+    onsets = [ (offset+round(grid*i/n)) % grid for i in range(n) ]
+    s = Seq()
+    for i in onsets:
+        t = i * env.NOTE_LENGTH
+        s.add(note.copy(), head=t)
+    return s
+
+
+
+def lcm(*seqs):
+    """ Combine two or more sequence to build
+        the least common multiplier of them all
+    """
+    def samelen(seqs):
+        first = seqs[0]
+        for s in seqs[1:]:
+            if s.length != first.length:
+                return False
+        return True
+
+    seqs_init = [ str2elt(s) if isinstance(s, str) else s for s in seqs ]
+    seqs = [ s.copy() for s in seqs_init ]
+    while not samelen(seqs):
+        # Find index of shortest seq:
+        shortest = (-1, 9999)
+        for i, s in enumerate(seqs):
+            if s.length < shortest[1]:
+                shortest = (i, s.length)
+        # Extend shortest seq
+        seqs[shortest[0]] += seqs_init[shortest[0]]
+    # Merge all sequences
+    merged = seqs[0]
+    for s in seqs[1:]:
+        merged &= s
+    return merged

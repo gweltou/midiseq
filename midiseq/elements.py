@@ -8,15 +8,7 @@ from .definitions import scales, modes
 
 
 
-# def buildScale(scale, tonic):
-#     s = Seq()
-#     s.scale = Scale(scale, tonic)
-#     for i in range(len(s.scale) + 1):
-#         s.addNote(s.scale.getDegree(i))
-#     return s
-
-
-NOTE_CHORD_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
+_NOTE_CHORD_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
                                     (do|re|ré|mi|fa|sol|la|si|ti|[a-g])
                                     (b|\#)?		# Accidentals (flat or sharp)
                                     (M|m|mM|\+|°|sus2|sus4)? # Maj, min, min/Maj, aug,...
@@ -53,7 +45,7 @@ def str2pitch(tone: str) -> int:
             return min(max(octave, 0), 10)
         return int(s)
     
-    match = NOTE_CHORD_PATTERN.match(tone)
+    match = _NOTE_CHORD_PATTERN.match(tone)
     if match:
         # match = match.groups(default='')
         octave = get_octave(match[1])
@@ -91,7 +83,7 @@ def str2elt(string: str) -> Union[Note, Sil, Chord, None]:
         dur = 1 if not match[2] else eval(match[2][1:])
         return Note(pitch, dur=dur)
 
-    match = NOTE_CHORD_PATTERN.fullmatch(string)
+    match = _NOTE_CHORD_PATTERN.fullmatch(string)
     if match:
         pitch = str2pitch(string) # XXX: the re gets executed twice...
         is_chord = match[2][0].isupper()
@@ -128,53 +120,26 @@ def str2seq(string: str) -> Seq:
 
 
 
-def noob2seq(noob: str):
-    """ https://noobnotes.net/
-        https://www.piano-letters.com/
-    """
 
-    o = env.DEFAULT_OCTAVE
-    s = noob.replace('^', str(o+1)).replace('*', str(o+2)) # Octave transpose, up
-    s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
-    s = s.replace('-', '_') # Tuplets
-    s = ' '.join(s.split()).lower()
-    return s
-    # return str2seq(s)
-
-
-
-def pattern(pat: str, note: Union[int, str, Note, Chord], vel=100) -> Seq:
-    """
-        Build a Sequence from a Sonic Pi type pattern
-        Ex: pattern("x--- --x- --x- -x--", 36)
-    """
-    seq = Seq()
-    if isinstance(note, int):
-        note = Note(note)
-    elif isinstance(note, str):
-        note = str2elt(note)
-    if isinstance(note, Note):
-        note.vel = vel
-    for c in pat:
-        if c == 'x':
-            seq.add(note)
-        elif c == '-':
-            seq.add(Sil())
-    return seq
-
+# def buildScale(scale, tonic):
+#     s = Seq()
+#     s.scale = Scale(scale, tonic)
+#     for i in range(len(s.scale) + 1):
+#         s.addNote(s.scale.getDegree(i))
+#     return s
 
 
 class Scale():
 
     def __init__(self, scale="major", tonic=60):
-        if type(tonic) == int:
+        if isinstance(tonic, int):
             self.tonic = min(127, max(0, tonic))
-        elif type(tonic) == str:
+        elif isinstance(tonic, str):
             self.tonic = str2pitch(tonic)
         else:
             raise TypeError("rootnote must be a pitch number [0-127] or a valid note name")
 
-        if type(scale) == str:
+        if isinstance(scale, str):
             if scale.lower() in scales:
                 self.scale = scales[scale.lower()]
                 self.scale_name = scale.lower()
@@ -183,7 +148,7 @@ class Scale():
                 self.scale_name = scale.lower()
             else:
                 raise TypeError('scale "{}" is unknown'.format(scale))
-        elif type(scale) == list:
+        elif isinstance(scale, list):
             self.scale = scale
             self.scale_name = str(scale)
         self.notes = self._getNotes()
