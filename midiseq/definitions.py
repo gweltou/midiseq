@@ -197,6 +197,7 @@ gm_triangle_open = 81
 K = sit1    # Kick
 Sn = sit2   # Snare
 H = sit3    # Closed Hats
+HH = H
 OH = sit4   # Open Hats
 T = sit8    # Tom
 Cl = sit12  # Clap

@@ -39,3 +39,7 @@ def test_chords():
 	assert str2elt("C") == Chord(48, 52, 55)
 	assert str2elt("-1Dm") == Chord(38, 41, 45)
 	assert str2elt("C%0.5") == Chord(48, 52, 55, dur=0.5)
+
+
+def test_chords2():
+	assert(str2elt("C") == Chord(48, 52, 55))

@@ -76,4 +76,11 @@ env.tracks.addTrack(t1)
 
 setScl("major", "c")
 
-s = lcm(rnd(3), rnd(5))
+
+# setBpm(110)
+# play((
+#     lcm("d%3 a%2 .", "+a%2 +f%2")*4 +
+#     lcm("c%3 a%2 .", "+a%2|+2e%2 +e%2")*4 +
+#     lcm("-a#%3 a%2 .", "+a%2|+2d%2 +d%2")*4 +
+#     lcm("g%3 +d%2 .", "+a#%2|+2d%2 +g%2")*4).humanize().attenuate(0.7),
+#     loop=True)

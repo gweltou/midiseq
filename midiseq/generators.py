@@ -1,9 +1,9 @@
-from typing import Union
+from typing import Union, Generator
 import random
 
 import midiseq.env as env
 from .elements import Note, Sil, Seq, Scl, Chord
-from .utils import str2elt, str2pitch, pattern, rndGauss
+from .utils import str2elt, str2pitch, pattern, rndGauss, lcm
 from .definitions import *
 
 
@@ -28,7 +28,7 @@ seq_kaini_industries = Seq("""
 seq_never_gonna_gyu = "a#_+c +c#_a# +f +f +d# . g#_a# +c#_a# +d# +d# +c# +c_a#"
 seq_mario = "e_e ._e ._c e_. g . -g"
 
-seq_sunburn = Seq("""
+seq_sunburn1 = Seq("""
     -b b g e b g e g
     -a b e c b e c e
     c +c g e +c g e g
@@ -41,6 +41,12 @@ seq_sunburn2 = Seq("""
     -a +e +c a +f# +e +c +e 
     """)^12
 
+# https://www.youtube.com/watch?v=2aA72rBmWFQ
+seq_freya_theme1 = lcm("d%3 a%2 .", "+a%2 +f%2")
+seq_freya_theme2 = lcm("c%3 a%2 .", "+a%2|+2e%2 +e%2")
+seq_freya_theme3 = lcm("-a#%3 a%2 .", "+a%2|+2d%2 +d%2")
+seq_freya_theme4 = lcm("g%3 +d%2 .", "+a#%2|+2d%2 +g%2")
+
 
 
 
@@ -49,31 +55,36 @@ seq_sunburn2 = Seq("""
 ###############################################################################
 
 
-def gen_pattern(generator, pattern="ABAB"):
+def genPattern(func: callable, pattern="ABAB", *args, **kwargs):
     """
+    Yield sequences from a function, following a pattern
+
+        func: (callable)
+            A function returning a sequence
         pattern: (str)
-            Ex: "ABAB" or "1112"
+            A pattern string, ex: "ABAB" or "1112"
     """
-    while True:
-        gen = generator()
-        seq = dict()
-        for symbol in pattern:
-            if not symbol in seq:
-                seq[symbol] = next(gen)
-            yield seq[symbol]
+
+    pattern = pattern.replace(" ", "")
+    seqs = dict()
+    for symb in set(pattern):
+            seqs[symb] = func(**kwargs)
+
+    for symb in pattern:
+        yield seqs[symb]
+
 
 def gen_chords1():
     d = 0
     while True:
         s = Seq()
         scl = Scl(random.choice(list(modes.keys())))
-        #s.scale = Scale(scl)
         for _ in range(4):
             s.add(scl.triad([0, 1, 2, 3][d%3]))
             d+= 1
         s.add(Sil())
         s.stretch(2, False)# *= 2.0
-        s.humanize(0.05)
+        s.humanize(0.03)
         yield s
 
 def gen_chords2():
@@ -100,58 +111,54 @@ def gen_chords3():
     while True:
         deg = 0
         s = Seq()
-        s.scale = Scl("major", "c")
+        scl = Scl("major", "c")
         for _ in range(5):
             off = random.choice(jumps)
             if random.random() < 0.5:
                 off = -off
             deg += off
-            s.add(s.scale.triad(deg, random.randint(80, 127)), 0.66)
-        s.add(s.scale.triad(0, random.randint(80, 120)), 0.66)
+            s.add(scl.triad(deg, vel=random.randint(80, 127)))
+        s.add(scl.triad(0, vel=random.randint(80, 120)))
         yield s
 
 def gen_tintinnabuli():
     # Tintinnabuli
-    note_dur = 1.0
     s = Seq()
-    s.scale = Scl("minor", 54)
+    scl = Scl("minor", 54)
     for _ in range(16):
         s.clear()
-        pitch = s.scale.getDegree(random.gauss(0, 2.5)) + 12
+        pitch = scl.getDegree(random.gauss(0, 2.5)) + 12
         pitch2 = 54 + random.choice([0, 3, 7, -12])
-        s.add(Note(pitch, dur=note_dur))
-        s.head=0.0
-        s.add(Note(pitch2, dur=note_dur))
-        s.dur = note_dur + abs(random.gauss(0, 3))
+        s.add(Chord(pitch, pitch2, dur=2))
+        s.dur = random.choice([1, 1.5, 2, 4])
+        s.humanize()
         yield s
 
 def gen_tintinnabuli2():
-    note_dur = 0.6
     s = Seq()
     scl = Scl("pentatonic_minor", "e")
-
     while True:
         s.clear()
         pitch_low = scl.tonic - 12
         pitch_low = scl.getDegreeFrom(pitch_low, random.choice([0, 0, -len(scl), 1, 1, 2, 2]))
         pitch_high = scl.getDegree(random.randrange(len(scl)))
-        s.add(Chord((pitch_low, pitch_high)))
-        s.dur = note_dur + abs(random.gauss(0, 3))
+        s.add(Chord(pitch_low, pitch_high))
+        s.dur = random.choice([1, 1.5, 2, 4])
+        s.humanize().attenuate(0.7)
         yield s
 
 def gen_tintinnabuli3():
     note_dur = 0.4
     s = Seq()
     scl = Scl("minor", "e")
-
     while True:
         s.clear()
         pitch_low = scl.tonic - 12
         pitch_low = scl.getDegreeFrom(pitch_low, random.choice([0, 0, -len(scl), 2, 2, 4, 4]))
         pitch_high = scl.getDegree(random.randrange(len(scl)))
-        s.add(Chord((pitch_low, pitch_high)))
+        s.add(Chord(pitch_low, pitch_high))
         s.dur = note_dur + abs(random.gauss(0, 3))
-        s.humanize(0.02)
+        s.humanize(0.02).attenuate(0.7)
         yield s
 
 def gen_fratres():
@@ -161,20 +168,20 @@ def gen_fratres():
     main = Scl([0, 1, 3, 4, 6, 8, 9], "do#")
     minor = Scl([0, 3, 7], "la")
     while True:
-        s=Seq()
+        s = Seq()
         pitches = ( main.getDegree(0), main.getDegree(2)+24, minor.getClosest(main.getDegree(0)+9) )
-        s.add(Chord(pitches), 0.5)
+        s.add(Chord(*pitches, dur=2, vel=60))
         for i in range(1, d):
             pitches = ( main.getDegree(i), main.getDegree(i+2)+24, minor.getClosest(main.getDegree(i)+9) )
-            s.add(Chord(pitches))
+            s.add(Chord(*pitches, vel=60))
         for i in range(-d+1, 0):
             pitches = ( main.getDegree(i), main.getDegree(i+2)+24, minor.getClosest(main.getDegree(i)+9) )
-            s.add(Chord(pitches))
+            s.add(Chord(*pitches, vel=60))
         pitches = ( main.getDegree(0), main.getDegree(2)+24, minor.getClosest(main.getDegree(0)+9) )
-        s.add(Chord(pitches), 0.5)
+        s.add(Chord(*pitches, dur=2, vel=60))
         d += 1
-        s.stretch(4.0)
-        s.humanize()
+        s.stretch(8.0)
+        s.humanize().attenuate(0.7)
         yield s
     
 def gen_japscale():

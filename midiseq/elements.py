@@ -60,6 +60,11 @@ def str2pitch(tone: str) -> int:
 def str2elt(string: str) -> Union[Note, Sil, Chord, None]:
     """ Return an single musical element, given its string representation """
 
+    if '|' in string:
+        # Explicit chord
+        chord_elts = ( str2elt(ce) for ce in string.split('|'))
+        return Chord(*chord_elts)
+
     MIDI_PITCH_PATTERN = re.compile(r"(\d+)(%[\d/.]+)?")
 
     SILENCE_PATTERN = re.compile(r"(\.+)")
@@ -111,7 +116,7 @@ def str2seq(string: str) -> Seq:
         if '_' in elt:
             # Tuplet
             tup_notes = elt.split('_')
-            elts.extend([ str2elt(t)/len(tup_notes) for t in tup_notes ])
+            elts.extend([ str2elt(n)/len(tup_notes) for n in tup_notes])
         else:
             # Single element
             elts.append(str2elt(elt))
@@ -228,7 +233,7 @@ class Scl():
 
     def triad(self, degree=0, dur=1, vel=100, prob=1):
         """ Returns a triad Chord of the nth degree in the scale """
-        return Chord([self.getDegree(degree+deg) for deg in [0,2,4]],
+        return Chord(*[self.getDegree(degree+deg) for deg in [0,2,4]],
                      dur=dur, vel=vel, prob=prob)
 
 
@@ -343,21 +348,25 @@ class Sil():
 class Chord():
     """ Chords are made of many notes playing at the same time """
 
-    def __init__(self, *notes, dur=1, vel=100, prob=1):
+    def __init__(self, *notes, dur=None, vel=100, prob=1):
         # XXX: prob parameter is not really used for now
         # XXX: vel parameter is not really used for now
         self.notes = []
         self.pitches = set() # Helps to avoid duplicate notes
-        self.dur = dur * env.note_dur
+        #self.dur = (dur or 1.0) * env.note_dur
         self.prob = prob
 
+        max_note_dur = 0
         for elt in notes:
-            if isinstance(elt, int) and elt not in self.pitches:
-                self.notes.append(Note(elt, dur, vel))
-                self.pitches.add(elt)
-            elif isinstance(elt, Note) and elt.pitch not in self.pitches:
+            if isinstance(elt, int):
+                elt = Note(elt, vel=vel, prob=prob)
+            if elt.pitch in self.pitches:
+                continue
+            
+            if isinstance(elt, Note):
                 new_note = elt.copy()
-                new_note.dur = min(new_note.dur, self.dur)
+                max_note_dur = max(max_note_dur, elt.dur)
+                #new_note.dur = min(new_note.dur, self.dur)
                 self.notes.append(new_note)
                 self.pitches.add(new_note.pitch)
             elif isinstance(elt, str):
@@ -365,8 +374,15 @@ class Chord():
             elif isinstance(elt, Chord):
                 self._merge_chord(elt)
             else:
-                raise TypeError("Argument `notes` must be Notes, strings or integers")
-    
+                raise TypeError(f"Argument `notes` must be Notes, strings or integers, got {elt} ({type(elt)})")
+            
+            if dur:
+                for n in self.notes:
+                    n.dur = dur * env.note_dur
+                self.dur =  dur * env.note_dur
+            else:
+                self.dur = max_note_dur
+
 
     def arp(self, type="up", times=1, octaves=1) -> Seq:
         arp_seq = Seq()
@@ -411,11 +427,11 @@ class Chord():
 
     def __repr__(self):
         if self.dur != env.note_dur:
-            return "Chord({})".format(', '.join( [str(n.pitch) for n in self.notes] ))
-        return "Chord({}, dur={})".format(
+            return "Chord({}, dur={})".format(
                 ', '.join( [str(n.pitch) for n in self.notes] ),
                 self.dur / env.note_dur
                 )
+        return "Chord({})".format(', '.join( [str(n.pitch) for n in self.notes] ))
 
 
 
@@ -707,7 +723,8 @@ class Seq():
     
 
     def splitNotes(self, n=2) -> Seq:
-        """ Modifies sequence in-place """
+        """ Modifies sequence in-place
+        """
         if type(n) != int or n <= 0:
             raise TypeError("number of splits should be equal to 2 or greater ")
         
@@ -732,7 +749,16 @@ class Seq():
         return self
     
 
-    def humanize(self, tfactor=0.02, veldev=10) -> Seq:
+    def attenuate(self, factor=1.0) -> Seq:
+        """ Attenuate notes velocity by a given factor
+            Modifies sequence in-place
+        """
+        for _, note in self.notes:
+            note.vel = min(max(note.vel * factor, 0), 127)
+        return self
+
+
+    def humanize(self, tfactor=0.015, veldev=6) -> Seq:
         """ Randomly offsets the notes time and duration
             Modifies sequence in-place
 
@@ -747,8 +773,8 @@ class Seq():
         for t, note in self.notes:
             t = t + 2 * (random.random()-0.5) * tfactor
             note.dur = note.dur + random.random() * tfactor
-            note.vel = int(100 + random.gauss(0, veldev))
-            note.vel = min(127, max(0, note.vel))
+            note.vel = int(note.vel + random.gauss(0, veldev))
+            note.vel = min(max(note.vel, 0), 127)
             new_notes.append( (t, note) )
         self.notes = new_notes
         return self
@@ -1017,10 +1043,8 @@ class Track():
         self.port = None
         self.channel = channel
         self.instrument = instrument
-        # self.gen_func =  None
-        # self.gen_args = None
-        # self.generator = None
         self.seqs: List[Union[Seq, Generator]] = []
+        self.gens = dict()  # Dictionary of generators and their args
         self.muted = False
         self.loop = loop
         self.loop_type = "last" # "last" / "all"
@@ -1039,22 +1063,42 @@ class Track():
         #     self._build_sync_priority_list()
     
 
-    def add(self, sequence: Union[Seq, str, Generator]) -> Track:
+    def add(self, sequence: Union[str, Seq, callable, Generator]) -> Track:
         if isinstance(sequence, str):
             sequence = str2elt(sequence)
+        elif callable(sequence) or isinstance(sequence, Generator):
+            return self.addGen(sequence)
         self.seqs.append(sequence)
+        return self
+
+
+    def addGen(self, func: Union[Generator, callable], *args, **kwargs):
+        """
+            Add a sequence generator to this track.
+            A callable must be provided, not the generator directly
+        """
+
+        if isinstance(func, Generator):
+            generator = func
+        else:
+            generator = func(*args, **kwargs)
+        gen_id = id(generator)
+        self.gens[gen_id] = {
+            "func": func if callable(func) else None,
+            "args": args, "kwargs": kwargs,
+            "generator": generator,
+            }
+        self.seqs.append(gen_id)
         return self
 
 
     def clear(self):
         self.seqs.clear()
+        self.gens.clear()
         self.seq_i = 0
         self.ended = True
-        # self.gen_func = None
-        # self.generator = None
-        # self.gen_args = None
     
-    
+
     def reset(self):
         if not self.seqs:
             return
@@ -1062,12 +1106,6 @@ class Track():
         self._next_timer = self.offset
         self.ended = False
         self.seq_i = 0
-        # self.signal_sequence_end = True
-        # if callable(self.gen_func):
-        #     if self.gen_args:
-        #         self.generator = self.gen_func(*self.gen_args)
-        #     else:
-        #         self.generator = self.gen_func()
 
 
     def setGroup(self, track_group):
@@ -1118,14 +1156,26 @@ class Track():
         if self.seq_i < len(self.seqs):
             # Send next sequence
             sequence = self.seqs[self.seq_i]
-            if isinstance(sequence, Generator):
+            if isinstance(sequence, int):
+                # It's a generator !
+                gen_id = sequence
+                gen_data = self.gens[gen_id]
                 try:
-                    sequence = next(sequence)
+                    # Generator is still generating
+                    sequence = next(self.gens[gen_id]["generator"])
+                    gen_data["last"] = sequence
                 except StopIteration:
-                    self.seq_i += 1
-                    return self.update(0.0)
-                finally:
-                    self.seq_i -= 1
+                    if gen_data["func"]:
+                        # Reload generator
+                        args = gen_data["args"]
+                        kwargs = gen_data["kwargs"]
+                        new_gen = gen_data["func"](*args, **kwargs)
+                        gen_data["generator"] = new_gen
+                        sequence = next(new_gen)
+                        gen_data["last"] = sequence
+                    else:
+                        # Use last generated sequence
+                        sequence = gen_data["last"]
             
             messages = sequence.getMidiMessages(self.channel)
             messages = [ (t+self._next_timer, mess) for t, mess in messages ]

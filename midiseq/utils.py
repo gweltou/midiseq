@@ -224,7 +224,7 @@ def lcm(*seqs):
                 return False
         return True
 
-    seqs_init = [ str2elt(s) if isinstance(s, str) else s for s in seqs ]
+    seqs_init = [ str2seq(s) if isinstance(s, str) else s for s in seqs ]
     seqs = [ s.copy() for s in seqs_init ]
     while not samelen(seqs):
         # Find index of shortest seq:

@@ -109,7 +109,7 @@ class TrackGroup:
 
 
 def play(
-        what: Union[Track, Note, Seq, None]=None,
+        what: Union[Track, Note, Seq, Generator, None]=None,
         channel=0, instrument=0,
         loop=False):
     """ Play a Track, a Sequence or a single Note
@@ -135,7 +135,8 @@ def play(
         elif type(what) in (Note, Chord):
             what = Seq().add(what)
         elif isinstance(what, Generator):
-            what = Track().add(what)
+            what = Track(channel=channel, instrument=instrument, loop=loop).addGen(what)
+
         track_group = TrackGroup()
         if isinstance(what, Track):
             track_group.addTrack(what)
