@@ -1,5 +1,6 @@
 import re
-from midiseq import Seq, Note, Chord, Sil, str2elt, str2seq
+from midiseq import Seq, Note, Chord, Sil
+from midiseq.elements import str2elt, str2seq
 # from midiseq import env as env
 
 

@@ -4,7 +4,7 @@ from midiseq import env as env
 
 def test_seq_init():
     def test3notes(s):
-        assert s.length == 3 * env.NOTE_LENGTH
+        assert s.dur == 3 * env.note_dur
         assert len(s) == 3
     
     test3notes(Seq(1, 2, 3))
@@ -16,13 +16,13 @@ def test_seq_init():
     test3notes(Seq().addNotes((1, 2, 3)))
 
     s = Seq("1 . 3")
-    assert s.length == 3 * env.NOTE_LENGTH
+    assert s.dur == 3 * env.note_dur
     assert len(s) == 2
 
 
 def test_seq_operators():
     def test3notes(s):
-        assert s.length == 3 * env.NOTE_LENGTH
+        assert s.dur == 3 * env.note_dur
         assert len(s) == 3
     
     test3notes(Seq(1, 2) + Note(3))
@@ -48,7 +48,7 @@ def test_seq_operators():
     assert Seq(50, 52, 54)^-5 == Seq(45, 47, 49)
 
     # modulo (gate)
-    assert (Seq(50)%0.5)[0].dur == env.NOTE_LENGTH * 0.5
+    assert (Seq(50)%0.5)[0].dur == env.note_dur * 0.5
 
 
 def test_sil_operators():
@@ -57,13 +57,13 @@ def test_sil_operators():
     assert Sil(2) == 2*Sil(1)
 
     assert type(Sil() + Note(60)) == Seq
-    assert (Sil() + Note(60)).length == 2*env.NOTE_LENGTH
+    assert (Sil() + Note(60)).dur == 2*env.note_dur
 
     assert type(Sil() + Chord(60, 62, 66)) == Seq
-    assert (Sil() + Chord(60, 62, 66)).length == 2*env.NOTE_LENGTH
+    assert (Sil() + Chord(60, 62, 66)).dur == 2*env.note_dur
 
     assert type(Sil() + Seq((60, 62, 66))) == Seq
-    assert (Sil() + Seq((60, 62, 66))).length == 4*env.NOTE_LENGTH
+    assert (Sil() + Seq((60, 62, 66))).dur == 4*env.note_dur
 
 
 def test_seq_reverse():
@@ -78,9 +78,9 @@ def test_seq_shift():
     s.shift(1)
     assert s.notes[0][0] == 1.0
     s.shift(-1)
-    s.shift(env.NOTE_LENGTH, wrap=True)
+    s.shift(env.note_dur, wrap=True)
     assert s == Seq("mi do re")
-    sc.shift(-env.NOTE_LENGTH, wrap=True)
+    sc.shift(-env.note_dur, wrap=True)
     assert sc == Seq("re mi do")
 
 
@@ -88,9 +88,9 @@ def test_note_operators():
     assert type(Note(60)+Note(60)) == Seq
     assert type(Note(60)+Sil()) == Seq
     assert type(Note(60)+Chord(60, 65)) == Seq
-    assert (Note(60)*2).length == 2*env.NOTE_LENGTH
+    assert (Note(60)*2).dur == 2*env.note_dur
     assert type(Note(60)*1.5) == Note
-    assert (Note(60)*1.5).dur == 1.5*env.NOTE_LENGTH
-    assert (Note(60)/2).dur == env.NOTE_LENGTH / 2
+    assert (Note(60)*1.5).dur == 1.5*env.note_dur
+    assert (Note(60)/2).dur == env.note_dur / 2
 
-    assert (Note(60) + Seq(length=4)).length == 4 + env.NOTE_LENGTH
+    assert (Note(60) + Seq(dur=4)).dur == 4 + env.note_dur

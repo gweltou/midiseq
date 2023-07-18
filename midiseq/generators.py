@@ -2,8 +2,8 @@ from typing import Union
 import random
 
 import midiseq.env as env
-from .elements import Note, Sil, Seq, Scale, Chord
-from .utils import str2elt, str2pitch, pattern, randGauss
+from .elements import Note, Sil, Seq, Scl, Chord
+from .utils import str2elt, str2pitch, pattern, rndGauss
 from .definitions import *
 
 
@@ -66,7 +66,7 @@ def gen_chords1():
     d = 0
     while True:
         s = Seq()
-        scl = Scale(random.choice(list(modes.keys())))
+        scl = Scl(random.choice(list(modes.keys())))
         #s.scale = Scale(scl)
         for _ in range(4):
             s.add(scl.triad([0, 1, 2, 3][d%3]))
@@ -78,11 +78,11 @@ def gen_chords1():
 
 def gen_chords2():
     d = 0
-    scl = Scale(random.choice(list(modes.keys())))
+    scl = Scl(random.choice(list(modes.keys())))
     while True:
         s = Seq()
         if d%4 == 0:
-            scl = Scale(random.choice(list(modes.keys())))
+            scl = Scl(random.choice(list(modes.keys())))
             print(scl)
         chord_prog = [ random.choice(list(range(7))) for _ in range(4) ]
         print(chord_prog)
@@ -100,7 +100,7 @@ def gen_chords3():
     while True:
         deg = 0
         s = Seq()
-        s.scale = Scale("major", "c")
+        s.scale = Scl("major", "c")
         for _ in range(5):
             off = random.choice(jumps)
             if random.random() < 0.5:
@@ -114,7 +114,7 @@ def gen_tintinnabuli():
     # Tintinnabuli
     note_dur = 1.0
     s = Seq()
-    s.scale = Scale("minor", 54)
+    s.scale = Scl("minor", 54)
     for _ in range(16):
         s.clear()
         pitch = s.scale.getDegree(random.gauss(0, 2.5)) + 12
@@ -122,13 +122,13 @@ def gen_tintinnabuli():
         s.add(Note(pitch, dur=note_dur))
         s.head=0.0
         s.add(Note(pitch2, dur=note_dur))
-        s.length = note_dur + abs(random.gauss(0, 3))
+        s.dur = note_dur + abs(random.gauss(0, 3))
         yield s
 
 def gen_tintinnabuli2():
     note_dur = 0.6
     s = Seq()
-    scl = Scale("pentatonic_minor", "e")
+    scl = Scl("pentatonic_minor", "e")
 
     while True:
         s.clear()
@@ -136,13 +136,13 @@ def gen_tintinnabuli2():
         pitch_low = scl.getDegreeFrom(pitch_low, random.choice([0, 0, -len(scl), 1, 1, 2, 2]))
         pitch_high = scl.getDegree(random.randrange(len(scl)))
         s.add(Chord((pitch_low, pitch_high)))
-        s.length = note_dur + abs(random.gauss(0, 3))
+        s.dur = note_dur + abs(random.gauss(0, 3))
         yield s
 
 def gen_tintinnabuli3():
     note_dur = 0.4
     s = Seq()
-    scl = Scale("minor", "e")
+    scl = Scl("minor", "e")
 
     while True:
         s.clear()
@@ -150,7 +150,7 @@ def gen_tintinnabuli3():
         pitch_low = scl.getDegreeFrom(pitch_low, random.choice([0, 0, -len(scl), 2, 2, 4, 4]))
         pitch_high = scl.getDegree(random.randrange(len(scl)))
         s.add(Chord((pitch_low, pitch_high)))
-        s.length = note_dur + abs(random.gauss(0, 3))
+        s.dur = note_dur + abs(random.gauss(0, 3))
         s.humanize(0.02)
         yield s
 
@@ -158,8 +158,8 @@ def gen_fratres():
     # Tintinnabuli fratres
     # https://www.youtube.com/watch?v=XbykaYwVO0w
     d=2
-    main = Scale([0, 1, 3, 4, 6, 8, 9], "do#")
-    minor = Scale([0, 3, 7], "la")
+    main = Scl([0, 1, 3, 4, 6, 8, 9], "do#")
+    minor = Scl([0, 3, 7], "la")
     while True:
         s=Seq()
         pitches = ( main.getDegree(0), main.getDegree(2)+24, minor.getClosest(main.getDegree(0)+9) )
@@ -178,12 +178,12 @@ def gen_fratres():
         yield s
     
 def gen_japscale():
-    jap = Scale("japanese")
+    jap = Scl("japanese")
     while True:
         s=Seq() 
         if random.random() < 0.1:
             jap.tonic = random.randrange(42, 54)
-        s.add(randGauss(dev=2, scale=jap))
+        s.add(rndGauss(dev=2, scale=jap))
         s.stretch(16, False)
         yield s
 
@@ -217,7 +217,7 @@ def drum_discoGroove():
     return s*2
 
 def drum_halfTimeShuffle():
-    s = Seq((H,), length=1)
+    s = Seq((H,), dur=1)
     s.add(Note(H), 0.72)
     s *= 4
     s.add(Note(K), 0)
@@ -282,8 +282,8 @@ def gen_mf_mel1():
     """
 
     s = Seq()
-    s.length = 1
-    scale = Scale("major", "sol")
+    s.dur = 1
+    scale = Scl("major", "sol")
     degree = 0
     while True:
         if random.random() > 0.8:

@@ -37,11 +37,11 @@ def str2pitch(tone: str) -> int:
 
     def get_octave(s: Optional[str]) -> int:
         if not s:
-            return env.DEFAULT_OCTAVE
+            return env.default_octave
         if s[0] in ('-','+'):
             if len(s) == 1:
                 s += '1'
-            octave = eval(str(env.DEFAULT_OCTAVE) + s)
+            octave = eval(str(env.default_octave) + s)
             return min(max(octave, 0), 10)
         return int(s)
     
@@ -129,7 +129,7 @@ def str2seq(string: str) -> Seq:
 #     return s
 
 
-class Scale():
+class Scl():
 
     def __init__(self, scale="major", tonic=60):
         if isinstance(tonic, int):
@@ -254,14 +254,14 @@ class Note():
         elif not isinstance(pitch, int):
             raise TypeError("Pitch must be an integer in range [0, 127], got {}".format(pitch))
         self.pitch = min(127, max(0, pitch))
-        self.dur = dur * env.NOTE_LENGTH
+        self.dur = dur * env.note_dur
         self.vel = vel
         self.prob = prob
     
 
     def copy(self) -> Note:
         n = Note(self.pitch, self.dur, self.vel, self.prob)
-        n.dur = self.dur # Overrides the env note_length multiplier
+        n.dur = self.dur # Overrides the env note_dur multiplier
         return n
 
 
@@ -274,7 +274,6 @@ class Note():
             s = Seq()
             for _ in range(factor):
                 s.add(self.copy())
-            # s.length = self.dur * factor
             return s
         elif isinstance(factor, float):
             # New note with dur multiplied
@@ -303,8 +302,8 @@ class Note():
     
     def __repr__(self):
         args = "{}".format(self.pitch)
-        if self.dur != env.NOTE_LENGTH:
-            args += ",{}".format(round(self.dur/env.NOTE_LENGTH, 3))
+        if self.dur != env.note_dur:
+            args += ",{}".format(round(self.dur/env.note_dur, 3))
         if self.vel != 100:
             args += ",{}".format(self.vel)
         if self.prob != 1:
@@ -317,27 +316,27 @@ class Sil():
     """ Silence (non-mutable) """
     
     def __init__(self, dur=1):
-        self.dur = dur * env.NOTE_LENGTH
+        self.dur = dur * env.note_dur
     
     def __add__(self, other) -> Union[Sil, Seq]:
         if isinstance(other, Sil):
-            return Sil((self.dur + other.dur) / env.NOTE_LENGTH)
+            return Sil((self.dur + other.dur) / env.note_dur)
         return Seq().add(self).add(other)
 
     def __mul__(self, factor: Union[int, float]) -> Sil:
-        return Sil(self.dur * factor / env.NOTE_LENGTH)
+        return Sil(self.dur * factor / env.note_dur)
     
     def __rmul__(self, factor: Union[int, float]) -> Sil:
         return self.__mul__(factor)
     
     def __truediv__(self, factor: Union[int, float]) -> Sil:
-        return Sil(self.dur / (factor * env.NOTE_LENGTH))
+        return Sil(self.dur / (factor * env.note_dur))
 
     def __eq__(self, other):
         return self.dur == other.dur
 
     def __repr__(self):
-        return "Sil({})".format(self.dur/env.NOTE_LENGTH)
+        return "Sil({})".format(self.dur/env.note_dur)
 
 
 
@@ -349,7 +348,7 @@ class Chord():
         # XXX: vel parameter is not really used for now
         self.notes = []
         self.pitches = set() # Helps to avoid duplicate notes
-        self.dur = dur * env.NOTE_LENGTH
+        self.dur = dur * env.note_dur
         self.prob = prob
 
         for elt in notes:
@@ -411,11 +410,11 @@ class Chord():
                self.prob == other.prob
 
     def __repr__(self):
-        if self.dur != env.NOTE_LENGTH:
+        if self.dur != env.note_dur:
             return "Chord({})".format(', '.join( [str(n.pitch) for n in self.notes] ))
         return "Chord({}, dur={})".format(
                 ', '.join( [str(n.pitch) for n in self.notes] ),
-                self.dur / env.NOTE_LENGTH
+                self.dur / env.note_dur
                 )
 
 
@@ -537,9 +536,9 @@ class Chord():
 class Seq():
     """ Sequence of notes """
 
-    def __init__(self, *notes, length=0):
+    def __init__(self, *notes, dur=0):
         self.head = 0.0       # Recording head
-        self.length = length  # Can be further than the end of the last note
+        self.dur = dur  # Can be further than the end of the last note
         self.notes: List[Tuple[float, Note]] = []
         self.silences = []  # Keep a record of silence, used for random picking
                             # so no need to sort it
@@ -558,14 +557,14 @@ class Seq():
         new = Seq()
         new.notes = [ (t, n.copy()) for t, n in self.notes ]
         new.silences = [ (t, s) for t, s in self.silences ]
-        new.length = self.length
+        new.dur = self.dur
         new.head = self.head
         return new
     
 
     def add(self, other, head=-1) -> Seq:
         """ Add a single musical element or whole sequences at the recording head position
-            This will grow the sequence's length if necessary
+            This will grow the sequence's duration if necessary
         """
         if head >= 0:
             self.head = head
@@ -577,25 +576,25 @@ class Seq():
         elif isinstance(other, Note):
             self.notes.append( (self.head, other.copy()) )
             self.head += other.dur
-            self.length = max(self.length, self.head)
+            self.dur = max(self.dur, self.head)
             self.notes.sort(key=lambda x: x[0])
         elif isinstance(other, Sil):
             self.silences.append( (self.head, other) )
             self.head += other.dur
-            self.length = max(self.length, self.head)
+            self.dur = max(self.dur, self.head)
         elif isinstance(other, Chord):
             for note in other.notes:
                 self.notes.append( (self.head, note.copy()) )
             self.head += other.dur
-            self.length = max(self.length, self.head)
+            self.dur = max(self.dur, self.head)
             self.notes.sort(key=lambda x: x[0])
         elif isinstance(other, Seq):
             for (t, note) in other.notes:
                 self.notes.append( (self.head + t, note.copy()) )
             for (t, sil) in other.silences:
                 self.silences.append( (self.head + t, sil) )
-            self.head += other.length
-            self.length = max(self.length, self.head)
+            self.head += other.dur
+            self.dur = max(self.dur, self.head)
             self.notes.sort(key=lambda x: x[0])
         else:
             raise TypeError("Only instances of Note, Sil, Chord, Seq or string sequences can be added to a Sequence")
@@ -632,7 +631,7 @@ class Seq():
     def merge(self, other) -> Seq:
         """ Merge sequences, preserving every note's time position
             Modify this sequence in place
-            Doesn't change this Sequence's length
+            Doesn't change this Sequence's duration
         """
         if type(other) != type(self):
             raise TypeError("Can only merge other Sequences")
@@ -668,7 +667,7 @@ class Seq():
             if stretch_notes:
                 note.dur *= factor
             self.notes[i] = t * factor, note
-        self.length *= factor
+        self.dur *= factor
         return self
 
 
@@ -677,7 +676,7 @@ class Seq():
         """
         new_notes = []
         for t, n in self.notes:
-            new_notes.append( (self.length - t - n.dur, n) )
+            new_notes.append( (self.dur - t - n.dur, n) )
         self.notes = sorted(new_notes)
         return self
 
@@ -761,17 +760,17 @@ class Seq():
 
 
     def crop(self) -> Seq:
-        """ Shorten or delete notes before time 0 and after the sequence's length
+        """ Shorten or delete notes before time 0 and after the sequence's duration
             Modifies sequence in-place
         """
         cropped_notes = []
         for t, n in self.notes:
-            if t + n.dur > 0 and t < self.length:
+            if t + n.dur > 0 and t < self.dur:
                 if t < 0:
                     n.dur += t
-                elif t + n.dur > self.length:
-                    n.dur -= t + n.dur - self.length
-                t = (min(max(t, 0), self.length))
+                elif t + n.dur > self.dur:
+                    n.dur -= t + n.dur - self.dur
+                t = (min(max(t, 0), self.dur))
                 cropped_notes.append( (t, n) )
             self.notes = cropped_notes
         return self
@@ -790,10 +789,10 @@ class Seq():
         for t, n in self.notes:
             new_time = t+dt
             if wrap:
-                if t+dt >= self.length:
-                    new_time -= self.length
+                if t+dt >= self.dur:
+                    new_time -= self.dur
                 elif t+dt < 0:
-                    new_time += self.length
+                    new_time += self.dur
             new_notes.append( (new_time, n) )
         self.notes = sorted(new_notes)
         return self
@@ -801,6 +800,7 @@ class Seq():
 
     def shuffle(self):
         """ Shuffle the sequence """
+        raise NotImplementedError
 
 
     def getMidiMessages(self, channel=0) -> List[tuple]:
@@ -813,12 +813,12 @@ class Seq():
         midi_seq = []
         for pos, note in self.notes:
             # End of sequence
-            if pos >= self.length:
+            if pos >= self.dur:
                 break
             # Truncate last note if necesary
-            if pos + note.dur > self.length:
+            if pos + note.dur > self.dur:
                 note = note.copy()
-                note.dur = self.length - pos
+                note.dur = self.dur - pos
 
             # Probability
             if note.prob < 1 and random.random() > note.prob:
@@ -886,7 +886,7 @@ class Seq():
         elif type(factor) == int and factor >= 0:
             new_sequence = self.copy()
             new_sequence.clear()
-            new_sequence.length = 0
+            new_sequence.dur = 0
             for _ in range(factor):
                 new_sequence.add(self)
             
@@ -950,14 +950,14 @@ class Seq():
             stop = index.stop
             if type(start) is float or type(stop) is float:
                 if start == None: start = 0.0
-                if stop == None: stop = self.length
+                if stop == None: stop = self.dur
                 l = stop-start
                 assert l > 0.0
                 new_seq = Seq()
                 for t,n in self.notes:
                     if t + n.dur >= start and t < stop:
                         new_seq.notes.append( (t-start, n) )
-                new_seq.length = l
+                new_seq.dur = l
                 new_seq.crop()
                 return new_seq
             else:
@@ -965,7 +965,7 @@ class Seq():
                 if start == None: start = 0
                 offset = self.notes[start][0]
                 new_seq.notes = [(t-offset, n.copy()) for t,n in self.notes[index]]
-                new_seq.length = new_seq.notes[-1][0] + new_seq.notes[-1][1].dur
+                new_seq.dur = new_seq.notes[-1][0] + new_seq.notes[-1][1].dur
                 return new_seq
     
     def __delitem__(self, index):
@@ -979,7 +979,7 @@ class Seq():
     
     def __eq__(self, other):
         return (
-            self.length == other.length
+            self.dur == other.dur
                 and self.notes == other.notes
         )
 
@@ -993,7 +993,7 @@ class Seq():
 
 class Track():
     """ Track where you can add Sequence.
-        You can had a silence by adding an empty Sequence with a non-zero length.
+        You can had a silence by adding an empty Sequence with a non-zero duration.
         You can define a generator callback function by modifing the generator property.
 
         Parameters
@@ -1129,7 +1129,7 @@ class Track():
             
             messages = sequence.getMidiMessages(self.channel)
             messages = [ (t+self._next_timer, mess) for t, mess in messages ]
-            self._next_timer += sequence.length
+            self._next_timer += sequence.dur
             self.seq_i += 1
 
             if self.instrument and self.send_program_change:
@@ -1157,7 +1157,7 @@ class Track():
             # if self.generator:
             #     try:
             #         new_seq = next(self.generator)
-            #         self._next_timer += new_seq.length
+            #         self._next_timer += new_seq.dur
             #         return new_seq.getMidiMessages(self.channel)
             #     except StopIteration:
             #         if self.loop:

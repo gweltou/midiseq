@@ -101,6 +101,9 @@ class TrackGroup:
             self.priority_list.append(track)
             for children_track in track._sync_children:
                 self.priority_list.extend( children_track._get_priority_list() )
+    
+    def __iter__(self):
+        yield from self.tracks
                 
 
 
@@ -141,7 +144,7 @@ def play(
         _playing_thread = threading.Thread(target=_play, args=(track_group, loop), daemon=True)
     else:
         # Play all tracks
-        _playing_thread = threading.Thread(target=_play, args=(env.TRACKS, loop), daemon=True)
+        _playing_thread = threading.Thread(target=_play, args=(env.tracks, loop), daemon=True)
     
     _must_stop = False
     _playing_thread.start()
@@ -177,7 +180,7 @@ def _play(track_group: TrackGroup, loop=False):
 
         t_frame = time.time() - t0
         timedelta = t_frame - t_prev
-        timedelta *= env.TEMPO / 120   # A time unit (Seq.length=1) is 1 second at 120bpm
+        timedelta *= env.bpm / 120   # A time unit (Seq.length=1) is 1 second at 120bpm
         t_prev = t_frame
         assert 0 < timedelta < 99
         metronome_time += timedelta

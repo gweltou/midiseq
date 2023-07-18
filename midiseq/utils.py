@@ -2,7 +2,7 @@ from typing import Optional, Union
 import re
 import random
 
-from .elements import Note, Sil, Chord, Seq, Scale, str2pitch, str2elt, str2seq
+from .elements import Note, Sil, Chord, Seq, Scl, str2pitch, str2elt, str2seq
 import midiseq.env as env
 
 
@@ -33,7 +33,7 @@ def noob2seq(noob: str):
         https://www.piano-letters.com/letter-notes
     """
 
-    o = env.DEFAULT_OCTAVE
+    o = env.default_octave
     s = noob.replace('^', str(o+1)).replace('*', str(o+2)) # Octave transpose, up
     s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
     s = s.replace('-', '_') # Tuplets
@@ -47,7 +47,7 @@ def noob2seq(noob: str):
 ###############################################################################
 
 
-def rand(n=4, min=36, max=96, silprob=0.0, scale:Scale=None) -> Seq:
+def rnd(n=4, min=36, max=96, silprob=0.0, scale:Scl=None) -> Seq:
     """ Generate a sequence of random notes
 
         Parameters
@@ -64,11 +64,11 @@ def rand(n=4, min=36, max=96, silprob=0.0, scale:Scale=None) -> Seq:
                 Constrain generated notes to the given scale
     """
     if not scale:
-        scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
+        scale = env.scale if env.scale else Scl("chromatic", 'c')
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
-            pitch = env.SCALE.getClosest(random.randint(min, max))
+            pitch = env.scale.getClosest(random.randint(min, max))
             s.add(Note(pitch))
         else:
             s.add(Sil())
@@ -76,21 +76,33 @@ def rand(n=4, min=36, max=96, silprob=0.0, scale:Scale=None) -> Seq:
 
 
 
-def rand2(
-        notes=[],
-        durs=[],
+def rndDur(
+        dur=1.0,
+        min=36, max=96,
+        durs=[0.25, 0.5, 1, 2],
         silprob=0.0,
+        scale:Scl=None
     ) -> Seq:
-    raise NotImplementedError
+    assert dur > max(durs)
+    if not scale:
+        scale = env.scale if env.scale else Scl("chromatic", 'c')
+    durs.sort()
+    s = Seq()
+    d = random.choice(durs)
+    while dur - s.dur > max(durs):
+        if not silprob or random.random() > silprob:
+            pitch = env.scale.getClosest(random.randint(min, max))
+            s.add(Note(pitch, d))
+        else:
+            s.add(Sil(d))
 
 
-
-def randWalk(
+def rndWalk(
         n=4,
         start: Union[str,int]=60,
         steps=[-3,-2,-1,0,1,2,3],
         silprob=0.0,
-        skip_first=False, scale:Scale=None
+        skip_first=False, scale:Scl=None
     ) -> Seq:
     """ Create a sequence of notes moving from last note by a random interval
 
@@ -110,7 +122,7 @@ def randWalk(
                 Constrain generated notes to the given scale
     """
     if not scale:
-        scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
+        scale = env.scale if env.scale else Scl("chromatic", 'c')
     if isinstance(start, str):
         start = str2pitch(start)
     pitch = scale.getClosest(start)
@@ -120,14 +132,14 @@ def randWalk(
     for _ in range(n):
         if not silprob or random.random() > silprob:
             s.add(Note(pitch))
-            pitch = env.SCALE.getDegreeFrom(pitch, random.choice(steps))
+            pitch = env.scale.getDegreeFrom(pitch, random.choice(steps))
         else:
             s.add(Sil())
     return s
 
 
 
-def randGauss(n=4, mean=60, dev=3, silprob=0.0, scale:Scale=None) -> Seq:
+def rndGauss(n=4, mean=60, dev=3, silprob=0.0, scale:Scl=None) -> Seq:
     """ Generate random notes with a normal distribution around a mean value
 
         Parameters
@@ -144,7 +156,7 @@ def randGauss(n=4, mean=60, dev=3, silprob=0.0, scale:Scale=None) -> Seq:
                 Constrain generated notes to the given scale
     """
     if not scale:
-        scale = env.SCALE if env.SCALE else Scale("chromatic", 'c')
+        scale = env.scale if env.scale else Scl("chromatic", 'c')
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
@@ -156,7 +168,7 @@ def randGauss(n=4, mean=60, dev=3, silprob=0.0, scale:Scale=None) -> Seq:
 
 
 
-def randPick(sequence: Seq, n=4, sil=True) -> Seq:
+def rndPick(sequence: Seq, n=4, sil=True) -> Seq:
         """ Pick randomly among previous notes in sequence """
         num_n = len(sequence.notes)
         num_s = len(sequence.silences) if sil else 0
@@ -179,6 +191,7 @@ def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
         Parameters
         ----------
             note : Union[Note, int, str]
+                Note to be repeated
             n : int
                 Number of notes to generate
             grid : int
@@ -193,7 +206,7 @@ def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
     onsets = [ (offset+round(grid*i/n)) % grid for i in range(n) ]
     s = Seq()
     for i in onsets:
-        t = i * env.NOTE_LENGTH
+        t = i * env.note_dur
         s.add(note.copy(), head=t)
     return s
 
@@ -201,12 +214,13 @@ def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
 
 def lcm(*seqs):
     """ Combine two or more sequence to build
-        the least common multiplier of them all
+        the least common multiplier of them all.
+        You better use quantized sequences !
     """
     def samelen(seqs):
         first = seqs[0]
         for s in seqs[1:]:
-            if s.length != first.length:
+            if s.dur != first.dur:
                 return False
         return True
 
@@ -216,8 +230,8 @@ def lcm(*seqs):
         # Find index of shortest seq:
         shortest = (-1, 9999)
         for i, s in enumerate(seqs):
-            if s.length < shortest[1]:
-                shortest = (i, s.length)
+            if s.dur < shortest[1]:
+                shortest = (i, s.dur)
         # Extend shortest seq
         seqs[shortest[0]] += seqs_init[shortest[0]]
     # Merge all sequences

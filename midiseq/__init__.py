@@ -8,30 +8,30 @@ import rtmidi
 
 from .engine import listOutputs, openOutput, _getOutputs, play, stop, TrackGroup, getPastOpened
 from .elements import Seq, Chord, Note, Sil, Track
-from .utils import pattern, noob2seq, rand, randWalk, randGauss, randPick, euclid, lcm
+from .utils import pattern, noob2seq, rnd, rndWalk, rndGauss, rndPick, euclid, lcm
 from .definitions import *
 from .generators import *
 import midiseq.env as env
 
 
 
-def setNoteLen(d):
+def setNoteDur(d):
     """ Set default note length """
-    env.NOTE_LENGTH = d
+    env.note_dur = d
 
-def setScale(scale="chromatic", tonic="c"):
-    env.SCALE = Scale(scale, tonic)
+def setScl(scale="chromatic", tonic="c"):
+    env.scale = Scl(scale, tonic)
 
-def setTempo(bpm):
-    env.TEMPO = bpm
+def setBpm(bpm):
+    env.bpm = bpm
 
 def clearAllTracks():
-    for track in env.TRACKS:
+    for track in env.tracks:
         track.clear()
 
 
 env.METRONOME_NOTES = (sit13, sit16)
-setScale("chromatic")
+setScl("chromatic")
 
 midi_out = dict()
 midi_out["default"] = openOutput(0)
@@ -71,5 +71,9 @@ t14 = Track(13, name="t14", sync_from=t1)
 t15 = Track(14, name="t15", sync_from=t1)
 t16 = Track(15, name="t16", sync_from=t1)
 
-env.TRACKS = TrackGroup()
-env.TRACKS.addTrack(t1)
+env.tracks = TrackGroup()
+env.tracks.addTrack(t1)
+
+setScl("major", "c")
+
+s = lcm(rnd(3), rnd(5))

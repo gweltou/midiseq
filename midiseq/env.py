@@ -1,11 +1,11 @@
 # !/usr/bin/env python3
 
-TRACKS = None
+tracks = None
 
-TEMPO = 120
-NOTE_LENGTH = 1/8
-SCALE = None
-DEFAULT_OCTAVE = 4
+bpm = 120
+note_dur = 1/8
+scale = None
+default_octave = 4
 
 METRONOME_NOTES = (75, 85) # Midi click notes
 METRONOME_CLICK = True
