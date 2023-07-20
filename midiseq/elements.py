@@ -872,7 +872,7 @@ class Seq():
         raise NotImplementedError
 
 
-    def getMidiMessages(self, channel=0) -> List[tuple]:
+    def getMidiMessages(self, channel=0, transpose=0) -> List[tuple]:
         """
             Parameters
             ----------
@@ -893,8 +893,9 @@ class Seq():
             if note.prob < 1 and random.random() > note.prob:
                 continue
             
-            note_on = [0x90+channel, note.pitch, note.vel]
-            note_off = [0x80+channel, note.pitch, 0]
+            pitch = min(max(note.pitch + transpose, 0), 127)
+            note_on = [0x90+channel, pitch, note.vel]
+            note_off = [0x80+channel, pitch, 0]
             midi_seq.append( (pos, note_on) )
             midi_seq.append( (pos + note.dur, note_off) )
 
@@ -1069,13 +1070,6 @@ class Track():
                 Midi channel [0-15]
     """
 
-    # We should define different types of looping:
-    # Looping from the start or looping the last sequence/generator
-
-    #_all_tracks = set() # All instanciated tracks
-    #_priority_list = [] # Class variable to synchronize update order
-    #_top_priority = []  # list of tracks to update first
-
     def __init__(self,
                 channel=0, instrument=None,
                 name=None, loop=True,
@@ -1083,26 +1077,25 @@ class Track():
                 ):
         self.port = None
         self.channel = channel
-        self.instrument = instrument
+        self.instrument = instrument or 0
         self.seqs: List[Union[Seq, Generator]] = []
-        self.gens = dict()  # Dictionary of generators and their args
+        self.generators = dict()  # Dictionary of generators and their args
         self.muted = False
+        self.transpose = 0
         self.loop = loop
         self.loop_type = "all" # "last" / "all"
-        self.shuffle = False    # Not Implemented
+        # self.shuffle = False
         self.name = name #or f"Track{len(Track._all_tracks)+1}"
         self.ended = True
         self.offset = 0.0
         self.send_program_change = True
-        #self.reset()
+        self._nmess_this_cycle = 0 # Number of notes sent during the last cycle
 
         self._sync_children: List[Track] = []
         self._sync_from: Optional[Track] = sync_from
         if sync_from != None:
             sync_from._sync_children.append(self)
-        # if self._sync_from != None and:
-        #     self._build_sync_priority_list()
-    
+
 
     def add(self, sequence: Union[str, Seq, callable, Generator]) -> Track:
         if isinstance(sequence, str):
@@ -1124,7 +1117,7 @@ class Track():
         else:
             generator = func(*args, **kwargs)
         gen_id = id(generator)
-        self.gens[gen_id] = {
+        self.generators[gen_id] = {
             "func": func if callable(func) else None,
             "args": args, "kwargs": kwargs,
             "generator": generator,
@@ -1135,18 +1128,19 @@ class Track():
 
     def clear(self):
         self.seqs.clear()
-        self.gens.clear()
+        self.generators.clear()
         self.seq_i = 0
         self.ended = True
     
 
     def reset(self):
-        if not self.seqs:
+        if not self.seqs and not self.generators:
             return
         
         self._next_timer = self.offset
         self.ended = False
         self.seq_i = 0
+        self._nmess_this_cycle = 0
 
 
     def setGroup(self, track_group):
@@ -1195,19 +1189,16 @@ class Track():
             t._sync()
 
         if self.seq_i < len(self.seqs):
-            # end_of_sequence = False
-
             # Send next sequence
             sequence = self.seqs[self.seq_i]
             if isinstance(sequence, int):
                 # It's a generator !
                 gen_id = sequence
-                gen_data = self.gens[gen_id]
+                gen_data = self.generators[gen_id]
                 try:
                     # Generator is still generating
-                    sequence = next(self.gens[gen_id]["generator"])
+                    sequence = next(self.generators[gen_id]["generator"])
                 except StopIteration:
-                    # end_of_sequence = True
                     if gen_data["func"]:
                         # Reload generator
                         args = gen_data["args"]
@@ -1215,54 +1206,42 @@ class Track():
                         new_gen = gen_data["func"](*args, **kwargs)
                         gen_data["generator"] = new_gen
                         sequence = next(new_gen)
-                        gen_data["last"] = sequence
                     else:
-                        print("repeat last")
-                        # Use last generated sequence
-                        sequence = gen_data["last"]
+                        # Skip
+                        self.seq_i += 1
+                        return self.update(0.0)
                 else:
-                    gen_data["last"] = sequence
                     self.seq_i -= 1
             
             self.seq_i += 1
 
-            # if not end_of_sequence:
-            messages = sequence.getMidiMessages(self.channel)
+            messages = sequence.getMidiMessages(self.channel, self.transpose)
             messages = [ (t+self._next_timer, mess) for t, mess in messages ]
             self._next_timer += sequence.dur
 
             if self.instrument and self.send_program_change:
-                program_change = [0xC0 + self.channel, self.instrument]
+                program_change = [0xC0 | self.channel, self.instrument]
                 # Make sure the instrument change precedes the notes
                 return [ (-0.0001, program_change) ] + messages
+            self._nmess_this_cycle += len(messages)
             return messages if not self.muted else None
 
         if self.seq_i >= len(self.seqs):
             # End of track reached
-            if not self.loop:
+            if not self.loop or self._nmess_this_cycle == 0: # Stop if no messages were sent
+                print("Track stopped")
                 self.ended = True
                 return
+            self._nmess_this_cycle = 0
             
             # Looping
             if self.loop_type == "all":
                 self.seq_i = 0
-                # return self.update(0.0)
             elif self.loop_type == "last":
                 self.seq_i -= 1
-                # return self.update(0.0)
             else:
                 raise Exception(f"'loop_type' property should be set to 'all' or 'last', but got '{self.loop_type}' instead")
-            
-            # if self.generator:
-            #     try:
-            #         new_seq = next(self.generator)
-            #         self._next_timer += new_seq.dur
-            #         return new_seq.getMidiMessages(self.channel)
-            #     except StopIteration:
-            #         if self.loop:
-            #             self.reset()
-            #         else:
-            #             self.ended = True
+
     
     def __len__(self):
         return len(self.seqs)

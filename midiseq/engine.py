@@ -48,7 +48,7 @@ midiin = rtmidi.MidiIn()
 
 
 
-def panic(port=env.default_output):
+def panic(port=env.default_output): # XXX: default param doesn't work
     print(port)
     for channel in range(16):
         port.send_message([CONTROL_CHANGE | channel, ALL_SOUND_OFF, 0])

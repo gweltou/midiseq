@@ -59,10 +59,11 @@ def genPattern(func: callable, pattern="ABAB", repeat=1, *args, **kwargs):
     """
     Yield sequences from a function, following a pattern
 
-        func: (callable)
+        func : callable
             A function returning a sequence
-        pattern: (str)
+        pattern : str
             A pattern string, ex: "ABAB" or "1112"
+        repeat : int
     """
 
     pattern = pattern.replace(" ", "")

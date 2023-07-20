@@ -47,7 +47,7 @@ def noob2seq(noob: str):
 ###############################################################################
 
 
-def rnd(n=4, lo=36, hi=84, silprob=0.0, scale:Scl=None) -> Seq:
+def rnd(n=4, lo=36, hi=84, silprob=0.0, notedur=1.0, scale:Scl=None) -> Seq:
     """ Generate a sequence of random notes
 
         Parameters
@@ -69,9 +69,9 @@ def rnd(n=4, lo=36, hi=84, silprob=0.0, scale:Scl=None) -> Seq:
     for _ in range(n):
         if not silprob or random.random() > silprob:
             pitch = env.scale.getClosest(random.randint(lo, hi))
-            s.add(Note(pitch))
+            s.add(Note(pitch, notedur))
         else:
-            s.add(Sil())
+            s.add(Sil(notedur))
     return s
 
 
@@ -102,6 +102,7 @@ def rndWalk(
         start: Union[str,int]=60,
         steps=[-3,-2,-1,0,1,2,3],
         silprob=0.0,
+        notedur=1.0,
         skip_first=False, scale:Scl=None
     ) -> Seq:
     """ Create a sequence of notes moving from last note by a random interval
@@ -118,6 +119,8 @@ def rndWalk(
                 Skip starting note (False by default)
             silprob : float
                 Silence probability [0.0-1.0]
+            notedur : float
+                Duration of generated notes
             scale : Scale
                 Constrain generated notes to the given scale
     """
@@ -131,15 +134,15 @@ def rndWalk(
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
-            s.add(Note(pitch))
+            s.add(Note(pitch, notedur))
             pitch = env.scale.getDegreeFrom(pitch, random.choice(steps))
         else:
-            s.add(Sil())
+            s.add(Sil(notedur))
     return s
 
 
 
-def rndGauss(n=4, mean=60, dev=3, silprob=0.0, scale:Scl=None) -> Seq:
+def rndGauss(n=4, mean=60, dev=3, silprob=0.0, notedur=1.0, scale:Scl=None) -> Seq:
     """ Generate random notes with a normal distribution around a mean value
 
         Parameters
@@ -161,9 +164,9 @@ def rndGauss(n=4, mean=60, dev=3, silprob=0.0, scale:Scl=None) -> Seq:
     for _ in range(n):
         if not silprob or random.random() > silprob:
             pitch = scale.getDegreeFrom(mean, round(random.gauss(0, dev)))
-            s.add(Note(pitch))
+            s.add(Note(pitch, notedur))
         else:
-            s.add(Sil())
+            s.add(Sil(notedur))
     return s
 
 
