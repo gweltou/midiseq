@@ -12,7 +12,11 @@ from .engine import (
     TrackGroup, getPastOpened
 )
 from .elements import Seq, Chord, Note, Sil, Track
-from .utils import pattern, noob2seq, rnd, rndWalk, rndGauss, rndPick, euclid, lcm
+from .utils import (
+    pattern, noob2seq,
+    rnd, rndWalk, rndGauss, rndPick, rndDur,
+    euclid, lcm
+)
 from .definitions import *
 from .generators import *
 from .whistle import whistle, wav2seq

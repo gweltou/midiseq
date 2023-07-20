@@ -1195,7 +1195,7 @@ class Track():
             t._sync()
 
         if self.seq_i < len(self.seqs):
-            end_of_sequence = False
+            # end_of_sequence = False
 
             # Send next sequence
             sequence = self.seqs[self.seq_i]
@@ -1207,35 +1207,35 @@ class Track():
                     # Generator is still generating
                     sequence = next(self.gens[gen_id]["generator"])
                 except StopIteration:
-                    end_of_sequence = True
+                    # end_of_sequence = True
                     if gen_data["func"]:
                         # Reload generator
                         args = gen_data["args"]
                         kwargs = gen_data["kwargs"]
                         new_gen = gen_data["func"](*args, **kwargs)
                         gen_data["generator"] = new_gen
-                        # sequence = next(new_gen)
-                        # gen_data["last"] = sequence
-                    # else:
-                    #     print("repeat last")
-                    #     # Use last generated sequence
-                    #     sequence = gen_data["last"]
+                        sequence = next(new_gen)
+                        gen_data["last"] = sequence
+                    else:
+                        print("repeat last")
+                        # Use last generated sequence
+                        sequence = gen_data["last"]
                 else:
                     gen_data["last"] = sequence
                     self.seq_i -= 1
             
             self.seq_i += 1
 
-            if not end_of_sequence:
-                messages = sequence.getMidiMessages(self.channel)
-                messages = [ (t+self._next_timer, mess) for t, mess in messages ]
-                self._next_timer += sequence.dur
+            # if not end_of_sequence:
+            messages = sequence.getMidiMessages(self.channel)
+            messages = [ (t+self._next_timer, mess) for t, mess in messages ]
+            self._next_timer += sequence.dur
 
-                if self.instrument and self.send_program_change:
-                    program_change = [0xC0 + self.channel, self.instrument]
-                    # Make sure the instrument change precedes the notes
-                    return [ (-0.0001, program_change) ] + messages
-                return messages if not self.muted else None
+            if self.instrument and self.send_program_change:
+                program_change = [0xC0 + self.channel, self.instrument]
+                # Make sure the instrument change precedes the notes
+                return [ (-0.0001, program_change) ] + messages
+            return messages if not self.muted else None
 
         if self.seq_i >= len(self.seqs):
             # End of track reached
@@ -1246,10 +1246,10 @@ class Track():
             # Looping
             if self.loop_type == "all":
                 self.seq_i = 0
-                return self.update(0.0)
+                # return self.update(0.0)
             elif self.loop_type == "last":
                 self.seq_i -= 1
-                return self.update(0.0)
+                # return self.update(0.0)
             else:
                 raise Exception(f"'loop_type' property should be set to 'all' or 'last', but got '{self.loop_type}' instead")
             

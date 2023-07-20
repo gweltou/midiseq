@@ -47,17 +47,17 @@ def noob2seq(noob: str):
 ###############################################################################
 
 
-def rnd(n=4, min=36, max=84, silprob=0.0, scale:Scl=None) -> Seq:
+def rnd(n=4, lo=36, hi=84, silprob=0.0, scale:Scl=None) -> Seq:
     """ Generate a sequence of random notes
 
         Parameters
         ----------
             n : int
                 Number of notes to generate
-            min : int
-                Minimum midi pitch boundary
-            max : int
-                Maximum midi pitch boundary
+            lo : int
+                Minimum MIDI pitch boundary
+            hi : int
+                Maximum MIDI pitch boundary
             silprob : float
                 Silence probability [0.0-1.0]
             scale : Scale
@@ -68,7 +68,7 @@ def rnd(n=4, min=36, max=84, silprob=0.0, scale:Scl=None) -> Seq:
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
-            pitch = env.scale.getClosest(random.randint(min, max))
+            pitch = env.scale.getClosest(random.randint(lo, hi))
             s.add(Note(pitch))
         else:
             s.add(Sil())
@@ -78,7 +78,7 @@ def rnd(n=4, min=36, max=84, silprob=0.0, scale:Scl=None) -> Seq:
 
 def rndDur(
         dur=1.0,
-        min=36, max=84,
+        lo=36, hi=84,
         durs=[0.25, 0.5, 1, 2],
         silprob=0.0,
         scale:Scl=None
@@ -89,9 +89,9 @@ def rndDur(
     durs.sort()
     s = Seq()
     d = random.choice(durs)
-    while dur - s.dur > max(durs):
+    while dur - s.dur > hi(durs):
         if not silprob or random.random() > silprob:
-            pitch = env.scale.getClosest(random.randint(min, max))
+            pitch = env.scale.getClosest(random.randint(lo, hi))
             s.add(Note(pitch, d))
         else:
             s.add(Sil(d))

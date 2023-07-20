@@ -306,7 +306,6 @@ def drm_djdave_easy():
 def gen_mf_mel1():
     """ 22/11/2022
     """
-
     s = Seq()
     s.dur = 1
     scale = Scl("major", "sol")
