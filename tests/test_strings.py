@@ -42,4 +42,5 @@ def test_chords():
 
 
 def test_chords2():
-	assert(str2elt("C") == Chord(48, 52, 55))
+	assert(str2elt("48|52|55") == Chord(48, 52, 55))
+	assert(str2elt("c|e|g") == Chord(48, 52, 55))

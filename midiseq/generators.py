@@ -25,7 +25,7 @@ seq_kaini_industries = Seq("""
     -2g#%1.5 -a#_d# -a#_d# -a#_-f# f#_f# -a#_f# g#%.5 g#
     -c# -d#_e# -d# e# b e#_b e#_a# f#
     """)
-seq_never_gonna_gyu = "a#_+c +c#_a# +f +f +d# . g#_a# +c#_a# +d# +d# +c# +c_a#"
+
 seq_mario = "e_e ._e ._c e_. g . -g"
 
 seq_sunburn1 = Seq("""
@@ -55,7 +55,7 @@ seq_freya_theme4 = lcm("g%3 +d%2 .", "+a#%2|+2d%2 +g%2")
 ###############################################################################
 
 
-def genPattern(func: callable, pattern="ABAB", *args, **kwargs):
+def genPattern(func: callable, pattern="ABAB", repeat=1, *args, **kwargs):
     """
     Yield sequences from a function, following a pattern
 
@@ -70,8 +70,9 @@ def genPattern(func: callable, pattern="ABAB", *args, **kwargs):
     for symb in set(pattern):
             seqs[symb] = func(**kwargs)
 
-    for symb in pattern:
-        yield seqs[symb]
+    for _ in range(repeat):
+        for symb in pattern:
+            yield seqs[symb]
 
 
 def gen_chords1():
@@ -120,6 +121,7 @@ def gen_chords3():
             s.add(scl.triad(deg, vel=random.randint(80, 127)))
         s.add(scl.triad(0, vel=random.randint(80, 120)))
         yield s
+
 
 def gen_tintinnabuli():
     # Tintinnabuli
@@ -183,7 +185,8 @@ def gen_fratres():
         s.stretch(8.0)
         s.humanize().attenuate(0.7)
         yield s
-    
+
+
 def gen_japscale():
     jap = Scl("japanese")
     while True:
@@ -202,28 +205,28 @@ def gen_japscale():
 ###############################################################################
 
 
-def drum_8thNoteGrove():
+def drm_8thNoteGrove():
     s = Seq((H, 0) * 4)  # High-hats
     s.merge(Seq((K, 0, 0, 0, Sn, 0, 0, 0)))   # Kick and Snare
     return s*2
 
-def drum_4toTheFloor():
+def drm_4toTheFloor():
     s = Seq((H, 0) * 4)  # High-hats
     s.merge(Seq( (K, 0, 0, 0) * 2) )   # Kick and Snare
     s.merge(Seq( (0, 0, 0, 0, K, 0, 0, 0) ))
     return s*2
 
-def drum_shuffleGroove():
+def drm_shuffleGroove():
     s = Seq( (H, 0, H) * 2)   # HH
     s.merge(Seq( (K, 0, 0, Sn, 0, 0) ))    # K & S
     return s*2
 
-def drum_discoGroove():
+def drm_discoGroove():
     s = Seq( ( H, 0, OH, 0) * 2 )
     s.merge( Note(K) + 3 * Sil() + Chord((K, Sn)) + 3 * Sil() )
     return s*2
 
-def drum_halfTimeShuffle():
+def drm_halfTimeShuffle():
     s = Seq((H,), dur=1)
     s.add(Note(H), 0.72)
     s *= 4
@@ -233,7 +236,7 @@ def drum_halfTimeShuffle():
     s.add(Note(Sn), 3.27)
     return s
 
-def drum_funkyDrummer():
+def drm_funkyDrummer():
     s =  Seq((K, 0, K, 0, Sn,0, K, Sn,0, Sn,K, Sn,Sn,K, 0, Sn))
     s &= Seq((H, H, H, H, H, H, H, OH,H, H, H, H, H, OH,H, H))
     return s
@@ -250,7 +253,7 @@ def gen_drum_drunkenDrummer():
     s.merge(Seq((0, 0, 0, 0, 0, 0, 0,OH,0, 0, 0, 0, 0,OH,0, 0)))
     yield s
 
-def drum_house():
+def drm_house():
     s =  Seq( (K, 0, 0, 0) * 2 )
     s &= Seq( (H,) * 8)
     s &= Seq( (0, 0, OH, 0, 0, OH, 0, 0) )
@@ -258,29 +261,45 @@ def drum_house():
     s &= Seq( (0, 0, 0, 0, Sn) )
     return s * 2
 
-def drum_house2():
+def drm_house2():
     s =  Seq((K, 0, OH, 0)*3 + (K, 0, OH, OH))
     s &= Seq((H, 0, 0, H, H, 0, 0, H, H, H, 0, H, H, H, 0, H))
+    return s
 
 
 # From Pocket Operations PDF
 
-def drum_good2go():
+def drm_good2go():
     s = pattern("x--x --x- --x- ----", K)
     s &= pattern("---- x--- ---- x---", Sn)
     return s
 
-def drum_standard_break_1():
+def drm_standard_break_1():
     s = pattern("x--- ---- --x- ----", K)
     s &= pattern("---- x--- ---- x---", Sn)
     s &= pattern("x-x- x-x- xxx- x-x-", H)
     return s
 
-def drum_standard_break_2():
+def drm_standard_break_2():
     s = pattern("x--- ---- --x- ----", K)
     s &= pattern("---- x--- ---- x---", Sn)
     s &= pattern("x-x- x-xx x-x- --x-", H)
     return s
+
+
+
+def drm_djdave1():
+    kick = pattern("x--- --x- --x- -x--", K)
+    clap = pattern("---- x---", Cl) * 2
+    hh = pattern("x-x- x-x- xxx- x-x-", H)
+    ohh = pattern("--x-", OH) * 4
+    return kick & clap & hh & ohh
+
+def drm_djdave_easy():
+    kick = pattern("x--x --x- --x- -x--", K)
+    clap = pattern("---- x---", Cl) * 2
+    return kick & clap
+
 
 
 
@@ -304,16 +323,3 @@ def gen_mf_mel1():
         s.humanize()
         yield s
         s.clear()
-
-
-def drm_djdave1():
-    kick = pattern("x--- --x- --x- -x--", K)
-    clap = pattern("---- x---", Cl) * 2
-    hh = pattern("x-x- x-x- xxx- x-x-", H)
-    ohh = pattern("--x-", OH) * 4
-    return kick & clap & hh & ohh
-
-def drm_djdave_easy():
-    kick = pattern("x--x --x- --x- -x--", K)
-    clap = pattern("---- x---", Cl) * 2
-    return kick & clap

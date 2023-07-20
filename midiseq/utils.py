@@ -47,7 +47,7 @@ def noob2seq(noob: str):
 ###############################################################################
 
 
-def rnd(n=4, min=36, max=96, silprob=0.0, scale:Scl=None) -> Seq:
+def rnd(n=4, min=36, max=84, silprob=0.0, scale:Scl=None) -> Seq:
     """ Generate a sequence of random notes
 
         Parameters
@@ -78,7 +78,7 @@ def rnd(n=4, min=36, max=96, silprob=0.0, scale:Scl=None) -> Seq:
 
 def rndDur(
         dur=1.0,
-        min=36, max=96,
+        min=36, max=84,
         durs=[0.25, 0.5, 1, 2],
         silprob=0.0,
         scale:Scl=None

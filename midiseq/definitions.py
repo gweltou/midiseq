@@ -12,7 +12,7 @@ scales = {
     "hirajoshi":        [0, 4, 6, 7, 11],
     "insen":            [0, 1, 5, 7, 10],
     "iwato":            [0, 1, 5, 6, 10],
-    "zelda_ocarnia":    [0, 3, 7, 9],
+    "zelda_ocarina":    [0, 3, 7, 9],
 
     "vminor": [0, 2, 3, 5, 7, 8, 10],
     "acoustic": [0, 2, 4, 6, 7, 9, 10],

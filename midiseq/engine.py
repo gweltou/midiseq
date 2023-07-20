@@ -5,6 +5,11 @@ import time
 import threading
 
 import rtmidi
+from rtmidi.midiconstants import (
+    NOTE_ON, NOTE_OFF,
+    CONTROL_CHANGE,
+    ALL_SOUND_OFF, RESET_ALL_CONTROLLERS,
+)
 import mido
 #from mido import MidiFile
 
@@ -37,34 +42,29 @@ def getPastOpened():
 midiin = rtmidi.MidiIn()
 
 
-# def panic(channel=1):
-#     for i in range(16):
-#         mess = rtmidi.MidiMessage.allNotesOff(i)
-#         _default_output.sendMessage(mess)
-
-def mute(*tracks) -> None:
-    for t in tracks:
-        t.muted = True
-
-def unmute(*tracks) -> None:
-    for t in tracks:
-        t.muted = False
-
-def mutesw(*tracks) -> None:
-    for t in tracks:
-        t.muted = not t.muted
+# class MidiPort():
+#     def __init__(self, port: Union[rtmidi.MidiIn, rtmidi.MidiOut], name:str):
+#         self.name = name
 
 
 
-def allNotesOff() -> None:
+def panic(port=env.default_output):
+    print(port)
+    for channel in range(16):
+        port.send_message([CONTROL_CHANGE | channel, ALL_SOUND_OFF, 0])
+        port.send_message([CONTROL_CHANGE | channel, RESET_ALL_CONTROLLERS, 0])
+        time.sleep(0.05)
+
+
+
+def activeNotesOff() -> None:
     # XXX: What about midi ports
     for chan in range(16):
         for note in range(128):
             if _active_notes[chan][note]:
-                note_off = [0x80 + chan, note, 0]
-                env.DEFAULT_OUTPUT.send_message(note_off)
+                note_off = [NOTE_OFF | chan, note, 0]
+                env.default_output.send_message(note_off)
                 _active_notes[chan][note] = False
-
 
 
 
@@ -171,12 +171,12 @@ def _play(track_group: TrackGroup, loop=False):
     active_notes_allchan = [False] * 128
     while True:
         if _must_stop:
-            allNotesOff()
+            activeNotesOff()
             break
         
         if click_note: # Metronome click
             note_off = [0x89, click_note, 0]
-            env.DEFAULT_OUTPUT.send_message(note_off)
+            env.default_output.send_message(note_off)
             click_note = None
 
         t_frame = time.time() - t0
@@ -204,7 +204,7 @@ def _play(track_group: TrackGroup, loop=False):
             if clicking:
                 # note_on = rtmidi.MidiMessage.noteOn(10, p, 100)
                 note_on = [0x90, p, 100]
-                env.DEFAULT_OUTPUT.send_message(note_on)
+                env.default_output.send_message(note_on)
                 click_note = p
             metronome_time -= 0.5
 
@@ -230,7 +230,7 @@ def _play(track_group: TrackGroup, loop=False):
             elif mess[0]>>4 == 8: # note off
                 chan = mess[0] & 0xf
                 _active_notes[chan][mess[1]] = False
-            port = port or env.DEFAULT_OUTPUT
+            port = port or env.default_output
             port.send_message(mess)
             if env.VERBOSE and not env.DISPLAY:
                 print("Sent", mess)
@@ -308,7 +308,7 @@ def _listen(forward=True, forward_channel=1):
                 new_noteon = True
                 if forward:
                     mess.setChannel(forward_channel)
-                    env.DEFAULT_OUTPUT.send_message(mess)
+                    env.default_output.send_message(mess)
             elif mess.isNoteOff():
                 active_notes.discard(pitch)
                 if _recording:
@@ -318,7 +318,7 @@ def _listen(forward=True, forward_channel=1):
                         _record.addNote(pitch, dur, head=_recording_time)
                 if forward:
                     mess.setChannel(forward_channel)
-                    env.DEFAULT_OUTPUT.send_message(mess)
+                    env.default_output.send_message(mess)
             if env.VERBOSE and not env.DISPLAY:
                     print("Recieved", mess)
             mess = midiin.get_message()
@@ -389,9 +389,9 @@ def openOutput(port_n):
     midiout = rtmidi.MidiOut()
     # if midiout.is_port_open():
     #     midiout.close_port()
-    print("Opening port {} [{}], setting as env.DEFAULT_OUTPUT".format(port_n, midiout.get_port_name(port_n)) )    
+    print("Opening port {} [{}], setting as env.default_output".format(port_n, midiout.get_port_name(port_n)) )    
     midiout.open_port(port_n)
-    env.DEFAULT_OUTPUT = midiout
+    env.default_output = midiout
     past_opened.append(midiout)
     return midiout
 

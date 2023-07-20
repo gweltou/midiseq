@@ -13,7 +13,7 @@ METRONOME_DIV = 4          # Number of quarter notes in a metronome cycle
 METRONOME_PRE = 1          # Number of metronome cycle before recording
 METRONOME_PORT = None      # Midi port for metronome
 
-DEFAULT_OUTPUT = None
+default_output = None
 DISPLAY = False
 DISPLAY_RANGE = (36, 96)
 VERBOSE = False

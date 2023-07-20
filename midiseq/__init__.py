@@ -3,20 +3,25 @@ import threading
 ### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
 
 #from mido import MidiFile
-import mido
-import rtmidi
+# import mido
+# import rtmidi
 
-from .engine import listOutputs, openOutput, _getOutputs, play, stop, TrackGroup, getPastOpened
+from .engine import (
+    listOutputs, openOutput, _getOutputs,
+    play, stop, panic,
+    TrackGroup, getPastOpened
+)
 from .elements import Seq, Chord, Note, Sil, Track
 from .utils import pattern, noob2seq, rnd, rndWalk, rndGauss, rndPick, euclid, lcm
 from .definitions import *
 from .generators import *
+from .whistle import whistle, wav2seq
 import midiseq.env as env
 
 
 
 def setNoteDur(d):
-    """ Set default note length """
+    """ Set default note length, relative to a full note """
     env.note_dur = d
 
 def setScl(scale="chromatic", tonic="c"):
@@ -28,6 +33,20 @@ def setBpm(bpm):
 def clearAllTracks():
     for track in env.tracks:
         track.clear()
+
+
+def mute(*tracks) -> None:
+    for t in tracks:
+        t.muted = True
+
+def unmute(*tracks) -> None:
+    for t in tracks:
+        t.muted = False
+
+def mutesw(*tracks) -> None:
+    for t in tracks:
+        t.muted = not t.muted
+
 
 
 env.METRONOME_NOTES = (sit13, sit16)
@@ -45,14 +64,16 @@ for i, port_name in _getOutputs():
     if "amsynth" in port_name.lower():
         midi_out["amsynth"] = openOutput(i)
         midi_out["am"] = midi_out["amsynth"]
+    if "preenfm" in port_name.lower():
+        midi_out["preenfm"] = openOutput(i)
+        midi_out["pfm"] = midi_out["preenfm"]
 
-
-env.DEFAULT_OUTPUT = midi_out["default"]
+# env.default_output = midi_out["default"]
 _metronome_port = midi_out["default"]
 if "microfreak" in midi_out:
-    env.DEFAULT_OUTPUT = midi_out["microfreak"]
+    env.default_output = midi_out["microfreak"]
 elif "fluid" in midi_out:
-    env.DEFAULT_OUTPUT = midi_out["fluid"]
+    env.default_output = midi_out["fluid"]
 
 t1 = Track(0, name="t1")
 t2 = Track(1, name="t2", sync_from=t1)
@@ -77,6 +98,7 @@ env.tracks.addTrack(t1)
 setScl("major", "c")
 
 
+# # FFIX - Freya's Theme
 # setBpm(110)
 # play((
 #     lcm("d%3 a%2 .", "+a%2 +f%2")*4 +

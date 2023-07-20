@@ -706,10 +706,18 @@ class Seq():
         return self
 
 
-    def expandPitch(self, factor: float) -> Seq:
+    def expandPitch(self, factor: float, in_scale=True) -> Seq:
         """ Expand or compress notes pitches around the mean value of the whole sequence
             Modifies sequence in-place
+
+            Parameters
+            ----------
+                factor : float
+                    Expansion factor (< 1.0 for compression, > 1.0 for expension)
+                in_scale : boolean
+                    If True, expanded/compressed pitches will stay in env scale
         """
+        # Find mean pitch of this sequence
         sum = 0
         for _, note in self.notes:
             sum += note.pitch
@@ -717,8 +725,10 @@ class Seq():
 
         for _, note in self.notes:
             diff = note.pitch - mean
-            note.pitch = round(mean + diff * factor)
-            note.pitch = min(255, max(0, note.pitch))
+            pitch = round(mean + diff * factor)
+            if in_scale and env.scale:
+                pitch = env.scale.getClosest(pitch)
+            note.pitch = min(255, max(0, pitch))
         return self
     
 
@@ -800,6 +810,39 @@ class Seq():
                 cropped_notes.append( (t, n) )
             self.notes = cropped_notes
         return self
+    
+
+    def strip(self) -> Seq:
+        """ Remove silences from both ends of the sequence
+            Modifies sequence in-place
+        """
+        return self.stripHead().stripTail()
+    
+    def stripHead(self) -> Seq:
+        """ Remove silences in front of the sequence
+            Modifies sequence in-place
+        """
+        head_offset = self.notes[0][0] # Expects self.notes to be sorted
+        new_notes = []
+        for t, n in self.notes:
+            new_notes.append( (t-head_offset, n) )
+        self.notes = new_notes
+        self.head -= head_offset
+        self.dur -= head_offset
+        return self
+    
+    def stripTail(self) -> Seq:
+        """ Remove silences at the end of the sequence
+            Modifies sequence in-place
+        """
+        last_onset, last_note = self.notes[-1]
+        last_note_end = last_onset + last_note.dur # Expects self.notes to be sorted
+
+        if self.dur > last_note_end:
+            self.dur -= self.dur - last_note_end
+        if self.head > self.dur:
+            self.head = self.dur
+        return self
 
 
     def shift(self, dt, wrap=False) -> Seq:
@@ -850,8 +893,6 @@ class Seq():
             if note.prob < 1 and random.random() > note.prob:
                 continue
             
-            # pitch = self.getClosestNoteInScale(note.pitch)
-
             note_on = [0x90+channel, note.pitch, note.vel]
             note_off = [0x80+channel, note.pitch, 0]
             midi_seq.append( (pos, note_on) )
@@ -1047,7 +1088,7 @@ class Track():
         self.gens = dict()  # Dictionary of generators and their args
         self.muted = False
         self.loop = loop
-        self.loop_type = "last" # "last" / "all"
+        self.loop_type = "all" # "last" / "all"
         self.shuffle = False    # Not Implemented
         self.name = name #or f"Track{len(Track._all_tracks)+1}"
         self.ended = True
@@ -1154,6 +1195,8 @@ class Track():
             t._sync()
 
         if self.seq_i < len(self.seqs):
+            end_of_sequence = False
+
             # Send next sequence
             sequence = self.seqs[self.seq_i]
             if isinstance(sequence, int):
@@ -1163,32 +1206,38 @@ class Track():
                 try:
                     # Generator is still generating
                     sequence = next(self.gens[gen_id]["generator"])
-                    gen_data["last"] = sequence
                 except StopIteration:
+                    end_of_sequence = True
                     if gen_data["func"]:
                         # Reload generator
                         args = gen_data["args"]
                         kwargs = gen_data["kwargs"]
                         new_gen = gen_data["func"](*args, **kwargs)
                         gen_data["generator"] = new_gen
-                        sequence = next(new_gen)
-                        gen_data["last"] = sequence
-                    else:
-                        # Use last generated sequence
-                        sequence = gen_data["last"]
+                        # sequence = next(new_gen)
+                        # gen_data["last"] = sequence
+                    # else:
+                    #     print("repeat last")
+                    #     # Use last generated sequence
+                    #     sequence = gen_data["last"]
+                else:
+                    gen_data["last"] = sequence
+                    self.seq_i -= 1
             
-            messages = sequence.getMidiMessages(self.channel)
-            messages = [ (t+self._next_timer, mess) for t, mess in messages ]
-            self._next_timer += sequence.dur
             self.seq_i += 1
 
-            if self.instrument and self.send_program_change:
-                program_change = [0xC0 + self.channel, self.instrument]
-                # Make sure the instrument change precedes the notes
-                return [ (-0.0001, program_change) ] + messages
-            return messages if not self.muted else None
+            if not end_of_sequence:
+                messages = sequence.getMidiMessages(self.channel)
+                messages = [ (t+self._next_timer, mess) for t, mess in messages ]
+                self._next_timer += sequence.dur
 
-        elif self.seq_i >= len(self.seqs):
+                if self.instrument and self.send_program_change:
+                    program_change = [0xC0 + self.channel, self.instrument]
+                    # Make sure the instrument change precedes the notes
+                    return [ (-0.0001, program_change) ] + messages
+                return messages if not self.muted else None
+
+        if self.seq_i >= len(self.seqs):
             # End of track reached
             if not self.loop:
                 self.ended = True
