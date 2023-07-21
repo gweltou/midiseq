@@ -19,7 +19,7 @@ from .utils import (
 )
 from .definitions import *
 from .generators import *
-from .whistle import whistle, wav2seq
+from .whistle import whistle, tap
 import midiseq.env as env
 
 

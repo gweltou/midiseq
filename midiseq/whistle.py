@@ -24,7 +24,7 @@ def readWav(filename):
 
 
 
-def spectrogram(x, Fs, NFFT=1024, noverlap=512):
+def spectrogram(x, sr, NFFT=1024, noverlap=512):
 
     def window_hanning(x):
         """ 
@@ -41,25 +41,27 @@ def spectrogram(x, Fs, NFFT=1024, noverlap=512):
     result = np.fft.rfft(result, n=NFFT, axis=0)[:numFreqs, :]
     
     result = np.conj(result) * result # Power spectral density
-    freqs = np.fft.rfftfreq(NFFT, 1/Fs)[:numFreqs]
-    t = np.arange(NFFT/2, len(x) - NFFT/2 + 1, NFFT - noverlap)/Fs
+    freqs = np.fft.rfftfreq(NFFT, 1/sr)[:numFreqs]
+    t = np.arange(NFFT/2, len(x) - NFFT/2 + 1, NFFT - noverlap)/sr
 
     return result.real, freqs, t
 
 
 
-def normalizeSpectrogram(spec, freqs, times, low_freq=200, high_freq=4000):
+def cropSpectrogram(spec, freqs, times, low_freq=200, high_freq=4000):
     # Remove unused frequencies
     min_freq_index = np.argmin(freqs < low_freq)
     max_freq_index = np.argmax(freqs > high_freq)
     freqs = freqs[min_freq_index:max_freq_index]
     spec = spec[min_freq_index:max_freq_index]
-    
+    return spec, freqs, times
+
+
+def normalizeSpectrogram(spec, freqs, times):
     # Normalize spectrogram
     min_val = np.min(spec)
     max_val = np.max(spec)
     spec_norm = (spec - min_val) / (max_val - min_val)
-    
     return spec_norm, freqs, times
 
 
@@ -97,33 +99,33 @@ def findRegions(spec, freqs, times):
 
 
 
-def findRegionsIdx(spec, freqs, times):
-    """ Should be called with on a spectrogram with a high time resolution
-    """
+# def findRegionsIdx(spec, freqs, times):
+#     """ Should be called with on a spectrogram with a high time resolution
+#     """
     
-    peak_power = np.max(spec, axis=0)
-    peak_fbin = np.argmax(spec, axis=0)
-    threshold = 0.02 * peak_power.max()
-    gate = peak_power > threshold
+#     peak_power = np.max(spec, axis=0)
+#     peak_fbin = np.argmax(spec, axis=0)
+#     threshold = 0.02 * peak_power.max()
+#     gate = peak_power > threshold
     
-    gate_idx = np.where(gate)[0]
-    regions = []
-    region_start = gate_idx[0]
-    last_idx = gate_idx[0]
-    last_fbin = peak_fbin[last_idx]
-    for idx in gate_idx:
-        if idx - last_idx > 1 or abs(peak_fbin[idx] - last_fbin) > 1:
-            # Region break
-            regions.append( (region_start, last_idx) )
-            region_start = idx
-        last_idx = idx
-        last_fbin = peak_fbin[idx]
-    regions.append( (region_start, last_idx ) )
+#     gate_idx = np.where(gate)[0]
+#     regions = []
+#     region_start = gate_idx[0]
+#     last_idx = gate_idx[0]
+#     last_fbin = peak_fbin[last_idx]
+#     for idx in gate_idx:
+#         if idx - last_idx > 1 or abs(peak_fbin[idx] - last_fbin) > 1:
+#             # Region break
+#             regions.append( (region_start, last_idx) )
+#             region_start = idx
+#         last_idx = idx
+#         last_fbin = peak_fbin[idx]
+#     regions.append( (region_start, last_idx ) )
     
-    # Filter out impossibly short regions
-    regions = [ (start, end) for start, end in regions if end-start > 2 ]
+#     # Filter out impossibly short regions
+#     regions = [ (start, end) for start, end in regions if end-start > 2 ]
 
-    return regions
+#     return regions
 
 
 
@@ -159,13 +161,14 @@ def hz2midi(frequency, tuning=440):
 
 def audio2seq(audio_data, framerate, tuning=440):
     # Create a spectrogram with high time resolution to find temporal regions
-    spec, freqs, times = spectrogram(audio_data, Fs=framerate, NFFT=512, noverlap=256)
-    spec, freqs, times = normalizeSpectrogram(spec, freqs, times, low_freq=500)
+    spec, freqs, times = spectrogram(audio_data, sr=framerate, NFFT=512, noverlap=256)
+    spec, freqs, times = cropSpectrogram(spec, freqs, times, low_freq=500)
+    spec, freqs, times = normalizeSpectrogram(spec, freqs, times)
     regions = findRegions(spec, freqs, times)
     print(len(regions))
 
     # Create a spectrogram with high frequency resolution to find pitch
-    spec, freqs, times = spectrogram(audio_data, Fs=framerate, NFFT=2048, noverlap=1024)
+    spec, freqs, times = spectrogram(audio_data, sr=framerate, NFFT=2048, noverlap=1024)
     mean_frequencies = getRegionsPitch(spec, freqs, times, regions)
 
     print(mean_frequencies)
@@ -182,15 +185,26 @@ def audio2seq(audio_data, framerate, tuning=440):
 
 
 
-def wav2seq(filename) -> Seq:
-    """ Convert a wave file to a MIDI sequence """
-    audio_data, framerate = readWav(filename)
-    plot_spectrogram(audio_data, framerate)
-    return audio2seq(audio_data, framerate)
+# def wav2seq(filename) -> Seq:
+#     """ Convert a wave file to a MIDI sequence """
+#     audio_data, framerate = readWav(filename)
+#     plotSpectrogram(audio_data, framerate)
+#     return audio2seq(audio_data, framerate)
 
 
 
-def whistle(dur=4, tuning=440.0, strip=True) -> Seq:
+def recAudio(dur=4, sr=44100):
+    print(f"Recording for {dur} seconds...", end='', flush=True)
+    buffer = sd.rec(int(dur * sr), samplerate=sr, channels=1)[:,0]
+    sd.wait()
+    print("done")
+    buffer *= 2**15
+    buffer = buffer.astype(np.int16)
+    return buffer
+
+
+
+def whistle(dur=4, tuning=440.0, strip=True, plot=False) -> Seq:
     """ Record a MIDI sequence by whistling in a microphone
 
         Parameters
@@ -202,15 +216,11 @@ def whistle(dur=4, tuning=440.0, strip=True) -> Seq:
             strip : boolean
                 Remove silences at both ends
     """
-    print(f"Recording for {dur} seconds...", end='')
     sr = 44100
-    buffer = sd.rec(int(dur * sr), samplerate=sr, channels=1)[:,0]
-    sd.wait()
-    print("done")
-    buffer *= 2**15
-    buffer = buffer.astype(np.int16)
+    buffer = recAudio(dur, sr)
+    if plot:
+        plotSpectrogram(buffer, sr)
 
-    plot_spectrogram(buffer, sr)
     seq = audio2seq(buffer, sr, tuning=tuning)
     if strip:
         seq.strip()
@@ -218,34 +228,116 @@ def whistle(dur=4, tuning=440.0, strip=True) -> Seq:
 
 
 
-def plot_spectrogram(audio_data, framerate, NFFT=512, noverlap=256):
-    spec, freqs, times = spectrogram(audio_data, Fs=framerate, NFFT=NFFT, noverlap=noverlap)
-    spec, freqs, times = normalizeSpectrogram(spec, freqs, times, low_freq=500)
+def tap(dur=4, note=48, strip=True, threshold=0.03, fpass=1, plot=False):
+    """ Record a MIDI rhythmic sequence by taping on a microphone
+
+        Parameters
+        ----------
+            dur : int
+                Recording duration (in seconds)
+            strip : boolean
+                Remove silences at both ends
+    """
+    sr = 44100
+    buffer = recAudio(dur, sr)
+    if plot:
+        plotSpectrogram(buffer, sr)
+        pltMinMaxMeanSum(buffer, sr, low=500, high=8000)
+
+    spec, freqs, times = spectrogram(buffer, sr=sr, NFFT=256, noverlap=128)
+    spec, freqs, times = cropSpectrogram(spec, freqs, times, low_freq=500, high_freq=8000)
+    spec, freqs, times = normalizeSpectrogram(spec, freqs, times)
+
+    gates = spec.mean(axis=0) > threshold
+
+    for v in gates:
+        print('x' if v else '.', end='')
+    print()
+
+    # Filter out isolated gates (True values followed by a False value)
+    for _ in range(fpass):
+        for i in range(len(gates)-1):
+            if gates[i] and not gates[i+1]:
+                gates[i] = False
     
-    regions = findRegions(spec, freqs, times)
+    # Keep onsets only
+    triggers = []
+    state = False
+    for i in range(len(gates)):
+        if gates[i] == True:
+            if state == False:
+                triggers.append(times[i])
+                state = True
+        else:
+            state = False
+    
+    print(f"{len(triggers)} triggers detected")
+
+    if len(triggers) > 1:
+        # Measure mean bpm
+        delta_t = []
+        for i in range(1, len(triggers)):
+            delta_t.append(triggers[i] - triggers[i-1])
+        mean_delta_t = np.mean(delta_t)
+        print(f"Mean tempo measured : {60/mean_delta_t} bpm")
+    else:
+        return None
+
+    seq = Seq()
+    for t in triggers:
+        seq.add(Note(note), head=t)
+    
+    if strip:
+        seq.strip()
+    return seq
+
+
+
+def pltMinMaxMeanSum(audio_data, framerate, low=0, high=10000):
+    spec, freqs, times = spectrogram(audio_data, sr=framerate, NFFT=256, noverlap=128)
+    spec, freqs, times = cropSpectrogram(spec, freqs, times, low_freq=low, high_freq=high)
+    spec, freqs, times = normalizeSpectrogram(spec, freqs, times)
+    
+    plt.figure()
+    plt.subplot(411)
+    plt.plot(spec.min(axis=0))
+    plt.subplot(412)
+    plt.plot(spec.max(axis=0))
+    plt.subplot(413)
+    plt.plot(spec.mean(axis=0))
+    plt.subplot(414)
+    plt.plot(spec.sum(axis=0))
+    plt.show()
+
+
+
+def plotSpectrogram(audio_data, framerate, NFFT=512, noverlap=256):
+    # spec, freqs, times = spectrogram(audio_data, Fs=framerate, NFFT=NFFT, noverlap=noverlap)
+    # spec, freqs, times = cropSpectrogram(spec, freqs, times, low_freq=200)
+    # spec, freqs, times = normalizeSpectrogram(spec, freqs, times)
+    
+    # regions = findRegions(spec, freqs, times)
     
     #spec = np.flipud(spec)
     
     # Plot the spectrogram
-    plt.figure()
-    plt.subplot(211)
-    plt.imshow(20 * np.log10(spec), cmap='viridis')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Frequency (Hz)')
-    plt.axis('auto')
-    #plt.ylim(0, 8000)
-    plt.title('Spectrogram')
-    #plt.colorbar(label='Intensity (dB)')
+    # plt.figure()
+    # plt.subplot(211)
+    plt.specgram(audio_data, Fs=framerate, NFFT=NFFT, noverlap=noverlap)
+    # plt.imshow(20 * np.log10(spec), cmap='viridis')
+    # plt.xlabel('Time (s)')
+    # plt.ylabel('Frequency (Hz)')
+    # plt.axis('auto')
+    # plt.title('Spectrogram')
     
-    regions = findRegionsIdx(spec, freqs, times)
-    gate = np.zeros(len(spec[0]))
-    for reg in regions:
-        gate[reg[0]:reg[1]] = 1.0
-
+    # regions = findRegionsIdx(spec, freqs, times)
+    # gate = np.zeros(len(spec[0]))
+    # for reg in regions:
+    #     gate[reg[0]:reg[1]] = 1.0
     
     #plt.tight_layout()
-    plt.subplot(212)
-    plt.plot(spec.max(axis=0))
-    plt.xlim(0, len(spec[0]))
+    # plt.subplot(212)
+    # plt.plot(spec.max(axis=0))
+    # plt.xlim(0, len(spec[0]))
     
     plt.show()

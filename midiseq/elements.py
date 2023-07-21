@@ -258,7 +258,7 @@ class Note():
             raise TypeError("Pitch must be an integer in range [0, 127], got {}".format(pitch))
         elif not isinstance(pitch, int):
             raise TypeError("Pitch must be an integer in range [0, 127], got {}".format(pitch))
-        self.pitch = min(127, max(0, pitch))
+        self.pitch = min(max(pitch, 0), 127)
         self.dur = dur * env.note_dur
         self.vel = vel
         self.prob = prob
@@ -294,6 +294,12 @@ class Note():
     def __truediv__(self, factor: Union[int, float]):
         n = self.copy()
         n.dur = self.dur / factor
+        return n
+    
+    def __xor__(self, semitones):
+        """ Transpose sequence in semitones """
+        n = self.copy()
+        n.pitch = min(max(n.pitch + semitones, 0), 127)
         return n
 
     def __eq__(self, other):
@@ -348,27 +354,19 @@ class Sil():
 class Chord():
     """ Chords are made of many notes playing at the same time """
 
-    def __init__(self, *notes, dur=None, vel=100, prob=1):
+    def __init__(self, *notes, dur=None, vel=None):
         # XXX: prob parameter is not really used for now
         # XXX: vel parameter is not really used for now
         self.notes = []
         self.pitches = set() # Helps to avoid duplicate notes
-        #self.dur = (dur or 1.0) * env.note_dur
-        self.prob = prob
+        # self.prob = prob
 
-        max_note_dur = 0
         for elt in notes:
             if isinstance(elt, int):
-                elt = Note(elt, vel=vel, prob=prob)
-            if elt.pitch in self.pitches:
-                continue
+                elt = Note(elt, dur=dur or 1.0, vel=vel or 100)
             
             if isinstance(elt, Note):
-                new_note = elt.copy()
-                max_note_dur = max(max_note_dur, elt.dur)
-                #new_note.dur = min(new_note.dur, self.dur)
-                self.notes.append(new_note)
-                self.pitches.add(new_note.pitch)
+                self._insert_note(elt.copy())
             elif isinstance(elt, str):
                 self._parse_string(elt)
             elif isinstance(elt, Chord):
@@ -376,32 +374,88 @@ class Chord():
             else:
                 raise TypeError(f"Argument `notes` must be Notes, strings or integers, got {elt} ({type(elt)})")
             
-            if dur:
-                for n in self.notes:
-                    n.dur = dur * env.note_dur
-                self.dur =  dur * env.note_dur
-            else:
-                self.dur = max_note_dur
+        if dur:
+            # Constrain all notes to the chord duration
+            for n in self.notes:
+                n.dur = dur * env.note_dur
+            self.dur = dur * env.note_dur
+        else:
+            # Use duration of longest note
+            max_dur = max( [n.dur for n in self.notes] )
+            self.dur = max_dur
 
 
-    def arp(self, type="up", times=1, octaves=1) -> Seq:
-        arp_seq = Seq()
-        if type == "up":
-            for oct in range(octaves):
+    def arp(self, mode="up", oct=1) -> Seq:
+        """ Arpeggiate a Chord
+
+            Parameters
+            ----------
+                type : str
+                    "up" / "down"
+                    "updown" / "downup"
+                    "random"
+                oct : int
+                    Number of octaves to aperggiate
+                    Additional octaves will be of higher pitch
+        """
+        notes = []
+        if mode == "up":
+            for n_oct in range(oct):
                 for n in sorted(self.notes, key=lambda n: n.pitch):
                     new_note = n.copy()
-                    new_note.pitch += 12*oct
-                    arp_seq.add(new_note)
+                    new_note.pitch += 12 * n_oct
+                    notes.append(new_note)
+        elif mode == "down":
+            for n_oct in range(oct):
+                for n in sorted(self.notes, key=lambda n: n.pitch, reverse=True):
+                    new_note = n.copy()
+                    new_note.pitch += 12 * (oct - n_oct)
+                    notes.append(new_note)
+        elif mode == "updown":
+            for n_oct in range(oct):
+                for n in sorted(self.notes, key=lambda n: n.pitch):
+                    new_note = n.copy()
+                    new_note.pitch += 12 * n_oct
+                    notes.append(new_note)
+            notes += notes[-2:0:-1]
+        elif mode == "downup":
+            for n_oct in range(oct):
+                for n in sorted(self.notes, key=lambda n: n.pitch, reverse=True):
+                    new_note = n.copy()
+                    new_note.pitch += 12 * (oct - n_oct)
+                    notes.append(new_note)
+            notes += notes[-2:0:-1]
+        elif mode == "random":
+            for n_oct in range(oct):
+                for n in self.notes:
+                    new_note = n.copy()
+                    new_note.pitch += 12 * n_oct
+                    notes.append(new_note)
+            random.shuffle(notes)
+        
+        arp_seq = Seq()
+        for n in notes:
+            arp_seq.add(n)
         return arp_seq
+
+
+    def _insert_note(self, note: Note) -> None:
+        if note.pitch in self.pitches:
+            # Note already in chord, keep longest
+            for n in self.notes:
+                if n.pitch == note.pitch: break
+            self.notes.remove(n)
+            self.notes.append(note)
+        else:
+            self.notes.append(note)
+            self.pitches.add(note.pitch)
 
 
     def _parse_string(self, string: str) -> None:
         for elt in string.split():
             elt = str2elt(elt)
-            if isinstance(elt, Note) and elt.pitch not in self.pitches:
-                elt.dur = min(elt.dur, self.dur)
-                self.notes.append(elt)
-                self.pitches.add(elt.pitch)
+            if isinstance(elt, Note):
+                self._insert_note(elt)
             elif isinstance(elt, Chord):
                 self._merge_chord(elt)
             else:
@@ -410,11 +464,7 @@ class Chord():
 
     def _merge_chord(self, other: Chord) -> None:
         for note in other.notes:
-            if note.pitch not in self.pitches:
-                new_note = note.copy()
-                new_note.dur = min(new_note.dur, self.dur)
-                self.notes.append(new_note)
-                self.pitches.add(new_note.pitch)
+            self._insert_note(note)
 
 
     def __add__(self, other):
@@ -422,8 +472,11 @@ class Chord():
 
     def __eq__(self, other):
         return self.notes == other.notes and \
-               self.dur == other.dur and \
-               self.prob == other.prob
+               self.dur == other.dur # and \
+            #    self.prob == other.prob
+
+    def __len__(self):
+        return len(self.notes)
 
     def __repr__(self):
         if self.dur != env.note_dur:
@@ -578,6 +631,11 @@ class Seq():
         return new
     
 
+    def clear(self):
+        self.notes.clear()
+        self.head = 0.0
+
+
     def add(self, other, head=-1) -> Seq:
         """ Add a single musical element or whole sequences at the recording head position
             This will grow the sequence's duration if necessary
@@ -656,21 +714,6 @@ class Seq():
         for t, s in other.silences:
             self.silences.append( (t, s) )
         self.notes.sort(key=lambda x: x[0])
-        return self
-
-
-    def replacePitch(self, old, new) -> Seq:
-        """ Replace notes with given pitch to a new pitch
-            Modifies sequence in-place
-        """
-        # TODO: `all_octaves` option
-        if type(old) == str:
-            old = str2pitch(old)
-        if type(new) == str:
-            new = str2pitch(new)
-        for note in self.notes:
-            if note.pitch == old:
-                note.pitch == new
         return self
 
 
@@ -790,11 +833,6 @@ class Seq():
         return self
 
 
-    def clear(self):
-        self.notes.clear()
-        self.head = 0.0
-
-
     def crop(self) -> Seq:
         """ Shorten or delete notes before time 0 and after the sequence's duration
             Modifies sequence in-place
@@ -903,6 +941,21 @@ class Seq():
         return midi_seq
     
 
+    def replacePitch(self, old, new) -> Seq:
+        """ Replace notes with given pitch to a new pitch
+            Modifies sequence in-place
+        """
+        # TODO: `all_octaves` option
+        if type(old) == str:
+            old = str2pitch(old)
+        if type(new) == str:
+            new = str2pitch(new)
+        for note in self.notes:
+            if note.pitch == old:
+                note.pitch == new
+        return self
+
+
     def selectNotes(self, key_fn):
         """ Return a list of notes selected by key_fn
             Notes will be selected if key_fn returns True on them
@@ -934,6 +987,21 @@ class Seq():
         new_seq = self.copy()
         new_seq.notes = [(t, n) for t, n in self.notes if key_fn(n)]
         return new_seq
+
+
+    def mapRhythm(self, other: Seq) -> Seq:
+        """ Map the rhythm of another sequence to this sequence
+            If the number of notes in the rhythm sequence is lower, it will crop notes
+            If the numer of notes in the rhythm sequence is bigger, it will wrap notes
+        """
+        in_rhythm = Seq()
+        for i, (t, rhy_note) in enumerate(other.notes):
+            mel_note = self.notes[i%len(self)][1]
+            in_rhythm.add(Note(mel_note.pitch, vel=rhy_note.vel), t)
+        in_rhythm.dur = other.dur
+        in_rhythm.head = other.head
+        
+        return in_rhythm
 
 
     def __and__(self, other) -> Seq:
@@ -1218,12 +1286,12 @@ class Track():
             messages = sequence.getMidiMessages(self.channel, self.transpose)
             messages = [ (t+self._next_timer, mess) for t, mess in messages ]
             self._next_timer += sequence.dur
+            self._nmess_this_cycle += len(messages)
 
             if self.instrument and self.send_program_change:
                 program_change = [0xC0 | self.channel, self.instrument]
                 # Make sure the instrument change precedes the notes
                 return [ (-0.0001, program_change) ] + messages
-            self._nmess_this_cycle += len(messages)
             return messages if not self.muted else None
 
         if self.seq_i >= len(self.seqs):

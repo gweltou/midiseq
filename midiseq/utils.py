@@ -47,7 +47,7 @@ def noob2seq(noob: str):
 ###############################################################################
 
 
-def rnd(n=4, lo=36, hi=84, silprob=0.0, notedur=1.0, scale:Scl=None) -> Seq:
+def rnd(n=4, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
     """ Generate a sequence of random notes
 
         Parameters
@@ -60,11 +60,11 @@ def rnd(n=4, lo=36, hi=84, silprob=0.0, notedur=1.0, scale:Scl=None) -> Seq:
                 Maximum MIDI pitch boundary
             silprob : float
                 Silence probability [0.0-1.0]
-            scale : Scale
+            scl : Scl (Scale)
                 Constrain generated notes to the given scale
     """
-    if not scale:
-        scale = env.scale if env.scale else Scl("chromatic", 'c')
+    if not scl:
+        scl = env.scale if env.scale else Scl("chromatic", 'c')
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
@@ -79,22 +79,36 @@ def rnd(n=4, lo=36, hi=84, silprob=0.0, notedur=1.0, scale:Scl=None) -> Seq:
 def rndDur(
         dur=1.0,
         lo=36, hi=84,
-        durs=[0.25, 0.5, 1, 2],
+        durs=[0.5, 1, 2],
         silprob=0.0,
-        scale:Scl=None
+        scl:Scl=None
     ) -> Seq:
-    assert dur > max(durs)
-    if not scale:
-        scale = env.scale if env.scale else Scl("chromatic", 'c')
-    durs.sort()
+    assert dur > max(durs) * env.note_dur
+    if not scl:
+        scl = env.scale if env.scale else Scl("chromatic", 'c')
+    durs = [d * env.note_dur for d in durs]
+
+    picks = []
+    while len(durs) > 0 and sum(picks) < dur:
+        pick = random.choice(durs)
+        if sum(picks) + pick > dur:
+            durs.remove(pick)
+        else:
+            picks.append(pick)
     s = Seq()
-    d = random.choice(durs)
-    while dur - s.dur > hi(durs):
+
+    picks = [d / env.note_dur for d in picks]
+    for pick in picks:
         if not silprob or random.random() > silprob:
             pitch = env.scale.getClosest(random.randint(lo, hi))
-            s.add(Note(pitch, d))
+            s.add(Note(pitch, dur=pick))
         else:
-            s.add(Sil(d))
+            s.add(Sil(pick))
+    if s.dur < dur:
+        s.dur = dur
+        s.head = dur
+    return s
+
 
 
 def rndWalk(
@@ -103,7 +117,7 @@ def rndWalk(
         steps=[-3,-2,-1,0,1,2,3],
         silprob=0.0,
         notedur=1.0,
-        skip_first=False, scale:Scl=None
+        skip_first=False, scl:Scl=None
     ) -> Seq:
     """ Create a sequence of notes moving from last note by a random interval
 
@@ -121,16 +135,16 @@ def rndWalk(
                 Silence probability [0.0-1.0]
             notedur : float
                 Duration of generated notes
-            scale : Scale
+            scl : Scl (Scale)
                 Constrain generated notes to the given scale
     """
-    if not scale:
-        scale = env.scale if env.scale else Scl("chromatic", 'c')
+    if not scl:
+        scl = env.scale if env.scale else Scl("chromatic", 'c')
     if isinstance(start, str):
         start = str2pitch(start)
-    pitch = scale.getClosest(start)
+    pitch = scl.getClosest(start)
     if skip_first:
-        pitch = scale.getDegreeFrom(pitch, random.choice(steps))
+        pitch = scl.getDegreeFrom(pitch, random.choice(steps))
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
@@ -142,7 +156,7 @@ def rndWalk(
 
 
 
-def rndGauss(n=4, mean=60, dev=3, silprob=0.0, notedur=1.0, scale:Scl=None) -> Seq:
+def rndGauss(n=4, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
     """ Generate random notes with a normal distribution around a mean value
 
         Parameters
@@ -155,15 +169,15 @@ def rndGauss(n=4, mean=60, dev=3, silprob=0.0, notedur=1.0, scale:Scl=None) -> S
                 Standard deviation
             silprob : float
                 Silence probability [0.0-1.0]
-            scale : Scale
+            scl : Scl (Scale)
                 Constrain generated notes to the given scale
     """
-    if not scale:
-        scale = env.scale if env.scale else Scl("chromatic", 'c')
+    if not scl:
+        scl = env.scale if env.scale else Scl("chromatic", 'c')
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
-            pitch = scale.getDegreeFrom(mean, round(random.gauss(0, dev)))
+            pitch = scl.getDegreeFrom(mean, round(random.gauss(0, dev)))
             s.add(Note(pitch, notedur))
         else:
             s.add(Sil(notedur))

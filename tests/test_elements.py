@@ -23,9 +23,24 @@ def test_note_operators():
     assert type(Note(60)+Note(60)) == Seq
     assert type(Note(60)+Sil()) == Seq
     assert type(Note(60)+Chord(60, 65)) == Seq
-    assert (Note(60)*2).dur == 2*env.note_dur
+    assert (Note(60)*2).dur == 2 * env.note_dur
     assert type(Note(60)*1.5) == Note
-    assert (Note(60)*1.5).dur == 1.5*env.note_dur
+    assert (Note(60)*1.5).dur == 1.5 * env.note_dur
     assert (Note(60)/2).dur == env.note_dur / 2
 
     assert (Note(60) + Seq(dur=4)).dur == 4 + env.note_dur
+
+
+def test_chord_init():
+    assert len(Chord(60, 65, 70)) == 3
+    assert len(Chord(Note(10), Note(20), Note(30), 40)) == 4
+    assert len(Chord("a b c")) == 3
+    assert len(Chord("a b", "C")) == 5
+    assert len(Chord("a#|b", 60, "Dm")) == 6
+    assert len(Chord("C", "Cm")) == 4
+    assert len(Chord("C Cm")) == 4
+    assert len(Chord(Chord("Dm"), Chord("Dm"))) == 3
+
+    assert Chord("C").dur == 1.0 * env.note_dur
+    assert Chord("C%2").dur == 2.0 * env.note_dur
+    assert Chord("C", Note(48, dur=2)).dur == 2.0 * env.note_dur # Keep longest note

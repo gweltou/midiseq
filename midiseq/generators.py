@@ -64,6 +64,7 @@ def genPattern(func: callable, pattern="ABAB", repeat=1, *args, **kwargs):
         pattern : str
             A pattern string, ex: "ABAB" or "1112"
         repeat : int
+            Number of repeats for the whole pattern
     """
 
     pattern = pattern.replace(" ", "")
@@ -194,7 +195,7 @@ def gen_japscale():
         s=Seq() 
         if random.random() < 0.1:
             jap.tonic = random.randrange(42, 54)
-        s.add(rndGauss(dev=2, scale=jap))
+        s.add(rndGauss(dev=2, scl=jap))
         s.stretch(16, False)
         yield s
 
