@@ -111,14 +111,17 @@ class TrackGroup:
 def play(
         what: Union[Track, Note, Seq, Generator, None]=None,
         channel=0, instrument=0,
-        loop=False):
+        loop=False,
+        blocking=False):
     """ Play a Track, a Sequence or a single Note
 
         Parameters
         ----------
-            channel (int):
+            channel : int
                 Midi channel, between 1 and 16 (defaults to 1)
-            loop (boolean):
+            instrument : int
+                Instrument to play with (program change message)
+            loop : boolean
                 Loop playback
     """   
     # Wait for other playing thread to stop
@@ -127,7 +130,9 @@ def play(
     if _playing_thread != None:
         _must_stop = True
         _playing_thread.join()
+    _must_stop = False
     
+
     if what:
         # Play solo track, seq or note
         if isinstance(what, str):
@@ -142,12 +147,16 @@ def play(
             track_group.addTrack(what)
         else:
             track_group.addTrack(Track(channel, instrument=instrument, loop=loop).add(what))
+        
+        if blocking:
+            return _play(track_group, loop)
         _playing_thread = threading.Thread(target=_play, args=(track_group, loop), daemon=True)
     else:
         # Play all tracks
+        if blocking:
+            return _play(env.tracks, loop)
         _playing_thread = threading.Thread(target=_play, args=(env.tracks, loop), daemon=True)
     
-    _must_stop = False
     _playing_thread.start()
 
 
@@ -156,7 +165,8 @@ def _play(track_group: TrackGroup, loop=False):
     global _recording
     global _recording_time
 
-    print("++++ PLAYBACK Started")
+    if env.verbose:
+        print("++++ PLAYBACK Started")
     for track in track_group.tracks:
         track.reset()
         track.loop |= loop  # Looping tracks will continue to loop
@@ -209,14 +219,18 @@ def _play(track_group: TrackGroup, loop=False):
             metronome_time -= 0.5
 
         must_sort = False
+        all_ended = True    # Will stay True if all Tracks are ended
         for track in track_group.priority_list:
             new_events = track.update(timedelta)
+            all_ended &= track.ended
             if new_events:
                 must_sort = True
                 for t, mess in new_events:
                     midi_events.append( (t + song_time, mess, track.port) )
         if must_sort:
             midi_events.sort(reverse=True)
+        if all_ended and len(midi_events) == 0:
+            break
 
         new_noteon = False
         while midi_events and midi_events[-1][0] < song_time:
@@ -232,7 +246,7 @@ def _play(track_group: TrackGroup, loop=False):
                 _active_notes[chan][mess[1]] = False
             port = port or env.default_output
             port.send_message(mess)
-            if env.VERBOSE and not env.DISPLAY:
+            if env.verbose and not env.DISPLAY:
                 print("Sent", mess)
         
         if env.DISPLAY and new_noteon:
@@ -259,11 +273,12 @@ def _play(track_group: TrackGroup, loop=False):
         # Check CPU load
         t = time.time() - t0 - t_frame
         load = t / _timeres
-        if load > 0.2:
+        if env.verbose and load > 0.2:
             print("++++ PLAYBACK [warning] load:", load, "%")
         time.sleep(min(max(_timeres, 0), 0.2))
 
-    print("++++ PLAYBACK Stopped")
+    if env.verbose:
+        print("++++ PLAYBACK Stopped")
     global _playing_thread
     _playing_thread = None
 
@@ -319,7 +334,7 @@ def _listen(forward=True, forward_channel=1):
                 if forward:
                     mess.setChannel(forward_channel)
                     env.default_output.send_message(mess)
-            if env.VERBOSE and not env.DISPLAY:
+            if env.verbose and not env.DISPLAY:
                     print("Recieved", mess)
             mess = midiin.get_message()
         
@@ -338,6 +353,16 @@ def _listen(forward=True, forward_channel=1):
     print("++++ LISTEN Stopped")
     global _listening_thread
     _listening_thread = None
+
+
+
+def playMetro(beats=4, cycles=1):
+    """ Play metronome """
+    _lo, _hi = env.METRONOME_NOTES
+    clicks = [_hi] + [_lo] * (beats-1)
+    metr = Seq(clicks) * (0.5/env.note_dur)
+    metr *= int(cycles)
+    play(metr, blocking=True)
 
 
 

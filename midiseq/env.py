@@ -16,4 +16,4 @@ METRONOME_PORT = None      # Midi port for metronome
 default_output = None
 DISPLAY = False
 DISPLAY_RANGE = (36, 96)
-VERBOSE = False
+verbose = False

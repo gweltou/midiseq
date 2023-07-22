@@ -3,6 +3,7 @@ import numpy as np
 import sounddevice as sd
 
 from .elements import Seq, Note
+from .engine import playMetro
 import midiseq.env as env
 
 import matplotlib.pyplot as plt
@@ -66,14 +67,13 @@ def normalizeSpectrogram(spec, freqs, times):
 
 
 
-def findRegions(spec, freqs, times):
+def findRegions(spec, freqs, times, threshold=0.02):
     """ Should be called with on a spectrogram with a high time resolution
     """
     
     peak_power = np.max(spec, axis=0)
     peak_fbin = np.argmax(spec, axis=0)
-    threshold = 0.02 * peak_power.max()
-    gate = peak_power > threshold
+    gate = peak_power > threshold * peak_power.max()
     
     gate_idx = np.where(gate)[0]
     regions = []
@@ -96,36 +96,6 @@ def findRegions(spec, freqs, times):
     regions = [ (start, end) for start, end in regions if end-start > 0.05 ]
     
     return regions
-
-
-
-# def findRegionsIdx(spec, freqs, times):
-#     """ Should be called with on a spectrogram with a high time resolution
-#     """
-    
-#     peak_power = np.max(spec, axis=0)
-#     peak_fbin = np.argmax(spec, axis=0)
-#     threshold = 0.02 * peak_power.max()
-#     gate = peak_power > threshold
-    
-#     gate_idx = np.where(gate)[0]
-#     regions = []
-#     region_start = gate_idx[0]
-#     last_idx = gate_idx[0]
-#     last_fbin = peak_fbin[last_idx]
-#     for idx in gate_idx:
-#         if idx - last_idx > 1 or abs(peak_fbin[idx] - last_fbin) > 1:
-#             # Region break
-#             regions.append( (region_start, last_idx) )
-#             region_start = idx
-#         last_idx = idx
-#         last_fbin = peak_fbin[idx]
-#     regions.append( (region_start, last_idx ) )
-    
-#     # Filter out impossibly short regions
-#     regions = [ (start, end) for start, end in regions if end-start > 2 ]
-
-#     return regions
 
 
 
@@ -159,40 +129,6 @@ def hz2midi(frequency, tuning=440):
 
 
 
-def audio2seq(audio_data, framerate, tuning=440):
-    # Create a spectrogram with high time resolution to find temporal regions
-    spec, freqs, times = spectrogram(audio_data, sr=framerate, NFFT=512, noverlap=256)
-    spec, freqs, times = cropSpectrogram(spec, freqs, times, low_freq=500)
-    spec, freqs, times = normalizeSpectrogram(spec, freqs, times)
-    regions = findRegions(spec, freqs, times)
-    print(len(regions))
-
-    # Create a spectrogram with high frequency resolution to find pitch
-    spec, freqs, times = spectrogram(audio_data, sr=framerate, NFFT=2048, noverlap=1024)
-    mean_frequencies = getRegionsPitch(spec, freqs, times, regions)
-
-    print(mean_frequencies)
-    regions = zip(regions,
-                map(lambda f: hz2midi(f, tuning), mean_frequencies))
-    
-    seq = Seq()
-    for (start, end), pitch in regions:
-        dur = end - start
-        note = Note(pitch, dur / env.note_dur)
-        seq.add(note, start)
-    
-    return seq
-
-
-
-# def wav2seq(filename) -> Seq:
-#     """ Convert a wave file to a MIDI sequence """
-#     audio_data, framerate = readWav(filename)
-#     plotSpectrogram(audio_data, framerate)
-#     return audio2seq(audio_data, framerate)
-
-
-
 def recAudio(dur=4, sr=44100):
     print(f"Recording for {dur} seconds...", end='', flush=True)
     buffer = sd.rec(int(dur * sr), samplerate=sr, channels=1)[:,0]
@@ -204,7 +140,7 @@ def recAudio(dur=4, sr=44100):
 
 
 
-def whistle(dur=4, tuning=440.0, strip=True, plot=False) -> Seq:
+def whistleDur(dur=4, tuning=440.0, strip=True, plot=False) -> Seq:
     """ Record a MIDI sequence by whistling in a microphone
 
         Parameters
@@ -220,15 +156,58 @@ def whistle(dur=4, tuning=440.0, strip=True, plot=False) -> Seq:
     buffer = recAudio(dur, sr)
     if plot:
         plotSpectrogram(buffer, sr)
+        plotMinMaxMeanSum(buffer, sr, low=500, high=4000)
+    
+    # Create a spectrogram with high time resolution to find temporal regions
+    spec, freqs, times = spectrogram(buffer, sr=sr, NFFT=512, noverlap=256)
+    spec, freqs, times = cropSpectrogram(spec, freqs, times, low_freq=500)
+    spec, freqs, times = normalizeSpectrogram(spec, freqs, times)
+    regions = findRegions(spec, freqs, times, threshold=0.02)
+    print(len(regions))
 
-    seq = audio2seq(buffer, sr, tuning=tuning)
+    # Create a spectrogram with high frequency resolution to find pitch
+    spec, freqs, times = spectrogram(buffer, sr=sr, NFFT=2048, noverlap=1024)
+    mean_frequencies = getRegionsPitch(spec, freqs, times, regions)
+
+    print(mean_frequencies)
+    regions = zip(regions, map(lambda f: hz2midi(f, tuning), mean_frequencies))
+    
+    seq = Seq()
+    for (start, end), pitch in regions:
+        dur = end - start
+        note = Note(pitch, dur / env.note_dur)
+        seq.add(note, start)
+
     if strip:
         seq.strip()
     return seq
 
 
+def whistle(bars=1, beats=4, metro=2, tuning=440.0):
+    """ Record a MIDI sequence by whistling in a microphone
 
-def tap(dur=4, note=48, strip=True, threshold=0.03, fpass=1, plot=False):
+        Parameters
+        ----------
+            bars : int
+                Number of bars, or measures, to record
+            beats : int
+                Number of beats in a bar
+            metro : int
+                Number of metronome cycles to play before recording
+            tuning : float
+                'A' tuning (in Hz)
+    """
+    assert bars >= 1
+    assert beats >= 1
+
+    dur = bars * beats * 60 / env.bpm
+    if metro > 0:
+        playMetro(beats, cycles=metro)
+    return whistleDur(dur=dur, tuning=tuning, strip=False)
+
+
+
+def tapDur(dur=4, note=48, strip=True, threshold=0.03, fpass=1, plot=False):
     """ Record a MIDI rhythmic sequence by taping on a microphone
 
         Parameters
@@ -242,7 +221,7 @@ def tap(dur=4, note=48, strip=True, threshold=0.03, fpass=1, plot=False):
     buffer = recAudio(dur, sr)
     if plot:
         plotSpectrogram(buffer, sr)
-        pltMinMaxMeanSum(buffer, sr, low=500, high=8000)
+        plotMinMaxMeanSum(buffer, sr, low=500, high=8000)
 
     spec, freqs, times = spectrogram(buffer, sr=sr, NFFT=256, noverlap=128)
     spec, freqs, times = cropSpectrogram(spec, freqs, times, low_freq=500, high_freq=8000)
@@ -292,8 +271,31 @@ def tap(dur=4, note=48, strip=True, threshold=0.03, fpass=1, plot=False):
     return seq
 
 
+def tap(bars=1, beats=4, metro=2, note=48):
+    """ Record a MIDI rhythmic sequence by taping on a microphone
 
-def pltMinMaxMeanSum(audio_data, framerate, low=0, high=10000):
+        Parameters
+        ----------
+            bars : int
+                Number of bars, or measures, to record
+            beats : int
+                Number of beats in a bar
+            metro : int
+                Number of metronome cycles to play before recording
+            note : int
+                MIDI note to trigger
+    """
+    assert bars >= 1
+    assert beats >= 1
+
+    dur = bars * beats * 60 / env.bpm
+    if metro > 0:
+        playMetro(beats, cycles=metro)
+    return tapDur(dur=dur, note=note)
+
+
+
+def plotMinMaxMeanSum(audio_data, framerate, low=0, high=10000):
     spec, freqs, times = spectrogram(audio_data, sr=framerate, NFFT=256, noverlap=128)
     spec, freqs, times = cropSpectrogram(spec, freqs, times, low_freq=low, high_freq=high)
     spec, freqs, times = normalizeSpectrogram(spec, freqs, times)

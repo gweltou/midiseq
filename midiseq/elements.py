@@ -409,7 +409,7 @@ class Chord():
             for n_oct in range(oct):
                 for n in sorted(self.notes, key=lambda n: n.pitch, reverse=True):
                     new_note = n.copy()
-                    new_note.pitch += 12 * (oct - n_oct)
+                    new_note.pitch += 12 * (oct - (n_oct+1))
                     notes.append(new_note)
         elif mode == "updown":
             for n_oct in range(oct):
@@ -422,7 +422,7 @@ class Chord():
             for n_oct in range(oct):
                 for n in sorted(self.notes, key=lambda n: n.pitch, reverse=True):
                     new_note = n.copy()
-                    new_note.pitch += 12 * (oct - n_oct)
+                    new_note.pitch += 12 * (oct - (n_oct+1))
                     notes.append(new_note)
             notes += notes[-2:0:-1]
         elif mode == "random":
@@ -471,9 +471,11 @@ class Chord():
         return Seq().add(self).add(other)
 
     def __eq__(self, other):
-        return self.notes == other.notes and \
-               self.dur == other.dur # and \
-            #    self.prob == other.prob
+        if self.dur != other.dur:
+            return False
+        if len(self.notes) != len(other.notes):
+            return False
+        return all( [n1 == n2 for n1, n2 in zip(self.notes, other.notes)] )
 
     def __len__(self):
         return len(self.notes)
@@ -1225,14 +1227,6 @@ class Track():
         
         if self.ended:
             self.reset()
-        # else:
-        #     self.seq_i += 1
-        #     if self.seq_i == len(self.seqs):
-        #         if self.loop_type == "all":
-        #             self.reset()
-        #         elif self.loop_type == "last":
-        #             self.seq_i -= 1
-        #             self._next_timer = 0.0
     
     def _get_priority_list(self) -> List[Track]:
         pl = [self]
@@ -1294,7 +1288,7 @@ class Track():
                 return [ (-0.0001, program_change) ] + messages
             return messages if not self.muted else None
 
-        if self.seq_i >= len(self.seqs):
+        elif self.seq_i >= len(self.seqs):
             # End of track reached
             if not self.loop or self._nmess_this_cycle == 0: # Stop if no messages were sent
                 print("Track stopped")

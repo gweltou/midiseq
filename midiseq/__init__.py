@@ -8,18 +8,18 @@ import threading
 
 from .engine import (
     listOutputs, openOutput, _getOutputs,
-    play, stop, panic,
+    play, stop, panic, playMetro,
     TrackGroup, getPastOpened
 )
 from .elements import Seq, Chord, Note, Sil, Track
 from .utils import (
     pattern, noob2seq,
     rnd, rndWalk, rndGauss, rndPick, rndDur,
-    euclid, lcm
+    euclid, lcm,
 )
 from .definitions import *
 from .generators import *
-from .whistle import whistle, tap
+from .whistle import whistle, whistleDur, tap, tapDur
 import midiseq.env as env
 
 
@@ -52,9 +52,10 @@ def mutesw(*tracks) -> None:
         t.muted = not t.muted
 
 
-
 env.METRONOME_NOTES = (sit13, sit16)
-setScl("chromatic")
+
+setScl("major", "c")
+
 
 midi_out = dict()
 midi_out["default"] = openOutput(0)
@@ -99,7 +100,6 @@ t16 = Track(15, name="t16", sync_from=t1)
 env.tracks = TrackGroup()
 env.tracks.addTrack(t1)
 
-setScl("major", "c")
 
 
 # # FFIX - Freya's Theme
