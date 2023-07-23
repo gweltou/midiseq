@@ -10,11 +10,23 @@ from .definitions import scales, modes
 
 _NOTE_CHORD_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
                                     (do|re|ré|mi|fa|sol|la|si|ti|[a-g])
-                                    (b|\#)?		# Accidentals (flat or sharp)
+                                    (b|\#)?		    # Accidentals (flat or sharp)
                                     (M|m|mM|\+|°|sus2|sus4)? # Maj, min, min/Maj, aug,...
-                                    (7|9|11)?	# Seventh, ninth, eleventh
-                                    (%[\d/.]+)?	# Time multiplication factor
+                                    (7|9|11)?	    # Seventh, ninth, eleventh
+                                    (%[\d/.]+)?	    # Time multiplication factor
                                     """, re.X|re.I)
+
+
+def _get_octave(s: Optional[str]) -> int:
+    if not s:
+        return env.default_octave
+    if s[0] in ('-','+'):
+        if len(s) == 1:
+            s += '1'
+        octave = eval(str(env.default_octave) + s)
+        return min(max(octave, 0), 10)
+    return int(s)
+
 
 
 def str2pitch(tone: str) -> int:
@@ -34,21 +46,11 @@ def str2pitch(tone: str) -> int:
                     'g': 7,    'sol': 7,
                     'a': 9,    'la': 9,
                     'b': 11,   'si': 11}
-
-    def get_octave(s: Optional[str]) -> int:
-        if not s:
-            return env.default_octave
-        if s[0] in ('-','+'):
-            if len(s) == 1:
-                s += '1'
-            octave = eval(str(env.default_octave) + s)
-            return min(max(octave, 0), 10)
-        return int(s)
     
     match = _NOTE_CHORD_PATTERN.match(tone)
     if match:
         # match = match.groups(default='')
-        octave = get_octave(match[1])
+        octave = _get_octave(match[1])
         pitch = 12*octave + note_value[match[2].lower()]
         pitch += 1 if match[3]=='#' else -1 if match[3]=='b' else 0
         return pitch
@@ -67,26 +69,61 @@ def str2elt(string: str) -> Union[Note, Sil, Chord, None]:
 
     MIDI_PITCH_PATTERN = re.compile(r"(\d+)(%[\d/.]+)?")
 
+    ROMAN_CHORD_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
+                                        ([ivx]+)        # Degree
+                                        (7|9|11)?	    # Seventh, ninth, eleventh
+                                        (%[\d/.]+)?     # Time multiplication factor
+                                    """, re.X|re.I)
+
     SILENCE_PATTERN = re.compile(r"(\.+)")
 
-    intervals = {   'M': (0, 4, 7), '': (0, 4, 7), # Major
-                    'm': (0, 3, 7), # Minor
-                    '+': (0, 4, 9), # Augmented
-                    '°': (0, 3, 6), # Diminished
-                    'sus2':(0, 2, 7), # Suspended second
-                    'sus4':(0, 5, 7), # Suspended fourth
-                    '7': (0, 4, 7, 10), # Dominant seventh
-                    'M7':(0, 4, 7, 11), # Major seventh
-                    'm7':(0, 3, 7, 10), # Minor seventh
-                    'mM7':(0, 3, 7, 11),# Minor/Major seventh
-                    '°7':(0, 3, 6, 9),   # Diminished seventh
-                }
+    chord_intervals = {
+        'M': (0, 4, 7), '': (0, 4, 7), # Major
+        'm': (0, 3, 7), # Minor
+        '+': (0, 4, 9), # Augmented
+        '°': (0, 3, 6), # Diminished
+        'sus2':(0, 2, 7), # Suspended second
+        'sus4':(0, 5, 7), # Suspended fourth
+        '7': (0, 4, 7, 10), # Dominant seventh
+        'M7':(0, 4, 7, 11), # Major seventh
+        'm7':(0, 3, 7, 10), # Minor seventh
+        'mM7':(0, 3, 7, 11),# Minor/Major seventh
+        '°7':(0, 3, 6, 9),   # Diminished seventh
+    }
+    
+    roman2num = {
+        'i'     : 0,
+        'ii'    : 1,
+        'iii'   : 2,
+        'iv'    : 3,
+        'v'     : 4,
+        'vi'    : 5,
+        'vii'   : 6,
+        'viii'  : 7,
+        'ix'    : 8,
+        'x'     : 9,
+        'xi'    : 10,
+        'xii'   : 11,
+    }
 
     match = MIDI_PITCH_PATTERN.fullmatch(string)
     if match:
         pitch = int(match[1])
         dur = 1 if not match[2] else eval(match[2][1:])
         return Note(pitch, dur=dur)
+    
+    match = ROMAN_CHORD_PATTERN.fullmatch(string)
+    if match:
+        scl = env.scale if env.scale else Scl("chromatic", 'c')
+        degree = roman2num[match[2].lower()]
+        if degree > len(scl.scale):
+            raise TypeError(f"Scale doesn't have a {match[2].upper()}th degree")
+        dur = 1 if not match[4] else eval(match[4][1:])
+        oct_off = _get_octave(match[1]) - env.default_octave
+        if match[3] == '7':
+            return scl.seventh(degree, dur)^(12*oct_off)
+        else:
+            return scl.triad(degree, dur)^(12*oct_off)
 
     match = _NOTE_CHORD_PATTERN.fullmatch(string)
     if match:
@@ -95,7 +132,7 @@ def str2elt(string: str) -> Union[Note, Sil, Chord, None]:
         dur = 1 if not match[6] else eval(match[6][1:])
         if is_chord:
             chord_type = (match[4] or '') + (match[5] or '')
-            pitches = ( pitch + i for i in intervals[chord_type] )
+            pitches = ( pitch + i for i in chord_intervals[chord_type] )
             return Chord(*pitches, dur=dur)
         else:
             return Note(pitch, dur=dur)
@@ -126,14 +163,6 @@ def str2seq(string: str) -> Seq:
 
 
 
-# def buildScale(scale, tonic):
-#     s = Seq()
-#     s.scale = Scale(scale, tonic)
-#     for i in range(len(s.scale) + 1):
-#         s.addNote(s.scale.getDegree(i))
-#     return s
-
-
 class Scl():
 
     def __init__(self, scale="major", tonic=60):
@@ -157,8 +186,20 @@ class Scl():
             self.scale = scale
             self.scale_name = str(scale)
         self.notes = self._getNotes()
-        
-    
+
+
+    def _getNotes(self):
+        """ Returns all midi pitches in scale """
+        pitches = []
+        smallest_tonic = self.tonic % 12
+        for oct in range(-1, 11):
+            for d in self.scale:
+                pitch = oct*12 + smallest_tonic + d
+                if 0 <= pitch < 128:
+                    pitches.append(pitch)
+        return pitches
+
+
     def getClosest(self, note: Union[str, int]) -> int:
         """ Find closest note in scale given a pitch
             Returns a corrected pitch, in range [0-127]
@@ -217,24 +258,17 @@ class Scl():
                 break
         return self.notes[idx+n]
 
- 
 
-    def _getNotes(self):
-        """ Returns all midi pitches in scale """
-        pitches = []
-        smallest_tonic = self.tonic % 12
-        for oct in range(-1, 11):
-            for d in self.scale:
-                pitch = oct*12 + smallest_tonic + d
-                if 0 <= pitch < 128:
-                    pitches.append(pitch)
-        return pitches
-
-
-    def triad(self, degree=0, dur=1, vel=100, prob=1):
+    def triad(self, degree=0, dur=1, vel=100):
         """ Returns a triad Chord of the nth degree in the scale """
-        return Chord(*[self.getDegree(degree+deg) for deg in [0,2,4]],
-                     dur=dur, vel=vel, prob=prob)
+        return Chord(*[self.getDegree(degree+inter) for inter in [0,2,4]],
+                     dur=dur, vel=vel)
+
+
+    def seventh(self, degree=0, dur=1, vel=100):
+        """ Returns a seventh Chord of the nth degree in the scale """
+        return Chord(*[self.getDegree(degree+inter) for inter in [0,2,4,6]],
+                     dur=dur, vel=vel)
 
 
     def __str__(self):
@@ -355,8 +389,6 @@ class Chord():
     """ Chords are made of many notes playing at the same time """
 
     def __init__(self, *notes, dur=None, vel=None):
-        # XXX: prob parameter is not really used for now
-        # XXX: vel parameter is not really used for now
         self.notes = []
         self.pitches = set() # Helps to avoid duplicate notes
         # self.prob = prob
@@ -385,6 +417,10 @@ class Chord():
             self.dur = max_dur
 
 
+    def copy(self) -> Note:
+        return Chord(self)
+
+
     def arp(self, mode="up", oct=1) -> Seq:
         """ Arpeggiate a Chord
 
@@ -393,7 +429,7 @@ class Chord():
                 type : str
                     "up" / "down"
                     "updown" / "downup"
-                    "random"
+                    "rnd"
                 oct : int
                     Number of octaves to aperggiate
                     Additional octaves will be of higher pitch
@@ -406,11 +442,7 @@ class Chord():
                     new_note.pitch += 12 * n_oct
                     notes.append(new_note)
         elif mode == "down":
-            for n_oct in range(oct):
-                for n in sorted(self.notes, key=lambda n: n.pitch, reverse=True):
-                    new_note = n.copy()
-                    new_note.pitch += 12 * (oct - (n_oct+1))
-                    notes.append(new_note)
+            return self.arp(mode="up", oct=oct).reverse()
         elif mode == "updown":
             for n_oct in range(oct):
                 for n in sorted(self.notes, key=lambda n: n.pitch):
@@ -425,7 +457,7 @@ class Chord():
                     new_note.pitch += 12 * (oct - (n_oct+1))
                     notes.append(new_note)
             notes += notes[-2:0:-1]
-        elif mode == "random":
+        elif mode == "rnd":
             for n_oct in range(oct):
                 for n in self.notes:
                     new_note = n.copy()
@@ -466,6 +498,9 @@ class Chord():
         for note in other.notes:
             self._insert_note(note)
 
+    def __xor__(self, semitones):
+        """ Transpose chord in semitones """
+        return Chord(*[ n^semitones for n in self.notes ])
 
     def __add__(self, other):
         return Seq().add(self).add(other)

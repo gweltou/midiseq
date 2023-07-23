@@ -44,3 +44,5 @@ def test_chord_init():
     assert Chord("C").dur == 1.0 * env.note_dur
     assert Chord("C%2").dur == 2.0 * env.note_dur
     assert Chord("C", Note(48, dur=2)).dur == 2.0 * env.note_dur # Keep longest note
+
+    assert Chord("c%2 e g").copy() == Chord("c%2 e g")

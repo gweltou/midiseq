@@ -1,7 +1,7 @@
 import re
-from midiseq import Seq, Note, Chord, Sil
+from midiseq import Seq, Note, Chord, Sil, Scl
 from midiseq.elements import str2elt, str2seq
-# from midiseq import env as env
+from midiseq import env as env
 
 
 
@@ -24,6 +24,13 @@ def test_single_notes():
 	assert str2elt("+do#") == str2elt("+c#") == Note(61)
 	assert str2elt("+2do#") == str2elt("+2c#") == Note(73)
 	assert str2elt("-dob") == str2elt("-cb") == Note(35)
+
+
+def test_roman_degree():
+	env.scale = Scl("major", "c")
+	assert str2elt("i") == Chord(48, 52, 55)
+	assert str2elt("III") == Chord(52, 55, 59)
+	assert str2elt("-V") == Chord(43, 47, 50)
 
 
 def test_subdiv():

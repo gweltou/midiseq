@@ -55,26 +55,40 @@ seq_freya_theme4 = lcm("g%3 +d%2 .", "+a#%2|+2d%2 +g%2")
 ###############################################################################
 
 
-def genPattern(func: callable, pattern="ABAB", repeat=1, *args, **kwargs):
-    """
-    Yield sequences from a function, following a pattern
+def genFunc(func: callable, *args, **kwargs):
+    while True:
+        yield func(*args, **kwargs)
 
-        func : callable
-            A function returning a sequence
-        pattern : str
-            A pattern string, ex: "ABAB" or "1112"
-        repeat : int
-            Number of repeats for the whole pattern
+
+def genPattern(func: callable, pattern="ABAB", repeat=1, *args, **kwargs):
+    """ Yield sequences from a function, following a pattern
+
+        Parameters
+        ----------
+            func : callable
+                A function returning a sequence
+            pattern : str
+                A pattern string, ex: "ABAB" or "1112"
+            repeat : int
+                Number of repeats for the whole pattern
     """
 
     pattern = pattern.replace(" ", "")
     seqs = dict()
     for symb in set(pattern):
-            seqs[symb] = func(**kwargs)
+        seqs[symb] = func(**kwargs)
 
     for _ in range(repeat):
         for symb in pattern:
             yield seqs[symb]
+
+
+def genMapRhythm(mel: Seq, rhy: Seq):
+    """ Map a rhythm on a melody
+        Yield sequences of same duration as the rhythmic sequences
+        Yiels sequences utils the lcm is reached between both sequences
+    """
+    pass
 
 
 def gen_chords1():

@@ -27,20 +27,20 @@ Pour un environnement de programmation toute options :
 >>> openOutput(1)
 Opening port 1 [VCV Rack:VCV Rack input 133:0]
 
->>> setTempo(60)
+>>> setBpm(60)
 >>> play("c 5c c d g", loop=True)
 >>> stop()
 ```
 
 ### Le temps
 
-Pour changer la durée d'une séquence on modifie sa propriété `length`. On peut aussi la passer en argument au constructeur de la classe `Seq`.
+Pour changer la durée d'une séquence on modifie sa propriété `dur`. On peut aussi la passer en argument au constructeur de la classe `Seq`.
 
 ```python
-s = Seq(length=4)
+s = Seq(dur=4)
 # ou bien
 s = Seq()
-s.length = 4
+s.dur = 4
 ```
 
 L'unité temporelle est égale à une seconde.
@@ -56,7 +56,7 @@ You can sets its length with the `dur` parameter and add a silence/rest after it
     Note("c", dur=2) + Sil(1.5)
 
 Now, the duration of a note is not an absolute value. It's a relative value by which the default length is multiplied to give the note's true length (same for the silence).\
-If the default length was set with `setNoteLen(1/4)` (default value), the previous sequence would play as a 'c' half note, followed by a dotted quarter rest.
+If the default length was set with `setNoteDur(1/4)` (default value), the previous sequence would play as a 'c' half note, followed by a dotted quarter rest.
 
 
 ### Chords
@@ -138,6 +138,10 @@ See : https://en.wikipedia.org/wiki/Least_common_multiple
 lcm("a ..", "c ...", "e ....")
 ```
 
+#### Evolving generators
+
+Python generators can be used as sequences factories. Some useful ones are provided with the library.
+
 ### Tracks
 
 Whenever you want to chain sequences or generators, or if you want to play sequences in parallel on different midi channels you can use tracks.
@@ -153,6 +157,8 @@ t1 = Track(channel=0, instrument=23, name="harmonica")
 t1.channel = 1
 t1.instrument = 59 # tuba
 ```
+
+### Whistle and Tap
 
 ## IDE
 
