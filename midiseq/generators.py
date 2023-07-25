@@ -36,7 +36,7 @@ seq_sunburn1 = Seq("""
     """)^12
 seq_sunburn2 = Seq("""
     e +e b g +e b g b  
-    -a +e +c +a +f# +e +c +e 
+    -a +e +c a +f# +e +c +e 
     c +f# +e +c +a +g +f# +e 
     -a +e +c a +f# +e +c +e 
     """)^12
@@ -88,7 +88,17 @@ def genMapRhythm(mel: Seq, rhy: Seq):
         Yield sequences of same duration as the rhythmic sequences
         Yiels sequences utils the lcm is reached between both sequences
     """
-    pass
+    mel_idx = 0
+    while True:
+        s = Seq(dur=rhy.dur)
+        for t, nr in rhy.notes:
+            nm = mel[mel_idx]
+            dur = nr.dur / env.note_dur
+            s.add(Note(nm.pitch, dur=dur, vel=nr.vel), t)
+            mel_idx = (mel_idx + 1) % len(mel)
+        yield s
+        if mel_idx == 0:
+            break
 
 
 def gen_chords1():

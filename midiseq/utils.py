@@ -113,7 +113,7 @@ def rndDur(
 
 def rndWalk(
         n=4,
-        start: Union[str,int]=60,
+        start: Union[str,int]=None,
         steps=[-3,-2,-1,0,1,2,3],
         silprob=0.0,
         notedur=1.0,
@@ -138,6 +138,8 @@ def rndWalk(
             scl : Scl (Scale)
                 Constrain generated notes to the given scale
     """
+    if not start:
+        start = env.scale.tonic if env.scale else 48
     if not scl:
         scl = env.scale if env.scale else Scl("chromatic", 'c')
     if isinstance(start, str):

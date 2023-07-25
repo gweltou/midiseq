@@ -20,6 +20,13 @@ def test_lcm():
     assert s.dur == 105 * env.note_dur
 
 
+def test_rnd():
+    s = rnd(n=8, lo=0, hi=10)
+    assert len(s) == 8
+    for n in s:
+        assert 0 <= n.pitch <= 10
+
+
 def test_rnddur():
     for _ in range(32): 
         s = rndDur(1.0)

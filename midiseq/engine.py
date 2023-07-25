@@ -228,7 +228,7 @@ def _play(track_group: TrackGroup, loop=False):
                 for t, mess in new_events:
                     midi_events.append( (t + song_time, mess, track.port) )
         if must_sort:
-            midi_events.sort(reverse=True)
+            midi_events.sort(key=lambda n: (n[0],n[1][0]), reverse=True)
         if all_ended and len(midi_events) == 0:
             break
 

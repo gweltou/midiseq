@@ -464,6 +464,8 @@ class Chord():
                     new_note.pitch += 12 * n_oct
                     notes.append(new_note)
             random.shuffle(notes)
+        else:
+            raise ValueError(f"{mode} is not a recognized arpeggiator mode")
         
         arp_seq = Seq()
         for n in notes:
@@ -673,11 +675,11 @@ class Seq():
         self.head = 0.0
 
 
-    def add(self, other, head=-1) -> Seq:
+    def add(self, other, head: Optional[float]=None) -> Seq:
         """ Add a single musical element or whole sequences at the recording head position
             This will grow the sequence's duration if necessary
         """
-        if head >= 0:
+        if isinstance(head, float):
             self.head = head
         
         if isinstance(other, int):
@@ -812,12 +814,35 @@ class Seq():
         return self
     
 
-    def splitNotes(self, n=2) -> Seq:
-        """ Modifies sequence in-place
+    def splitNotes(self, n=2, idx: Optional[int]=None) -> Seq:
+        """ Split every note in equal divisions
+            Modifies sequence in-place
+
+            Parameters
+            ----------
+                n : int
+                    Number of divisions
+                idx : int
+                    If used, divide only the note at that position
         """
         if type(n) != int or n <= 0:
             raise TypeError("number of splits should be equal to 2 or greater ")
-        
+
+        if isinstance(idx, int):
+            if idx >= len(self.notes):
+                raise ValueError("idx is greater than number of notes in sequence")
+            t, note = self.notes[idx]
+            split_dur = note.dur / n
+            old_head = self.head
+            del self.notes[idx]
+            self.head = t
+            for i in range(n):
+                n = note.copy()
+                n.dur = split_dur
+                self.add(n)
+            self.head = old_head
+            return self
+
         orig = self.notes[:]
         self.clear()
         for t, note in orig:
@@ -848,7 +873,7 @@ class Seq():
         return self
 
 
-    def humanize(self, tfactor=0.015, veldev=6) -> Seq:
+    def humanize(self, tfactor=0.01, veldev=5) -> Seq:
         """ Randomly offsets the notes time and duration
             Modifies sequence in-place
 
@@ -974,7 +999,7 @@ class Seq():
             midi_seq.append( (pos, note_on) )
             midi_seq.append( (pos + note.dur, note_off) )
 
-        midi_seq.sort(key=lambda x: x[0])
+        midi_seq.sort(key=lambda n: (n[0],n[1][0]))
         return midi_seq
     
 
