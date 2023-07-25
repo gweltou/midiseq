@@ -1,6 +1,8 @@
-# PyMidiSeq
+# MidiSeq
 
-Polyphonic real-time midi sequencer in Python.
+Project aim :
+
+Polyphonic real-time midi sequencer with Python.
 With a strong emphasis on generative composition and live performances.
 Clear and short syntax while trying to remain as little esoteric as possible.
 Explicit docstrings and error messages.
@@ -8,10 +10,6 @@ Explicit docstrings and error messages.
 ## Setup
 
     pip install rtmidi
-
-Pour un environnement de programmation toute options :
-
-    sudo apt install jupyter-qtconsole
 
 ## Usage
 
@@ -32,42 +30,42 @@ Opening port 1 [VCV Rack:VCV Rack input 133:0]
 >>> stop()
 ```
 
-### Le temps
-
-Pour changer la durée d'une séquence on modifie sa propriété `dur`. On peut aussi la passer en argument au constructeur de la classe `Seq`.
-
-```python
-s = Seq(dur=4)
-# ou bien
-s = Seq()
-s.dur = 4
-```
-
-L'unité temporelle est égale à une seconde.
-
 ### Notes, Silences and Sequences
 
-Here's a note :
+Here's how you create a note :
 
-    Note("c")
+```python
+Note("c")
+```
 
 You can sets its length with the `dur` parameter and add a silence/rest after it :
 
-    Note("c", dur=2) + Sil(1.5)
+```python
+Note("c", dur=2) + Sil(1.5)
+```
 
 Now, the duration of a note is not an absolute value. It's a relative value by which the default length is multiplied to give the note's true length (same for the silence).\
 If the default length was set with `setNoteDur(1/4)` (default value), the previous sequence would play as a 'c' half note, followed by a dotted quarter rest.
 
+Sequences are automatically created when you add Notes, Silences or Chords together.
+
+```python
+s = Note("c") + Note("e") + Note("g")
+s = 2*s + Sil() + 2*s
+```
 
 ### Chords
 
-Chords can be created like so, using a capital letter. :
+Chords can be created like so, using a capital letter.
 
-    Chord("Cmaj")
+```python
+Chord("C")
+```
 
-Same as `Chord([48, 52, 56])` or `Chord("do mi sol")`
+Same as `Chord([48, 52, 55])` or `Chord("do mi sol")`
 
 Possible type of chords:
+
 * Triads: "C" or "CM" (major), "Cm" (minor), "C+" (augmented), "C°" (diminished)
 * Seventh: "C7" (dominant seventh), "CM7" (major seventh), "Cm7" (minor seventh), "C+7" (augmented seventh)
 * Ninth: "C9" (dominant ninth), "CM9" (major ninth)
@@ -77,7 +75,7 @@ Possible type of chords:
 English notation (c d e f g a b) as well as solfège notation (do re mi fa sol la si) can be used to compose a sequence in a string.
 
 ```python
-Seq("e b f# eb")
+Seq("e b f# e b")
 ```
 
 Sharp and flats are noted with the symbols `#` and `b` after the note name. Octave transposition is done by prepending the note name by a single number (absolute octave transposition) and with a +/- sign for relative transposition. The number can be omitted for a transposition of just 1 octave up or down.
@@ -94,13 +92,15 @@ A note's duration can be subdivided by suffixing it with the `%`, symbol followe
 	"c#%.5" divides the note's duration by two
 	"d%1/3" divides the note's duration by three
 
-Tuplets
+#### Tuplets
 
 ### Scales
 
 You can constrain all generated notes in newly created sequences to a scale with the `setScale` function.
 
-  setScale("minor", "c")
+```python
+setScl("minor", "c")
+```
 
 This won't affect previously created sequences.
 
@@ -111,21 +111,21 @@ Many built-in functions can be use to generate sequences.
 #### Random generators
 
 ```python
-rand(n)
+rnd(n)
 ```
 
 ```python
-randWalk(n)
+rndWalk(n)
 ```
 
 ```python
-randGauss(n)
+rndGauss(n)
 ```
 
 #### Deterministic generators
 
 ```python
-euclid(n)
+euclid(note, n, grid, offset)
 ```
 
 The `lcm` function will build a sequence combining all given sequences with the "least common multiple" of their lengths.
@@ -158,13 +158,20 @@ t1.channel = 1
 t1.instrument = 59 # tuba
 ```
 
+Use the `add` method to add sequences to tracks.
+
+```python
+t1.add(rnd(8))
+```
+
 ### Whistle and Tap
 
-## IDE
+## Recommended IDEs
+
+For a better experience, a full featured interactive shell is recommended.
 
 * [iPython](https://ipython.org/)
 * jupyter-qtconsole
-* [ptpython](https://github.com/prompt-toolkit/ptpython/)
 
 ## Alsa connect
 
@@ -211,32 +218,3 @@ https://projects.om-office.de/frans/pocketrockit
 
 Monome - Teletype (Eurorack module)
 https://monome.org/docs/teletype/
-
-## Développement futur / idées à explorer
-
-* Micro-tonalité avec le pitch bend
-* Pouvoir associer une fonction de callback à la réception d'un contrôle midi
-* Listen() devrait n'avoir à s'appeler qu'une seule fois. Créer une fonction stop_listen().
-* Possibilité de jouer des notes d'une séquence se trouvent au delà de la taille (param length) de la séquence.
-
-### Méthodes de la classe Seq
-
-* opérateur XOR (^) -> transpose la séquence de n demi-tons
-* Autoriser les pitch négatifs (utile lorsqu'on utilise la transposition)
-* map(other:Seq) # Nom à revoir, pas assez explicite
-  Calque une mélodie sur un rythme
-* monophy()
-  supprime la polyphonie
-* flatten() # Nom à revoir
-  Supprime tous les silences et mets toutes les notes à la suite, sans chevauchement
-* joinNotes()
-    Inverse de splitNotes
-    Combine les séries de mêmes notes consécutives sans silences
-    Ralonge les notes suivies de silences pour recouvrir la totalité des silences de la séquence
-* sort
-  organise les notes temporelement par ordre de hauteur (sans cheuvauchement)
-  Paramètre 'reverse'.
-* spread
-  Étale les notes qui se chevauchent, de façon à ce qu'il n'y ai pas 2 notes qui se jouent au même moment. Proposer un paramètre de façon à décider si les notes démarrant au même instant s'étalent en montant (de grave à aigüe) ou en descendant (aigüe à grave).
-* générateur de la suite de Recaman
-* Fonction de selection des notes d'après critères. Possibilité d'appliquer une transfo quelconque sur la séléction de notes (transpose, vel, dur)
