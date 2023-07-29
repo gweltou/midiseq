@@ -30,7 +30,16 @@ def _get_octave(s: Optional[str]) -> int:
 
 
 def str2pitch(tone: str) -> int:
-    """ Returns the midi pitch number given a spelled note """
+    """ Returns the midi pitch number given a spelled note
+        
+        String pitches
+            a b c d e f g
+            do re mi fa sol la si
+            a# la# cb dob
+        
+        Octave changes
+            +a +la -c -do# -2fa +8sib
+    """
     
     if not isinstance(tone, str):
         raise TypeError("Argument must be a string. Ex: 'do', '4c#', '60',...")
@@ -516,6 +525,9 @@ class Chord():
 
     def __len__(self):
         return len(self.notes)
+
+    def __iter__(self):
+        yield from self.notes
 
     def __repr__(self):
         if self.dur != env.note_dur:
@@ -1239,7 +1251,7 @@ class Track():
     def addGen(self, func: Union[Generator, callable], *args, **kwargs):
         """
             Add a sequence generator to this track.
-            A callable must be provided, not the generator directly
+            A callable must be provided, not the generator itself
         """
 
         if isinstance(func, Generator):
@@ -1256,11 +1268,22 @@ class Track():
         return self
 
 
+    def clearAdd(self, sequence: Union[str, Seq, callable, Generator]) -> Track:
+        self.clear()
+        self.add(sequence)
+    
+
     def clear(self):
         self.seqs.clear()
         self.generators.clear()
         self.seq_i = 0
         self.ended = True
+    
+
+    def getParam(self, other: Track):
+        self.port = other.port
+        self.channel = other.channel
+        self.instrument = other.instrument
     
 
     def reset(self):

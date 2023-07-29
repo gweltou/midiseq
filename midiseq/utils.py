@@ -204,6 +204,16 @@ def rndPick(sequence: Seq, n=4, sil=True) -> Seq:
 
 
 
+def rndGrid(note=36, n=4, grid=16) -> Seq:
+    elts = [Note(note)] * n + [Sil() * (grid-n)]
+    random.shuffle(elts)
+    s = Seq()
+    for e in elts:
+        s.add(e)
+    return s
+
+
+
 def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
     """ Generate a Euclidian rythm sequence
 
