@@ -7,7 +7,6 @@ import threading
 import rtmidi
 from rtmidi.midiconstants import (
     NOTE_ON, NOTE_OFF,
-    CONTROL_CHANGE,
     ALL_SOUND_OFF, RESET_ALL_CONTROLLERS,
 )
 import mido
@@ -19,7 +18,8 @@ from .elements import Seq, Note, Chord, Track, Song, str2seq
 
 # DEBUG = True
 
-_playing_thread = None
+_playing_threads = set()
+
 _listening_thread = None
 _timeres = 0.01
 _must_stop = False
@@ -125,11 +125,8 @@ def play(
                 Loop playback
     """   
     # Wait for other playing thread to stop
-    global _playing_thread
+    global _playing_threads
     global _must_stop
-    if _playing_thread != None:
-        _must_stop = True
-        _playing_thread.join()
     _must_stop = False
     
 
@@ -150,14 +147,16 @@ def play(
         
         if blocking:
             return _play(track_group, loop)
-        _playing_thread = threading.Thread(target=_play, args=(track_group, loop), daemon=True)
+        thread = threading.Thread(target=_play, args=(track_group, loop), daemon=True)
     else:
         # Play all tracks
         if blocking:
             return _play(env.tracks, loop)
-        _playing_thread = threading.Thread(target=_play, args=(env.tracks, loop), daemon=True)
+        thread = threading.Thread(target=_play, args=(env.tracks, loop), daemon=True)
     
-    _playing_thread.start()
+    _playing_threads.add(thread)
+    thread.start()
+
 
 
 def _play(track_group: TrackGroup, loop=False):
@@ -278,9 +277,7 @@ def _play(track_group: TrackGroup, loop=False):
         time.sleep(min(max(_timeres, 0), 0.2))
 
     if env.verbose:
-        print("++++ PLAYBACK Stopped")
-    global _playing_thread
-    _playing_thread = None
+        print("++++ Playing thread ended")
 
 
 
@@ -296,6 +293,7 @@ def listen(forward=True, forward_channel=1):
     
     _must_stop = False
     _listening_thread.start()
+
 
 
 def _listen(forward=True, forward_channel=1):
@@ -370,8 +368,8 @@ def rec():
     if not _listening_thread:
         print("Listening thread is not started")
         return
-    if not _playing_thread:
-        print("Call 'play()' to launch a metronome and start recording")
+    # if not _playing_thread:
+    #     print("Call 'play()' to launch a metronome and start recording")
 
     global _armed
     _armed = True
@@ -383,11 +381,32 @@ def stop():
     global _must_stop
     global _recording
     global _armed
+
     _must_stop = True
+    for th in _playing_threads:
+        th.join()
+    _playing_threads.clear()
+    
+    if env.verbose:
+        print("++++ PLAYBACK Stopped")
+
     _recording = False
     _armed = False
     #panic()
 
+
+def wait():
+    print("Waiting...")
+    while True:
+        all_ended = True
+        for th in _playing_threads:
+            all_ended &= not th.is_alive()
+        
+        if all_ended:
+            print("Stopped")
+            break
+        
+        time.sleep(0.2)
 
 
 def listInputs():

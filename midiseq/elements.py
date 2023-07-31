@@ -292,6 +292,9 @@ class Scl():
 
 
 
+
+
+
 class Note():
 
     def __init__(self, pitch, dur=1, vel=100, prob=1):
@@ -366,6 +369,9 @@ class Note():
 
 
 
+
+
+
 class Sil():
     """ Silence (non-mutable) """
     
@@ -391,6 +397,9 @@ class Sil():
 
     def __repr__(self):
         return "Sil({})".format(self.dur/env.note_dur)
+
+
+
 
 
 
@@ -650,6 +659,9 @@ class Chord():
 
 #     def __len__(self):
 #         return len(self.grid)
+
+
+
 
 
 
@@ -991,7 +1003,7 @@ class Seq():
                 channel : int
                     Midi channel [0-15]
         """
-        midi_seq = []
+        messages = []
         for pos, note in self.notes:
             # End of sequence
             if pos >= self.dur:
@@ -1008,11 +1020,11 @@ class Seq():
             pitch = min(max(note.pitch + transpose, 0), 127)
             note_on = [0x90+channel, pitch, note.vel]
             note_off = [0x80+channel, pitch, 0]
-            midi_seq.append( (pos, note_on) )
-            midi_seq.append( (pos + note.dur, note_off) )
+            messages.append( (pos, note_on) )
+            messages.append( (pos + note.dur, note_off) )
 
-        midi_seq.sort(key=lambda n: (n[0],n[1][0]))
-        return midi_seq
+        messages.sort(key=lambda n: (n[0],n[1][0]))
+        return messages
     
 
     def replacePitch(self, old, new) -> Seq:
@@ -1201,6 +1213,9 @@ class Seq():
 
 
 
+
+
+
 class Track():
     """ Track where you can add Sequence.
         You can had a silence by adding an empty Sequence with a non-zero duration.
@@ -1240,6 +1255,10 @@ class Track():
 
 
     def add(self, sequence: Union[str, Seq, callable, Generator]) -> Track:
+        """
+            Add a sequence or a generator to this track.
+        """
+
         if isinstance(sequence, str):
             sequence = str2elt(sequence)
         elif callable(sequence) or isinstance(sequence, Generator):
@@ -1320,6 +1339,7 @@ class Track():
 
     def update(self, timedelta):
         """ Returns MidiMessages when a new sequence just started """
+        
         # TODO: allow looping for finished generators
 
         if self.ended or not self.seqs:

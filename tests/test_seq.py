@@ -101,3 +101,49 @@ def test_seq_expandpitch():
     s.expandPitch(2.0)
     for n in s:
         assert n.pitch in scl.notes
+
+
+def test_merge():
+    s = Seq("50 50 . 50")
+    s.merge(Seq(". 60 60 ."))
+    assert len(s) == 5
+    s = Seq("1 2 3 4")
+    s &= Seq("5 6 7 8")
+    assert len(s) == 8
+
+
+def test_crop():
+    s = rnd(6)
+    s.head = -0.35
+    s.add(Note(66))
+    s.length = 1
+    assert len(s) == 7
+    assert s.notes[0][0] == -0.35
+    s.crop()
+    assert len(s) == 5
+
+
+def test_select():
+    s = Seq("8 9 10 11 12 13")
+    selection = s.selectNotes(lambda x: x.pitch <= 10)
+    assert len(selection) == 3
+
+
+def test_index_slice():
+    s = Seq("60 61 62 63 64 65")
+    assert s[0] == Note(60)
+    assert len(s[0:3]) == 3
+    assert len(s[:3]) == 3
+    s = s[0.0:1.0]
+    assert len(s) == 4
+    assert s.length == 1.0
+
+
+def test_filter():
+    s = Seq("60 61 62 63 64 65")
+    assert(len(s.filter(lambda n: n.pitch<=62)) == 3)
+
+
+def test_selectnotes():
+    s = Seq("60 61 62 63 64 65")
+    assert(len(s.selectNotes(lambda n: n.pitch<=62)) == 3)

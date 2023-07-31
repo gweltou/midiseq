@@ -25,6 +25,11 @@ def test_scale_getclosest():
     sc = Scl("minor", "b")
     assert sc.getClosest("do") == Note("-1b").pitch
 
+    sc = Scl("major", "c")
+    assert sc.getClosest(60) == 60
+    assert sc.getClosest(61) == 60
+    assert sc.getClosest(62) == 62
+
 
 def test_scale_getdegreefrom():
     sc = Scl("minor", "b")

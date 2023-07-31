@@ -1,14 +1,10 @@
-import time
-import threading
-### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
-
 #from mido import MidiFile
 # import mido
 # import rtmidi
 
 from .engine import (
     listOutputs, openOutput, _getOutputs,
-    play, stop, panic, playMetro,
+    play, stop, panic, playMetro, wait,
     TrackGroup, getPastOpened
 )
 from .elements import Seq, Chord, Note, Sil, Track
@@ -102,7 +98,7 @@ env.tracks.addTrack(t1)
 
 
 
-# # FFIX - Freya's Theme
+# FFIX - Freya's Theme
 # setBpm(110)
 # play((
 #     lcm("d%3 a%2 .", "+a%2 +f%2")*4 +
