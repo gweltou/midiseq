@@ -2,12 +2,20 @@
 # import mido
 # import rtmidi
 
+from rtmidi.midiconstants import (
+    PITCH_BEND, MODULATION_WHEEL,
+    POLY_AFTERTOUCH, CHANNEL_AFTERTOUCH,
+    VOLUME, PORTAMENTO,
+)
+
 from .engine import (
     listOutputs, openOutput, _getOutputs,
+    listInputs, openInput, listen, rec,
     play, stop, panic, playMetro, wait,
     TrackGroup, getPastOpened
 )
 from .elements import Seq, Chord, Note, Sil, Track
+from .modulation import Mod, ModSeq
 from .utils import (
     pattern, noob2seq,
     rnd, rndWalk, rndGauss, rndPick, rndDur,

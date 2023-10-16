@@ -1,11 +1,11 @@
 # MidiSeq
 
-Project aim :
-
 Polyphonic real-time midi sequencer with Python.
 With a strong emphasis on generative composition and live performances.
 Clear and short syntax while trying to remain as little esoteric as possible.
 Explicit docstrings and error messages.
+
+**Work in progress**
 
 ## Setup
 
@@ -103,6 +103,30 @@ setScl("minor", "c")
 ```
 
 This won't affect previously created sequences.
+
+### Sequence modifiers
+
+Method  | Parameters | Description
+------- | ---------- | -----------
+clear   |            | Clears the sequence
+add     | Note, Chord, Sil, other Seq... | Add an element to the sequence
+merge   | Other Seq  | Mix the two sequences together
+stretch | float     | Stretch or compress the duration of the sequence
+reverse |           | Reverse the order of the notes
+transpose | int     | Transose the whole sequence by semitones
+expandPitch | float | Raise or lower pitches around a mean value
+splitNotes | int    | Split all notes (or a single note)
+decimate | float    | Remove notes randomly with a given probability
+attenuate |         |
+humanize |          | Randomize sligthly notes time, duration and velocity
+crop    |           | Crop notes (or parts of notes) before and after the sequence duration
+strip   |           | Remove silences from both ends of the sequence. Change the sequence duration accordingly
+stripHead |         | Remove silences in front of the sequence
+stripTail |         | Remove silences at the end of the sequence
+shift   | float     | Shift onset of all notes in sequence
+mapRhythm | other Seq | Map the rhythm of another sequence to this sequence
+mask |  | Keep notes from this sequences only when given sequence has active notes
+maskNot | | Keep notes from this sequences only when given sequence is silent
 
 ### Generating sequences
 

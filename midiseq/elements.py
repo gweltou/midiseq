@@ -3,8 +3,15 @@ from typing import Optional, Union, List, Tuple, Generator
 import random
 import re
 
+from rtmidi.midiconstants import (
+    NOTE_ON, NOTE_OFF,
+    POLY_AFTERTOUCH,
+    PROGRAM_CHANGE,
+)
+
 import midiseq.env as env
 from .definitions import scales, modes
+from .modulation import Mod, ModSeq
 
 
 
@@ -308,12 +315,32 @@ class Note():
         self.dur = dur * env.note_dur
         self.vel = vel
         self.prob = prob
+
+        # Poly-Aftertouch
+        self.pat = None
+        self.patval = None
     
 
     def copy(self) -> Note:
         n = Note(self.pitch, self.dur, self.vel, self.prob)
         n.dur = self.dur # Overrides the env note_dur multiplier
+        n.pat = self.pat
+        n.patval = self.patval
         return n
+
+
+    def aftertouch(self, mod:Mod):
+        """ Add a poly-aftertouch modulation to this note """
+        self.pat = mod
+        self.patval = mod.getValues(0.0, 1.0, stretch=self.dur)
+        return self
+
+
+    def stretch(self, factor):
+        self.dur *= factor
+        if self.pat != None:
+            self.patval = self.pat.getValues(0.0, 1.0, stretch=self.dur)
+        return self
 
 
     def __add__(self, other) -> Seq:
@@ -329,7 +356,7 @@ class Note():
         elif isinstance(factor, float):
             # New note with dur multiplied
             n = self.copy()
-            n.dur = self.dur * factor
+            n.stretch(factor)
             return n
         else:
             raise TypeError("Can only multiply Note by an int or a float")
@@ -340,6 +367,8 @@ class Note():
     def __truediv__(self, factor: Union[int, float]):
         n = self.copy()
         n.dur = self.dur / factor
+        if n.pat != None:
+            n.patval = n.pat.getValues(0.0, 1.0, stretch=n.dur)
         return n
     
     def __xor__(self, semitones):
@@ -369,6 +398,27 @@ class Note():
 
 
 
+
+class PNote(Note):
+    def __init__(self, pdict, dur=1, vel=100, prob=1):
+        """
+            Parameters
+            ----------
+                pdict: dict
+                    '{"do": 1, "mi": 2, "sol": 1}'
+        """
+        self.pdict = pdict
+        super().__init__(pitch, dur, vel, prob)
+        self._pitch = pitch
+
+
+    @property
+    def pitch(self) -> int:
+        return self._pitch + 1
+    
+    @pitch.setter
+    def pitch(self, i: int) -> None:
+        print("You shouldn't assign a pitch to a PNote")
 
 
 
@@ -441,6 +491,7 @@ class Chord():
 
     def arp(self, mode="up", oct=1) -> Seq:
         """ Arpeggiate a Chord
+            Return a Sequence
 
             Parameters
             ----------
@@ -518,6 +569,7 @@ class Chord():
         for note in other.notes:
             self._insert_note(note)
 
+
     def __xor__(self, semitones):
         """ Transpose chord in semitones """
         return Chord(*[ n^semitones for n in self.notes ])
@@ -548,120 +600,6 @@ class Chord():
 
 
 
-# class Grid():
-#     """
-#         General Midi drums note mapping :
-#         35 Bass Drum 2
-#         36 Bass Drum 1
-#         37 Side Stick
-#         38 Snare Drum 1 *
-#         39 Hand Clap    *
-#         40 Snare Drum 2 *
-#         41 Low Tom 2
-#         42 Closed Hi-hat *
-#         43 Low Tom 1
-#         44 Pedal Hi-hat
-#         45 Mid Tom 2
-#         46 Open Hi-hat
-#         47 Mid Tom 1
-#         48 High Tom 2
-#         49 Crash Cymbal 1
-#         50 High Tom 1
-#         51 Ride Cymbal 1
-#     """
-    
-#     def __init__(self, nsub=16, length=1):
-#         self.grid = [ set() for _ in range(nsub) ]
-#         self.length = length
-
-
-#     #def gridRepeat(self, pattern, )
-
-#     def repeat(self, note, div, offset=0, preserve=False):
-#         """
-#             Repeats a note at regular intervals
-
-#             Parameters
-#             ----------
-#                 note (int/Note)
-#                     midi note [0-127] or Note instance
-#                 division (int)
-#                     the note will be repeated every division of the grid
-#                 offset (int)
-#                     offset beats in grid
-#                 preserve (bool)
-#                     if True, will not overwrite if there's already a note registered for this beat
-#         """
-#         assert div > 0
-#         assert offset < len(self.grid)
-#         if type(note) != Note:
-#             note = Note(note, 0.1)
-
-#         i = offset
-#         while i < len(self.grid):
-#             if not preserve:
-#                 self.grid[i].add(note.copy())
-#             i += div
-    
-
-#     def clear(self):
-#         self.grid = [ set() for _ in range(len(self.grid)) ]
-
-
-#     def resize(self, new_size):
-#         new_grid = [ set() for _ in range(new_size) ]
-
-#         for i, col in enumerate(self.grid):
-#             new_i = round(new_size * i/len(self.grid))
-#             for note in col:
-#                 new_grid[new_i].add(note)
-        
-#         self.grid = new_grid
-
-
-#     def euclid(self, note, k, offset=0):
-#         """ Euclidian rythm """
-#         if type(note) != Note:
-#             note = Note(note, dur=0.1)
-#         n = len(self.grid)
-#         offset = offset % n
-#         onsets = [(offset+round(n*i/k))%n for i in range(k)]
-#         # print(onsets)
-#         for i in onsets:
-#             self.grid[i].add(note.copy())
-
-#         # grid = [ 'x' if i in onsets else '.' for i in range(n) ]
-#         # print(grid)
-
-
-#     def toSeq(self):
-#         s = Seq()
-#         s.length = self.length
-#         step = self.length / len(self.grid)
-#         head = 0.0
-#         for col in self.grid:
-#             for note in col:
-#                 s.add(note, head)
-#             head += step
-#         return s
-
-
-#     def getMidiMessages(self, channel=1):
-#         return self.toSeq().getMidiMessages(channel)
-
-
-#     def __str__(self):
-#         s = '[ '
-#         for b in [str(len(c)) if c else '.' for c in self.grid]:
-#             s += b + ' '
-#         s += ']'
-#         return s
-
-#     def __len__(self):
-#         return len(self.grid)
-
-
-
 
 
 
@@ -674,6 +612,8 @@ class Seq():
         self.notes: List[Tuple[float, Note]] = []
         self.silences = []  # Keep a record of silence, used for random picking
                             # so no need to sort it
+        self.modseq = None
+
         for elt in notes:
             if isinstance(elt, int):
                 self.add(Note(elt))
@@ -765,6 +705,10 @@ class Seq():
         return self
 
 
+    def setMod(self, modseq: ModSeq):
+        self.modseq = modseq
+
+
     def merge(self, other) -> Seq:
         """ Merge sequences, preserving every note's time position
             Modify this sequence in place
@@ -781,13 +725,13 @@ class Seq():
 
 
     def stretch(self, factor, stretch_notes=True) -> Seq:
-        """ Stretch sequence in time (modify sequence in place)
+        """ Stretch sequence in time
             Modifies sequence in-place
         """
         for i in range(len(self.notes)):
             t, note = self.notes[i]
             if stretch_notes:
-                note.dur *= factor
+                note.stretch(factor)
             self.notes[i] = t * factor, note
         self.dur *= factor
         return self
@@ -911,7 +855,7 @@ class Seq():
         new_notes = []
         for t, note in self.notes:
             t = t + 2 * (random.random()-0.5) * tfactor
-            note.dur = note.dur + random.random() * tfactor
+            note.stretch(1 + random.random() * tfactor)
             note.vel = int(note.vel + random.gauss(0, veldev))
             note.vel = min(max(note.vel, 0), 127)
             new_notes.append( (t, note) )
@@ -969,22 +913,33 @@ class Seq():
         return self
 
 
-    def shift(self, dt, wrap=False) -> Seq:
+    def shift(self, offset, wrap=False) -> Seq:
         """ Shift note onset times by a given *absolute* delta time
             Modifies sequence in-place.
 
             Parameters
             ----------
+                offset : [int, float]
+                    If `offset` is a `float`, will shift sequence by an absolute duration
+                    If `offset` is a `int`, will shift sequence by the default duration of notes
+                    A positive `offset` will shift to the right, while negative will shift to the left
                 wrap : bool
-                    if True, notes that were pushed out of the sequence get appendend to the other side
+                    If True, notes that were pushed out of the sequence get appendend to the other side
         """
+
+        if not(offset):
+            return self
+            
+        if isinstance(offset, int):
+            offset *= env.note_dur
+
         new_notes = []
         for t, n in self.notes:
-            new_time = t+dt
+            new_time = t+offset
             if wrap:
-                if t+dt >= self.dur:
+                if t+offset >= self.dur:
                     new_time -= self.dur
-                elif t+dt < 0:
+                elif t+offset < 0:
                     new_time += self.dur
             new_notes.append( (new_time, n) )
         self.notes = sorted(new_notes)
@@ -996,7 +951,7 @@ class Seq():
         raise NotImplementedError
 
 
-    def getMidiMessages(self, channel=0, transpose=0) -> List[tuple]:
+    def getMidiMessages(self, channel=0) -> List[tuple]:
         """
             Parameters
             ----------
@@ -1009,6 +964,7 @@ class Seq():
             if pos >= self.dur:
                 break
             # Truncate last note if necesary
+            # TODO: disable this behaviour
             if pos + note.dur > self.dur:
                 note = note.copy()
                 note.dur = self.dur - pos
@@ -1017,13 +973,21 @@ class Seq():
             if note.prob < 1 and random.random() > note.prob:
                 continue
             
-            pitch = min(max(note.pitch + transpose, 0), 127)
-            note_on = [0x90+channel, pitch, note.vel]
-            note_off = [0x80+channel, pitch, 0]
+            pitch = min(max(note.pitch, 0), 127)
+            note_on = [NOTE_ON|channel, pitch, note.vel]
             messages.append( (pos, note_on) )
+            if note.pat != None:
+                messages.extend( [ (pos+p,
+                                    [POLY_AFTERTOUCH|channel,
+                                    note.pitch,
+                                    min(max(int(val * 128), 0), 127)]
+                                )
+                                for p, val in note.patval ] )
+
+            note_off = [NOTE_OFF|channel, pitch, 0]
             messages.append( (pos + note.dur, note_off) )
 
-        messages.sort(key=lambda n: (n[0],n[1][0]))
+        # messages.sort(key=lambda n: (n[0],n[1][0]))
         return messages
     
 
@@ -1058,6 +1022,85 @@ class Seq():
         return selection
 
 
+
+    Interval = List[float]
+
+    def _getActiveMask(self) -> List[Interval]:
+        """ Return a list of intervals where there is active notes """
+
+        active_intervals = []
+        for t, note in self.notes:
+            if not active_intervals:
+                active_intervals.append([t, t+note.dur])
+                continue
+            last = active_intervals[-1]
+            if t <= last[1]:
+                if t+note.dur > last[1]:
+                    # Extend last active interval
+                    last[1] = t+note.dur
+            else:
+                # New interval
+                active_intervals.append([t, t+note.dur])
+        return active_intervals
+
+
+    def _getNotActiveMask(self) -> List[Interval]:
+        """ Return a list of intervals where there is silence """
+
+        active_intervals = self._getActiveMask()
+        if not active_intervals:
+            return [[0.0, self.dur]]
+        
+        notactive_intervals = []
+        if active_intervals[0][0] > 0.0:
+            notactive_intervals.append([0.0, active_intervals[0][0]])
+        
+        last = active_intervals[0][1]
+        for interval in active_intervals[1:]:
+            notactive_intervals.append([last, interval[0]])
+            last = interval[1]
+        
+        last = active_intervals[-1][1]
+        if last < self.dur:
+            notactive_intervals.append([last, self.dur])
+        return notactive_intervals
+
+
+    def _mask(self, mask: List[Interval]):
+        new_notes = []
+        start_i = 0
+        s = self.copy()
+        for interval in mask:
+            for i, (t, note) in enumerate(s.notes[start_i:]):
+                if t + note.dur <= interval[0]:
+                    # Note is before interval
+                    continue
+                if t >= interval[1]:
+                    # Note is after interval
+                    start_i = i
+                    break
+                start = max(t, interval[0])
+                end = min(t + note.dur, interval[1])
+                new_note = note.copy()
+                new_note.dur = end - start
+                new_notes.append((start, new_note))
+        s.notes = new_notes
+        return s
+
+
+    def mask(self, other: Seq):
+        """ Keep notes from this sequences only when sequence `other` has active notes
+        """
+        return self._mask(other._getActiveMask())
+
+
+    def maskNot(self, other: Seq):
+        """ Keep notes from this sequences only when sequence `other` is silent
+        """
+        return self._mask(other._getNotActiveMask())
+    
+
+
     def filter(self, key_fn) -> Seq:
         """ Return copy of the sequence with notes filtered by key_fn
             Notes will be kept if key_fn returns True on them
@@ -1073,6 +1116,7 @@ class Seq():
         new_seq = self.copy()
         new_seq.notes = [(t, n) for t, n in self.notes if key_fn(n)]
         return new_seq
+
 
 
     def mapRhythm(self, other: Seq) -> Seq:
@@ -1145,7 +1189,7 @@ class Seq():
     
     def __xor__(self, semitones):
         """ Transpose sequence in semitones """
-        return self.copy().transpose(semitones)
+        return self.copy().transpose(semitones) if semitones else self
 
     def __setitem__(self, index, newvalue):
         if type(newvalue) is Note:
@@ -1337,9 +1381,12 @@ class Track():
         return pl
 
 
+    
+
+
     def update(self, timedelta):
         """ Returns MidiMessages when a new sequence just started """
-        
+
         # TODO: allow looping for finished generators
 
         if self.ended or not self.seqs:
@@ -1380,13 +1427,17 @@ class Track():
             
             self.seq_i += 1
 
-            messages = sequence.getMidiMessages(self.channel, self.transpose)
+            messages = (sequence^self.transpose).getMidiMessages(self.channel)
+            if sequence.modseq != None:
+                messages.extend(sequence.modseq.getMidiMessages(self.channel))
+
+            # MIDI messages don't need to be sorted at this point
             messages = [ (t+self._next_timer, mess) for t, mess in messages ]
             self._next_timer += sequence.dur
             self._nmess_this_cycle += len(messages)
 
             if self.instrument and self.send_program_change:
-                program_change = [0xC0 | self.channel, self.instrument]
+                program_change = [PROGRAM_CHANGE | self.channel, self.instrument]
                 # Make sure the instrument change precedes the notes
                 return [ (-0.0001, program_change) ] + messages
             return messages if not self.muted else None
@@ -1415,6 +1466,8 @@ class Track():
         if self._sync_from != None:
             return f"Track({self.channel=},{self.loop=}, {self.name=}, {self._sync_from.name=})"
         return f"Track({self.channel=},{self.loop=}, {self.name=})"
+
+
 
 
 

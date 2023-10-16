@@ -83,6 +83,8 @@ def rndDur(
         silprob=0.0,
         scl:Scl=None
     ) -> Seq:
+    """
+    """
     assert dur > max(durs) * env.note_dur
     if not scl:
         scl = env.scale if env.scale else Scl("chromatic", 'c')
@@ -233,15 +235,16 @@ def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
     
     offset = offset % grid
     onsets = [ (offset+round(grid*i/n)) % grid for i in range(n) ]
-    s = Seq()
+    s = Seq(dur=grid*env.note_dur)
     for i in onsets:
         t = i * env.note_dur
         s.add(note.copy(), head=t)
+    s.head = s.dur
     return s
 
 
 
-def lcm(*seqs):
+def lcm(*seqs, tolerance=0.0001):
     """ Combine two or more sequence to build
         the least common multiplier of them all.
         You better use quantized sequences !
@@ -249,7 +252,7 @@ def lcm(*seqs):
     def samelen(seqs):
         first = seqs[0]
         for s in seqs[1:]:
-            if s.dur != first.dur:
+            if abs(s.dur - first.dur) > tolerance:
                 return False
         return True
 

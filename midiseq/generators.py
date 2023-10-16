@@ -35,10 +35,10 @@ seq_sunburn1 = Seq("""
     -a b e c b e c e
     """)^12
 seq_sunburn2 = Seq("""
-    e +e b g +e b g b  
-    -a +e +c a +f# +e +c +e 
-    c +f# +e +c +a +g +f# +e 
-    -a +e +c a +f# +e +c +e 
+    e +e b g +e b g b
+    -a +e +c a +f# +e +c +e
+    c +f# +e +c +a +g +f# +e
+    -a +e +c a +f# +e +c +e
     """)^12
 
 # https://www.youtube.com/watch?v=2aA72rBmWFQ
@@ -60,8 +60,8 @@ def genFunc(func: callable, *args, **kwargs):
         yield func(*args, **kwargs)
 
 
-def genPattern(func: callable, pattern="ABAB", repeat=1, *args, **kwargs):
-    """ Yield sequences from a function, following a pattern
+def genPattern(func: callable, pattern="ABAB", repeat: int=1, *args, **kwargs):
+    """ Yield sequences from a function, following a given pattern
 
         Parameters
         ----------
@@ -99,6 +99,17 @@ def genMapRhythm(mel: Seq, rhy: Seq):
         yield s
         if mel_idx == 0:
             break
+
+
+def genRotate(seq: Seq, dir=-1, repeat: int=1):
+    """ Yield the given sequence, rotating it by `dir` steps every `repeat` time
+    """
+    s = seq.copy()
+    while True:
+        for _ in range(repeat):
+            yield s
+        s.shift(dir, wrap=True)
+
 
 
 def gen_chords1():

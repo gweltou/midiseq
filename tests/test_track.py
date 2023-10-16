@@ -1,10 +1,15 @@
 
 from midiseq.elements import Track, Seq
 from midiseq.engine import TrackGroup
+from midiseq import env as env
+
 
 
 def test_track():
     t = Track(name="my_track")
+    print(env.note_dur)
+    env.note_dur = 1/8
+    print(env.note_dur)
     t.add(Seq("do re mi fa"))
     assert t.name == "my_track"
     assert len(t.seqs) == 1

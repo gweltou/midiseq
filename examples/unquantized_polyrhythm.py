@@ -3,12 +3,14 @@
 
 from midiseq import *
 
+openOutput("irig")
+
 s = Chord("Dm").arp(oct=3)
 play((s + Sil(8)) * 2.0, blocking=True)
 
 offset = 0
 for n in s:
-    offset += 0.02
-    play(Seq(dur=2+i*offset).add(n) * 2.0, loop=True)
+    offset += 1/2**5
+    play(Seq(dur=2+offset).add(n).attenuate(0.6) * 2.0, loop=True)
 
 wait()
