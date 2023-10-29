@@ -342,6 +342,8 @@ class Note():
             self.patval = self.pat.getValues(0.0, 1.0, stretch=self.dur)
         return self
 
+    def transpose(self, semitones):
+        self.pitch += semitones
 
     def __add__(self, other) -> Seq:
         return Seq().add(self).add(other)
@@ -407,18 +409,57 @@ class PNote(Note):
                 pdict: dict
                     '{"do": 1, "mi": 2, "sol": 1}'
         """
-        self.pdict = pdict
-        super().__init__(pitch, dur, vel, prob)
-        self._pitch = pitch
+        self.dur = dur * env.note_dur
+        self.vel = vel
+        self.prob = prob
 
+        # Poly-Aftertouch
+        self.pat = None
+        self.patval = None
+
+        self.pdict = {}
+        if isinstance(pdict, dict):
+            # Normalizing probabilites
+            sump = sum(pdict.values())
+            cumul = 0
+            for n, p in pdict.items():
+                if isinstance(n, str):
+                    n = str2pitch(n)
+                cumul += p/sump
+                self.pdict[n] = cumul
+        elif isinstance(pdict, (list, tuple, set)):
+            cumul = 1/len(pdict)
+            for n in pdict:
+                if isinstance(n, str):
+                    n = str2pitch(n)
+                self.pdict[n] = cumul
+                cumul += 1/len(pdict)
+        else:
+            raise TypeError("pdict should be a dictionary (pitch -> prob weight) or an iterable")
 
     @property
     def pitch(self) -> int:
-        return self._pitch + 1
+        r = random.random()
+        for pitch, prob in self.pdict.items():
+            if r < prob:
+                return pitch
     
     @pitch.setter
     def pitch(self, i: int) -> None:
         print("You shouldn't assign a pitch to a PNote")
+
+    def copy(self):
+        n = PNote({})
+        n.pdict = self.pdict
+        n.dur = self.dur # Overrides the env note_dur multiplier
+        n.vel = self.vel
+        n.prob = self.prob
+        n.pat = self.pat
+        n.patval = self.patval
+        return n
+
+    def transpose(self, semitones):
+        self.pdict = {n+semitones: self.pdict[n] for n in self.pdict}
 
 
 
@@ -752,11 +793,11 @@ class Seq():
             Modifies sequence in-place
         """
         for _, note in self.notes:
-            note.pitch += semitones
+            note.transpose(semitones)
         return self
 
 
-    def expandPitch(self, factor: float, in_scale=True) -> Seq:
+    def scalePitch(self, factor: float, in_scale=True) -> Seq:
         """ Expand or compress notes pitches around the mean value of the whole sequence
             Modifies sequence in-place
 
@@ -767,6 +808,7 @@ class Seq():
                 in_scale : boolean
                     If True, expanded/compressed pitches will stay in env scale
         """
+        # XXX: Won't work with PNotes for now
         # Find mean pitch of this sequence
         sum = 0
         for _, note in self.notes:
@@ -816,7 +858,9 @@ class Seq():
         for t, note in orig:
             split_dur = note.dur / n
             for i in range(n):
-                self.notes.append( (t + i * split_dur, Note(note.pitch, split_dur, note.vel, note.prob)) )
+                splitted_note = note.copy()
+                splitted_note.dur = split_dur
+                self.notes.append( (t + i * split_dur, splitted_note) )
         return self
 
 
@@ -996,12 +1040,13 @@ class Seq():
             Modifies sequence in-place
         """
         # TODO: `all_octaves` option
+        # XXX: Won't work with PNotes
         if type(old) == str:
             old = str2pitch(old)
         if type(new) == str:
             new = str2pitch(new)
         for note in self.notes:
-            if note.pitch == old:
+            if type(note) == Note and note.pitch == old:
                 note.pitch == new
         return self
 
@@ -1021,6 +1066,22 @@ class Seq():
         selection = [n for _, n in self.notes if key_fn(n)]
         return selection
 
+
+    def filter(self, key_fn) -> Seq:
+        """ Return copy of the sequence with notes filtered by key_fn
+            Notes will be kept if key_fn returns True on them
+
+            Parameters
+            ----------
+                key_fn : lambda function
+            
+            Returns
+            -------
+                A filtered Sequence
+        """
+        new_seq = self.copy()
+        new_seq.notes = [(t, n) for t, n in self.notes if key_fn(n)]
+        return new_seq
 
 
     Interval = List[float]
@@ -1098,25 +1159,6 @@ class Seq():
         """ Keep notes from this sequences only when sequence `other` is silent
         """
         return self._mask(other._getNotActiveMask())
-    
-
-
-    def filter(self, key_fn) -> Seq:
-        """ Return copy of the sequence with notes filtered by key_fn
-            Notes will be kept if key_fn returns True on them
-
-            Parameters
-            ----------
-                key_fn : lambda function
-            
-            Returns
-            -------
-                A filtered Sequence
-        """
-        new_seq = self.copy()
-        new_seq.notes = [(t, n) for t, n in self.notes if key_fn(n)]
-        return new_seq
-
 
 
     def mapRhythm(self, other: Seq) -> Seq:
@@ -1126,8 +1168,9 @@ class Seq():
         """
         in_rhythm = Seq()
         for i, (t, rhy_note) in enumerate(other.notes):
-            mel_note = self.notes[i%len(self)][1]
-            in_rhythm.add(Note(mel_note.pitch, vel=rhy_note.vel), t)
+            mel_note = self.notes[i%len(self)][1].copy()
+            mel_note.vel = rhy_note.vel
+            in_rhythm.add(mel_note, t)
         in_rhythm.dur = other.dur
         in_rhythm.head = other.head
         
@@ -1192,7 +1235,7 @@ class Seq():
         return self.copy().transpose(semitones) if semitones else self
 
     def __setitem__(self, index, newvalue):
-        if type(newvalue) is Note:
+        if isinstance(newvalue, Note):
             self.notes[index][1] = newvalue
         elif type(newvalue) is int:
             self.notes[index][1].pitch = newvalue
@@ -1288,7 +1331,7 @@ class Track():
         # self.shuffle = False
         self.name = name #or f"Track{len(Track._all_tracks)+1}"
         self.ended = True
-        self.offset = 0.0
+        self.offset = 0.0        
         self.send_program_change = True
         self._nmess_this_cycle = 0 # Number of notes sent during the last cycle
 
@@ -1296,6 +1339,8 @@ class Track():
         self._sync_from: Optional[Track] = sync_from
         if sync_from != None:
             sync_from._sync_children.append(self)
+        
+        self.modifiers = []
 
 
     def add(self, sequence: Union[str, Seq, callable, Generator]) -> Track:
@@ -1381,10 +1426,18 @@ class Track():
         return pl
 
 
+    def pushMod(self, method, *args, **kwargs):
+        """ Add a modifier to the pile
+            Sequences from the Track will go through the pile of modifiers
+        """
+        self.modifiers.append((method, args, kwargs))
     
 
+    def popMod(self):
+        del self.modifiers[-1]
 
-    def update(self, timedelta):
+
+    def update(self, timedelta) -> Optional[list]:
         """ Returns MidiMessages when a new sequence just started """
 
         # TODO: allow looping for finished generators
@@ -1426,6 +1479,12 @@ class Track():
                     self.seq_i -= 1
             
             self.seq_i += 1
+
+            # Modifiers
+            if self.modifiers:
+                sequence = sequence.copy()
+                for mod, args, kwargs in self.modifiers:
+                    sequence = mod(sequence, *args, **kwargs)
 
             messages = (sequence^self.transpose).getMidiMessages(self.channel)
             if sequence.modseq != None:

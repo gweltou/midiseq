@@ -47,7 +47,7 @@ def noob2seq(noob: str):
 ###############################################################################
 
 
-def rnd(n=4, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
+def rnd(n=8, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
     """ Generate a sequence of random notes
 
         Parameters
@@ -114,7 +114,7 @@ def rndDur(
 
 
 def rndWalk(
-        n=4,
+        n=8,
         start: Union[str,int]=None,
         steps=[-3,-2,-1,0,1,2,3],
         silprob=0.0,
@@ -160,7 +160,7 @@ def rndWalk(
 
 
 
-def rndGauss(n=4, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
+def rndGauss(n=8, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
     """ Generate random notes with a normal distribution around a mean value
 
         Parameters
@@ -189,7 +189,7 @@ def rndGauss(n=4, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq
 
 
 
-def rndPick(sequence: Seq, n=4, sil=True) -> Seq:
+def rndPick(sequence: Seq, n=8, sil=True) -> Seq:
         """ Pick randomly among previous notes in sequence """
         num_n = len(sequence.notes)
         num_s = len(sequence.silences) if sil else 0
@@ -207,6 +207,9 @@ def rndPick(sequence: Seq, n=4, sil=True) -> Seq:
 
 
 def rndGrid(note=36, n=4, grid=16) -> Seq:
+    """
+        Fill a sequence randomly with a given number of the same note
+    """
     elts = [Note(note)] * n + [Sil() * (grid-n)]
     random.shuffle(elts)
     s = Seq()

@@ -91,18 +91,18 @@ def test_seq_strip():
     assert len(s2) == 3
 
 
-def test_seq_expandpitch():
+def test_seq_scalepitch():
     scl = Scl("minor", "g")
     env.scale = scl
     s = rnd(16)
     for n in s:
         assert n.pitch in scl.notes
 
-    s.expandPitch(0.5)
+    s.scalePitch(0.5)
     for n in s:
         assert n.pitch in scl.notes
     
-    s.expandPitch(2.0)
+    s.scalePitch(2.0)
     for n in s:
         assert n.pitch in scl.notes
 

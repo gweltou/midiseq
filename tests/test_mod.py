@@ -28,7 +28,7 @@ def test_mod():
     cc = mod.getValues(start=start, dur=dur)
     numval = int( (dur-start) / mod.cycle )
     assert len(cc) == numval
-
+    
     for pos, mess in cc:
         assert 0 <= mess[2] <= 127
         assert isinstance(mess[2], int)

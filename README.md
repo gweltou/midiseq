@@ -54,6 +54,27 @@ s = Note("c") + Note("e") + Note("g")
 s = 2*s + Sil() + 2*s
 ```
 
+#### Notes with probabilites
+
+Notes can have a trigger probability with the optional `prob` parameter. This parameter can be set at initialisation or later, through the Note's `prob` attribute.
+
+```python
+n = Note("c", prob=0.5)
+# Same as
+n = Note("c")
+n.prob = 0.5
+```
+
+#### PNotes, a.k.a. Schrödinger's notes
+
+PNotes are a special kind of notes that can randomly resolve to different pitches. You can create them by providing a dictionary, mapping pitches to probability weights, or by providing a list, tuple or a set (each pitch will have an equal probability in this case).
+
+```python
+n = PNote({"c": 1, "e": 2})
+play(n)
+# When playing 'n', playing  a'E' will be twice more likely than playing a 'C' 
+```
+
 ### Chords
 
 Chords can be created like so, using a capital letter.
