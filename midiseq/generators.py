@@ -42,6 +42,7 @@ seq_sunburn2 = Seq("""
     """)^12
 
 # https://www.youtube.com/watch?v=2aA72rBmWFQ
+# Should be played at 110 bpm
 seq_freya_theme1 = lcm("d%3 a%2 .", "+a%2 +f%2")
 seq_freya_theme2 = lcm("c%3 a%2 .", "+a%2|+2e%2 +e%2")
 seq_freya_theme3 = lcm("-a#%3 a%2 .", "+a%2|+2d%2 +d%2")
@@ -55,9 +56,13 @@ seq_freya_theme4 = lcm("g%3 +d%2 .", "+a#%2|+2d%2 +g%2")
 ###############################################################################
 
 
-def genFunc(func: callable, *args, **kwargs):
-    while True:
-        yield func(*args, **kwargs)
+def genFunc(func: callable, repeat=0, *args, **kwargs):
+    if repeat > 0:
+        for _ in range(repeat):
+            yield func(*args, **kwargs)
+    else:
+        while True:
+            yield func(*args, **kwargs)
 
 
 def genPattern(func: callable, pattern="ABAB", repeat: int=1, *args, **kwargs):
@@ -72,7 +77,6 @@ def genPattern(func: callable, pattern="ABAB", repeat: int=1, *args, **kwargs):
             repeat : int
                 Number of repeats for the whole pattern
     """
-
     pattern = pattern.replace(" ", "")
     seqs = dict()
     for symb in set(pattern):
@@ -110,6 +114,24 @@ def genRotate(seq: Seq, dir=-1, repeat: int=1):
             yield s
         s.shift(dir, wrap=True)
 
+def genSil(durs=[1, 2]):
+    d = random.choice(durs)
+    yield Seq(dur=d)
+
+
+def gen_recaman():
+    i = 0
+    seen = {i}
+    prev = i
+    yield prev
+    while True:
+        i += 1
+        next = prev - i
+        if next <= 0 or next in seen:
+            next = prev + i
+        seen.add(next)
+        prev = next
+        yield next
 
 
 def gen_chords1():

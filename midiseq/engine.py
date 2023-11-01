@@ -140,7 +140,7 @@ def play(
         elif type(what) in (Note, Chord):
             what = Seq().add(what)
         elif isinstance(what, Generator):
-            what = Track(channel=channel, instrument=instrument, loop=loop).addGen(what)
+            what = Track(channel=channel, instrument=instrument, loop=loop)._addGen(what)
 
         track_group = TrackGroup()
         if isinstance(what, Track):

@@ -76,7 +76,17 @@ def str2pitch(tone: str) -> int:
 
 
 def str2elt(string: str) -> Union[Note, Sil, Chord, None]:
-    """ Return an single musical element, given its string representation """
+    """
+        Return an single musical element, given its string representation
+
+        do mi# bsol c e# bg   Notes
+        +do#            C sharp on the fifth octave
+        do re_re mi_mi_mi     tuplets
+        La              Chords
+        VII7            Seventh degree seventh chord
+        {do re mi}      Schrodinger's notes
+
+    """
 
     if '|' in string:
         # Explicit chord
@@ -165,6 +175,7 @@ def str2seq(string: str) -> Seq:
     """ Return a Sequence, given its string representation """
 
     elts = []
+    
     for elt in string.split():
         if '_' in elt:
             # Tuplet
@@ -181,7 +192,7 @@ def str2seq(string: str) -> Seq:
 
 class Scl():
 
-    def __init__(self, scale="major", tonic=60):
+    def __init__(self, scale: Union[str, List]="major", tonic=60):
         if isinstance(tonic, int):
             self.tonic = min(127, max(0, tonic))
         elif isinstance(tonic, str):
@@ -434,6 +445,12 @@ class PNote(Note):
                     n = str2pitch(n)
                 self.pdict[n] = cumul
                 cumul += 1/len(pdict)
+        elif isinstance(pdict, str):
+            notes = [str2pitch(n) for n in pdict.split()]
+            cumul = 1/len(notes)
+            for n in notes:
+                self.pdict[n] = cumul
+                cumul += 1/len(notes)
         else:
             raise TypeError("pdict should be a dictionary (pitch -> prob weight) or an iterable")
 
@@ -746,8 +763,25 @@ class Seq():
         return self
 
 
-    def setMod(self, modseq: ModSeq):
-        self.modseq = modseq
+    def addMod(self, mod: Mod, controler: int):
+        if not self.modseq:
+            self.modseq = ModSeq(dur=self.dur)
+        
+        self.modseq.add(mod, controler)
+        return self
+    
+
+    def addModNotes(self, mod: Mod, controler: int, notes: Union[int, List, None]=None):
+        if not self.modseq:
+            self.modseq = ModSeq(dur=self.dur)
+        
+        for t, note in self.notes:
+            self.modseq.add(mod, controler, t, note.dur)
+        return self
+    
+
+    def clearMod(self):
+        self.modseq = None
 
 
     def merge(self, other) -> Seq:
@@ -1343,7 +1377,7 @@ class Track():
         self.modifiers = []
 
 
-    def add(self, sequence: Union[str, Seq, callable, Generator]) -> Track:
+    def add(self, sequence: Union[str, Seq, callable, Generator], *args, **kwargs) -> Track:
         """
             Add a sequence or a generator to this track.
         """
@@ -1351,12 +1385,12 @@ class Track():
         if isinstance(sequence, str):
             sequence = str2elt(sequence)
         elif callable(sequence) or isinstance(sequence, Generator):
-            return self.addGen(sequence)
+            return self._addGen(sequence, *args, **kwargs)
         self.seqs.append(sequence)
         return self
 
 
-    def addGen(self, func: Union[Generator, callable], *args, **kwargs):
+    def _addGen(self, func: Union[Generator, callable], *args, **kwargs) -> Track:
         """
             Add a sequence generator to this track.
             A callable must be provided, not the generator itself
@@ -1376,16 +1410,18 @@ class Track():
         return self
 
 
-    def clearAdd(self, sequence: Union[str, Seq, callable, Generator]) -> Track:
+    def clearAdd(self, sequence: Union[str, Seq, callable, Generator], *args, **kwargs) -> Track:
+        # prev_ended = self.ended
         self.clear()
-        self.add(sequence)
+        self.add(sequence, *args, **kwargs)
+        # self.ended = prev_ended
     
 
     def clear(self):
         self.seqs.clear()
         self.generators.clear()
         self.seq_i = 0
-        self.ended = True
+        # self.ended = True
     
 
     def getParam(self, other: Track):

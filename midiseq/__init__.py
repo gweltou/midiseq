@@ -15,7 +15,7 @@ from .engine import (
     TrackGroup, getPastOpened
 )
 from .elements import Seq, Chord, Note, Sil, Track, PNote
-from .modulation import Mod, ModSeq
+from .modulation import *
 from .utils import (
     pattern, noob2seq,
     rnd, rndWalk, rndGauss, rndPick, rndDur,
@@ -76,6 +76,8 @@ for i, port_name in _getOutputs():
     if "preenfm" in port_name.lower():
         midi_out["preenfm"] = openOutput(i)
         midi_out["pfm"] = midi_out["preenfm"]
+    if "irig" in port_name.lower():
+        midi_out["irig"] = openOutput(i)
 
 # env.default_output = midi_out["default"]
 _metronome_port = midi_out["default"]
@@ -83,6 +85,8 @@ if "microfreak" in midi_out:
     env.default_output = midi_out["microfreak"]
 elif "fluid" in midi_out:
     env.default_output = midi_out["fluid"]
+elif "irig" in midi_out:
+    env.default_output = midi_out["irig"]
 
 t1 = Track(0, name="t1")
 t2 = Track(1, name="t2", sync_from=t1)
@@ -103,14 +107,3 @@ t16 = Track(15, name="t16", sync_from=t1)
 
 env.tracks = TrackGroup()
 env.tracks.addTrack(t1)
-
-
-
-# FFIX - Freya's Theme
-# setBpm(110)
-# play((
-#     lcm("d%3 a%2 .", "+a%2 +f%2")*4 +
-#     lcm("c%3 a%2 .", "+a%2|+2e%2 +e%2")*4 +
-#     lcm("-a#%3 a%2 .", "+a%2|+2d%2 +d%2")*4 +
-#     lcm("g%3 +d%2 .", "+a#%2|+2d%2 +g%2")*4).humanize().attenuate(0.7),
-#     loop=True)

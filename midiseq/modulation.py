@@ -1,13 +1,16 @@
 from typing import Optional, Union, List, Tuple, Generator
+from random import random
 
 from rtmidi.midiconstants import (
     CONTROL_CHANGE, PROGRAM_CHANGE,
     PITCH_BEND, MODULATION_WHEEL,
-    POLY_AFTERTOUCH, CHANNEL_AFTERTOUCH,
+    CHANNEL_AFTERTOUCH,
 )
 
 import midiseq.env as env
 
+
+__all__ = ['Mod', 'ModSeq', 'modRnd']
 
 
 def val2bytes(val: float) -> Tuple:
@@ -19,15 +22,18 @@ def val2bytes(val: float) -> Tuple:
     return msb, lsb
 
 
+modRnd = lambda x: random()
+
 
 class Mod():
 
     def __init__(self,
-                 fn: Union[callable, float],
+                 fn: Union[callable, float, List, Tuple],
                  cycle: float=0.02,
                  interp=True
                 ):
-        """ Create a modulation curve
+        """
+            Create a modulation curve
             from a lambda function, a list of points or a Sequence
 
             Parameters
@@ -45,12 +51,13 @@ class Mod():
                     values inbetween are interpolated
                 interp : Boolean
                     If True, interpolate values for list of coordinates
-
         """
-        self.fn = None
+
         self.cycle = cycle # Time resolution for the lambda function
+        self.fn = None
         self.scalar = None
         self.coords = None
+        self.interp = interp
 
         if callable(fn):
             self.fn = fn
@@ -58,47 +65,90 @@ class Mod():
         elif isinstance(fn, float):
             self.scalar = fn
 
-        elif isinstance(fn, list):
-            if isinstance(fn[0], float):
+        elif isinstance(fn, (list, tuple)):
+            if isinstance(fn[0], (float, int)):
                 # Add the t coordinate
-                t = [i * 1.0/len(fn) for i in range(len(fn))]
-                self.coords = zip(t, fn)
-                print(self.coords)
+                # t = [i * 1.0/(len(fn)-1) for i in range(len(fn))]
+                # self.coords = zip(t, fn)
+                self.coords = [ (i/(len(fn)-1), val) for i, val in enumerate(fn) ]
         
-            elif isinstance(fn[0], tuple):
+            elif isinstance(fn[0], (list, tuple)):
                 self.coords = fn
 
 
-    def getValues(self, start=0.0, dur=1.0, stretch=1.0):
+    def getValues(self, start=0.0, dur=1.0, fn_start=0.0, fn_end=1.0):
+        """
+            Calculate values of mod function in given range
+        """
         # We could store the last X states for caching
 
         # Check if requested state has been seen in last X states
-        if self.scalar != None:
-            return [self.scalar]
+        assert fn_start < fn_end, f"{fn_start=} {fn_end=}"
 
-        if self.coords != None:
+        if self.scalar:
+            return [(start, self.scalar)]
+
+        if self.coords:
+            assert fn_start >= self.coords[0][0]
+
             if self.interp:
-                print("interp")
-                return
+                assert fn_end <= self.coords[-1][0]
+
+                values = []
+                num_samples = dur / self.cycle
+                step = (fn_end-fn_start) / num_samples
+                pos = fn_start
+                t = start
+                p_idx = 0
+                while pos <= fn_end + 0.0001:
+                    while pos > self.coords[p_idx+1][0]:
+                        p_idx += 1
+                        if p_idx + 1 >= len(self.coords):
+                            # Out of bounds
+                            values.append( (start + dur, self.coords[-1][1]) )
+                            return values
+                    t_frac = (pos-self.coords[p_idx][0]) / (self.coords[p_idx+1][0]-self.coords[p_idx][0])
+                    val = self.coords[p_idx][1] + t_frac * (self.coords[p_idx+1][1]-self.coords[p_idx][1])
+                    values.append( (t, val) )
+                    pos += step
+                    t += self.cycle
+
+                return values
             else:
-                if self.interp:
-                    print("interp")
-                    return
-                else:
-                    return [(self.stretch * t, v) for t, v in self.coords]
+                values = []
+                p_idx = 0
+                # pos = fn_start
+                while fn_start > self.coords[p_idx+1][0]:
+                    # Find left value
+                    p_idx += 1
+                    if p_idx + 1 >= len(self.coords):
+                        return values
+                # pos = fn_start
+                t_factor = dur / (fn_end-fn_start)
+                while p_idx < len(self.coords) and self.coords[p_idx][0] < fn_end + 0.0001:
+                    pos = max(fn_start, self.coords[p_idx][0])
+                    t = start + (pos-fn_start) * t_factor
+                    values.append( (t, self.coords[p_idx][1]) )
+                    p_idx += 1
+                
+                return values
         
         if self.fn != None:
             values = []
-            offset = 0.0
-            while offset < dur*stretch - 0.000001: # Avoid rounding errors
-                values.append( (start+offset, self.fn(start+(offset/stretch))) )
-                offset += self.cycle * stretch
-
+            num_samples = dur / self.cycle
+            step = (fn_end-fn_start) / num_samples
+            pos = fn_start
+            t = start
+            while pos <= fn_end + 0.0001:
+                values.append( (t, self.fn(pos)) )
+                pos += step
+                t += self.cycle
+            
             return values
     
     
-    def plot(self, start=0.0, end=1.0):
-        pass
+    # def plot(self, start=0.0, end=1.0):
+    #     pass
 
 
 
@@ -117,8 +167,11 @@ class ModSeq():
             controler: int,
             start=0.0,
             dur:Optional[float]=None,
-            stretch=False):
-        """ Add a time function
+            fn_start=0.0,
+            fn_end=1.0
+            ):
+        """
+            Add a time function
 
             Parameters
             ----------
@@ -130,9 +183,10 @@ class ModSeq():
                     Start time of modulation
                 dur : float
                     Duration of modulation
-                autostretch : boolean
-                    If True, the modulation will stretch to the requested duration
-                    If False, the modulation will keep an absolute timing
+                fn_start : float
+                    Start sample value in function
+                fn_end : float
+                    End sample value in function
         """
         if dur == None:
             dur = self.dur
@@ -140,8 +194,8 @@ class ModSeq():
         # TODO
         # If a modulator set to the same controler is already present,
         # Overwrite the previous modulator's range
-        self.modulators.append( (mod, controler, start, dur) )
-        self.values.append( mod.getValues(start, dur, stretch=dur if stretch else 1.0) )
+        self.modulators.append( (mod, controler, start, dur, fn_end, fn_end) )
+        self.values.append( mod.getValues(start, dur, fn_start, fn_end) )
 
         return self
     
@@ -149,7 +203,7 @@ class ModSeq():
     def getMidiMessages(self, channel=0):
         messages = []
         for i in range(len(self.modulators)):
-            mod = self.modulators[i][0]
+            # mod = self.modulators[i][0]
             controler = self.modulators[i][1]
             values = self.values[i]
             # Only MSB is used for now
@@ -157,16 +211,9 @@ class ModSeq():
                 messages.extend( [ (pos,
                                         [CONTROL_CHANGE|channel,
                                         controler,
-                                        val2bytes(val)[0]]
+                                        min(127, val2bytes(val)[0])]
                                     )
                                    for pos, val in values ] )
-            elif controler == PITCH_BEND: # Status 0xE0
-                messages.extend( [ (pos,
-                                        [PITCH_BEND|channel,
-                                        0,
-                                        val2bytes(val)[0]]
-                                    )
-                                    for pos, val in values ] )
             elif controler == CHANNEL_AFTERTOUCH: # Status 0xD0
                 messages.extend( [ (pos,
                                         [CHANNEL_AFTERTOUCH|channel,
@@ -174,12 +221,11 @@ class ModSeq():
                                         0]
                                     )
                                     for pos, val in values ] )
-            # elif controler == POLY_AFTERTOUCH:
-            #     note = self.modulators[i][4]
-            #     messages.extend( [ (pos,
-            #                             [POLY_AFTERTOUCH|channel,
-            #                             note,
-            #                             val2bytes(val)[0]]
-            #                         )
-            #                         for pos, val in values ] )
+            elif controler == PITCH_BEND: # Status 0xE0
+                messages.extend( [ (pos,
+                                        [PITCH_BEND|channel,
+                                        0,
+                                        min(127, val2bytes(val)[0])]
+                                    )
+                                    for pos, val in values ] )
         return messages

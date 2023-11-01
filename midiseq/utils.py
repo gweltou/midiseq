@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Union
 import re
 import random
 
@@ -68,7 +68,7 @@ def rnd(n=8, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
-            pitch = env.scale.getClosest(random.randint(lo, hi))
+            pitch = scl.getClosest(random.randint(lo, hi))
             s.add(Note(pitch, notedur))
         else:
             s.add(Sil(notedur))
@@ -102,7 +102,7 @@ def rndDur(
     picks = [d / env.note_dur for d in picks]
     for pick in picks:
         if not silprob or random.random() > silprob:
-            pitch = env.scale.getClosest(random.randint(lo, hi))
+            pitch = scl.getClosest(random.randint(lo, hi))
             s.add(Note(pitch, dur=pick))
         else:
             s.add(Sil(pick))
