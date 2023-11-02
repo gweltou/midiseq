@@ -28,7 +28,7 @@ def test_single_notes():
 
 def test_roman_degree():
 	env.scale = Scl("major", "c")
-	assert str2elt("i") == Chord(48, 52, 55)
+	assert str2elt("i") == Note(48)
 	assert str2elt("III") == Chord(52, 55, 59)
 	assert str2elt("-V") == Chord(43, 47, 50)
 
@@ -49,6 +49,6 @@ def test_chords():
 
 
 def test_chords2():
-	assert(str2elt("48|52|55") == Chord(48, 52, 55))
-	assert(str2elt("c|e|g") == Chord(48, 52, 55))
-	assert(str2elt("c%2|e%2|g%2") == Chord(48, 52, 55, dur=2.0))
+	assert(str2elt("48&52&55") == Chord(48, 52, 55))
+	assert(str2elt("c&e&g") == Chord(48, 52, 55))
+	assert(str2elt("c%2&e%2&g%2") == Chord(48, 52, 55, dur=2.0))

@@ -36,7 +36,7 @@ def test_chord_init():
     assert len(Chord(Note(10), Note(20), Note(30), 40)) == 4
     assert len(Chord("a b c")) == 3
     assert len(Chord("a b", "C")) == 5
-    assert len(Chord("a#|b", 60, "Dm")) == 6
+    assert len(Chord("a#&b", 60, "Dm")) == 6
     assert len(Chord("C", "Cm")) == 4
     assert len(Chord("C Cm")) == 4
     assert len(Chord(Chord("Dm"), Chord("Dm"))) == 3

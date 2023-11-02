@@ -148,7 +148,7 @@ def str2elt(string: str) -> Union[Note, Sil, Chord, None]:
         oct_off = _get_octave(match[1]) - env.default_octave
         # Single Note
         if match[2].islower():
-            return scl.getDegree(degree)^(12*oct_off)
+            return Note(scl.getDegree(degree))^(12*oct_off)
         # Chords
         if match[3] == '7':
             return scl.seventh(degree, dur)^(12*oct_off)
