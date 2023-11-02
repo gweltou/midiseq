@@ -80,17 +80,17 @@ def str2elt(string: str) -> Union[Note, Sil, Chord, None]:
         Return an single musical element, given its string representation
 
         do mi# bsol c e# bg   Notes
-        +do#            C sharp on the fifth octave
-        do re_re mi_mi_mi     tuplets
-        La              Chords
-        VII7            Seventh degree seventh chord
-        {do re mi}      Schrodinger's notes
-
+        +do#                  C sharp on the fifth octave
+        La                    Chords
+        do&mi&sol             Explicit Chords
+        VI7                   Sixth degree seventh chord
+        do re_re mi_mi_mi     Tuplets
+        do|re|mi              Schrodinger's notes
     """
 
-    if '|' in string:
+    if '&' in string:
         # Explicit chord
-        chord_elts = ( str2elt(ce) for ce in string.split('|'))
+        chord_elts = ( str2elt(ce) for ce in string.split('&'))
         return Chord(*chord_elts)
 
     MIDI_PITCH_PATTERN = re.compile(r"(\d+)(%[\d/.]+)?")
@@ -131,7 +131,7 @@ def str2elt(string: str) -> Union[Note, Sil, Chord, None]:
         'xi'    : 10,
         'xii'   : 11,
     }
-
+    
     match = MIDI_PITCH_PATTERN.fullmatch(string)
     if match:
         pitch = int(match[1])
@@ -143,17 +143,20 @@ def str2elt(string: str) -> Union[Note, Sil, Chord, None]:
         scl = env.scale if env.scale else Scl("chromatic", 'c')
         degree = roman2num[match[2].lower()]
         if degree > len(scl.scale):
-            raise TypeError(f"Scale doesn't have a {match[2].upper()}th degree")
+            raise ValueError(f"Scale doesn't have a {match[2].upper()}th degree")
         dur = 1 if not match[4] else eval(match[4][1:])
         oct_off = _get_octave(match[1]) - env.default_octave
+        # Single Note
+        if match[2].islower():
+            return scl.getDegree(degree)^(12*oct_off)
+        # Chords
         if match[3] == '7':
             return scl.seventh(degree, dur)^(12*oct_off)
-        else:
-            return scl.triad(degree, dur)^(12*oct_off)
+        return scl.triad(degree, dur)^(12*oct_off)
 
     match = _NOTE_CHORD_PATTERN.fullmatch(string)
     if match:
-        pitch = str2pitch(string) # XXX: the re gets executed twice...
+        pitch = str2pitch(string) # XXX: this re gets executed twice...
         is_chord = match[2][0].isupper()
         dur = 1 if not match[6] else eval(match[6][1:])
         if is_chord:
@@ -175,9 +178,13 @@ def str2seq(string: str) -> Seq:
     """ Return a Sequence, given its string representation """
 
     elts = []
-    
+
     for elt in string.split():
-        if '_' in elt:
+        if '|' in elt:
+            # PNotes (highest priority)
+            pnotes = [ str2elt(e) for e in elt.split('|') ]
+            elts.append(PNote(pnotes))
+        elif '_' in elt:
             # Tuplet
             tup_notes = elt.split('_')
             elts.extend([ str2elt(n)/len(tup_notes) for n in tup_notes])
@@ -355,6 +362,7 @@ class Note():
 
     def transpose(self, semitones):
         self.pitch += semitones
+        return self
 
     def __add__(self, other) -> Seq:
         return Seq().add(self).add(other)
@@ -413,14 +421,17 @@ class Note():
 
 
 class PNote(Note):
-    def __init__(self, pdict, dur=1, vel=100, prob=1):
+    def __init__(self, pdict, dur=None, vel=100, prob=1):
         """
             Parameters
             ----------
                 pdict: dict
                     '{"do": 1, "mi": 2, "sol": 1}'
+            
+            * What if given notes are of different duration ?
+            * Could we give Chords instead of notes ?
         """
-        self.dur = dur * env.note_dur
+        self.dur = dur if dur != None else env.note_dur # XXX Absolute duration
         self.vel = vel
         self.prob = prob
 
@@ -443,6 +454,8 @@ class PNote(Note):
             for n in pdict:
                 if isinstance(n, str):
                     n = str2pitch(n)
+                elif isinstance(n, (Note,)):
+                    n = n.pitch
                 self.pdict[n] = cumul
                 cumul += 1/len(pdict)
         elif isinstance(pdict, str):

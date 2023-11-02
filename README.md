@@ -137,7 +137,7 @@ reverse |           | Reverse the order of the notes
 transpose | int     | Transose the whole sequence by semitones
 expandPitch | float | Raise or lower pitches around a mean value
 splitNotes | int    | Split all notes (or a single note)
-decimate | float    | Remove notes randomly with a given probability
+decimate | prob: float    | Remove notes randomly with a given probability
 attenuate |         |
 humanize |          | Randomize sligthly notes time, duration and velocity
 crop    |           | Crop notes (or parts of notes) before and after the sequence duration
