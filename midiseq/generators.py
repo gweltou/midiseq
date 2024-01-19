@@ -44,9 +44,16 @@ seq_sunburn2 = Seq("""
 # https://www.youtube.com/watch?v=2aA72rBmWFQ
 # Should be played at 110 bpm
 seq_freya_theme1 = lcm("d%3 a%2 .", "+a%2 +f%2")
-seq_freya_theme2 = lcm("c%3 a%2 .", "+a%2|+2e%2 +e%2")
-seq_freya_theme3 = lcm("-a#%3 a%2 .", "+a%2|+2d%2 +d%2")
-seq_freya_theme4 = lcm("g%3 +d%2 .", "+a#%2|+2d%2 +g%2")
+seq_freya_theme2 = lcm("c%3 a%2 .", "[+a%2 +2e%2] +e%2")
+seq_freya_theme3 = lcm("-a#%3 a%2 .", "[+a%2 +2d%2] +d%2")
+seq_freya_theme4 = lcm("g%3 +d%2 .", "[+a#%2 +2d%2] +g%2")
+
+seq_4tet_green1 = Seq("""
+    do . +sol re# . +fa +la +sol
+    mi# . +sol +fa sol . +la# +la
+    re# . sol +sol . +la +sol +fa
+    re# . +2do +la +sol sol +fa fa
+    """)
 
 
 

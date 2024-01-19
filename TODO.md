@@ -1,5 +1,6 @@
 # TODO
 
+- [ ] Iteration sur la classe Chord
 - [ ] Opérateur `%` (durée des notes) à la classe Seq
 - [ ] Rajouter l'opérateur `%` aux classes Note et Chord (bon ça parraît un peu redondant mais c'est pour la coherence)
 - [ ] Synchronisation du bpm depuis un signal extérieur
@@ -12,3 +13,49 @@
 - [X] Opérateur `^` (transposition) à la classe Seq
 - [X] Paramètre `silprob` pour les fonctions randXXX
 - [X] Track instrument selection (via midi program changes)
+
+# Changelog
+
+* New `parse` function for convert a string sequence to a Seq
+* New `PNote` class, a type of Note that can resolve to different pitches with probabilities.
+* `openOutput` accepts a `str` argument, with is matched against ports descriptions
+* New Seq methods : `mask` and `maskNot`
+
+## Développement futur / idées à explorer
+
+* Remplacer la méthode `shift` par une méthode `offset`, qu'on retrouverait aussi dans la classe `Note`. La classe `note` doit connaître son parent `Seq`.
+* Micro-tonalité avec le pitch bend
+* Pouvoir associer une fonction de callback à la réception d'un contrôle midi
+* Listen() devrait n'avoir à s'appeler qu'une seule fois. Créer une fonction stop_listen().
+* Possibilité de jouer des notes d'une séquence se trouvent au delà de la taille (param length) de la séquence.
+* Autoriser les pitch négatifs (utile lorsqu'on utilise la transposition)
+* générateur de la suite de Recaman
+* Les fonctions lambda de `filter`, `separate`, etc... doivent accepter 3 paramètres : `i` (index), `t` (time) et `n` (Note)
+
+### Méthodes de la classe Seq
+
+* Methode de Seq
+  * shapeVel(fn)
+  * shapePitch(fn)
+  * separte(fn) -> Sépare les notes de la séquence en deux séquences différentes, d'après fonction
+  * monophy()
+    supprime la polyphonie
+  * flatten() # Nom à revoir
+    Supprime tous les silences et mets toutes les notes à la suite, sans chevauchement
+  * joinNotes()
+      Inverse de splitNotes
+      Combine les séries de mêmes notes consécutives sans silences
+      Ralonge les notes suivies de silences pour recouvrir la totalité des silences de la séquence
+  * sort
+    organise les notes temporelement par ordre de hauteur (sans cheuvauchement)
+    Paramètre 'reverse'.
+  * spread
+    Étale les notes qui se chevauchent, de façon à ce qu'il n'y ai pas 2 notes qui se jouent au même moment. Proposer un paramètre de façon à décider si les notes démarrant au même instant s'étalent en montant (de grave à aigüe) ou en descendant (aigüe à grave).
+  * delay(offset, num, att)
+
+* Class Chord
+  * fonction `omit(*degrees)`
+
+* Class Note
+  * Ratchet(n) -> Divise la note en `n` notes de durée égales
+  * offset (shift) -> Deplace la note dans le temps, si elle appartient à une séquence

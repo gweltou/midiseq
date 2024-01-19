@@ -14,7 +14,7 @@ import mido
 #from mido import MidiFile
 
 import midiseq.env as env
-from .elements import Seq, Note, Chord, Track, Song, str2seq
+from .elements import Seq, Note, Chord, Track, Song, parse
 
 
 # DEBUG = True
@@ -136,7 +136,7 @@ def play(
     if what:
         # Play solo track, seq or note
         if isinstance(what, str):
-            what = str2seq(what)
+            what = parse(what)
         elif type(what) in (Note, Chord):
             what = Seq().add(what)
         elif isinstance(what, Generator):
@@ -441,11 +441,12 @@ def openOutput(port_n : Union[int, str]):
                 break
         else:
             print(f"Can't find '{port_n}'")
+            port_n = 0
 
     midiout = rtmidi.MidiOut()
     # if midiout.is_port_open():
     #     midiout.close_port()
-    print("Opening port {} [{}], setting as env.default_output".format(port_n, midiout.get_port_name(port_n)) )    
+    print(f"Opening port {port_n} [{midiout.get_port_name(port_n)}], setting as env.default_output")    
     midiout.open_port(port_n)
     env.default_output = midiout
     past_opened.append(midiout)

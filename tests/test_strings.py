@@ -1,6 +1,6 @@
 import re
 from midiseq import Seq, Note, Chord, Sil, Scl
-from midiseq.elements import str2elt, str2seq
+from midiseq.elements import str2elt, parse
 from midiseq import env as env
 
 
@@ -35,7 +35,7 @@ def test_roman_degree():
 
 def test_subdiv():
 	def should_be_equal(s1, s2):
-		assert str2seq(s1) == str2seq(s2)
+		assert parse(s1) == parse(s2)
 	
 	should_be_equal("c%0.5", "c%.5")
 	should_be_equal("c%0.5", "c%1/2")
@@ -46,9 +46,3 @@ def test_chords():
 	assert str2elt("C") == Chord(48, 52, 55)
 	assert str2elt("-1Dm") == Chord(38, 41, 45)
 	assert str2elt("C%0.5") == Chord(48, 52, 55, dur=0.5)
-
-
-def test_chords2():
-	assert(str2elt("48&52&55") == Chord(48, 52, 55))
-	assert(str2elt("c&e&g") == Chord(48, 52, 55))
-	assert(str2elt("c%2&e%2&g%2") == Chord(48, 52, 55, dur=2.0))

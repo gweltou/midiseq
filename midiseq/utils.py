@@ -2,7 +2,7 @@ from typing import Union
 import re
 import random
 
-from .elements import Note, Sil, Chord, Seq, Scl, str2pitch, str2elt, str2seq
+from .elements import Note, Sil, Chord, Seq, Scl, str2pitch, str2elt, parse
 import midiseq.env as env
 
 
@@ -38,7 +38,7 @@ def noob2seq(noob: str):
     s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
     s = s.replace('-', '_') # Tuplets
     s = ' '.join(s.split()).lower()
-    return str2seq(s)
+    return parse(s)
 
 
 
@@ -259,7 +259,7 @@ def lcm(*seqs, tolerance=0.0001):
                 return False
         return True
 
-    seqs_init = [ str2seq(s) if isinstance(s, str) else s for s in seqs ]
+    seqs_init = [ parse(s) if isinstance(s, str) else s for s in seqs ]
     seqs = [ s.copy() for s in seqs_init ]
     while not samelen(seqs):
         # Find index of shortest seq:
