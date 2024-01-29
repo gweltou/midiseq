@@ -23,6 +23,33 @@
 
 ## Développement futur / idées à explorer
 
+### Parser
+
+* "note__n" -> ratcheting
+
+### Engine
+
+* play1-16()
+* stop1-16()
+* fadePlay([str, Seq], sec)
+* fadeStop(sec)
+* pushT1-16()  # transformation
+* pushM1-16()  # Midi modulation
+* popT1-16()
+* popM1-16()
+
+* env.localOffset
+* env.netOffset
+
+### Net
+
+* connect(ip)
+* disconnect()
+* startServer()
+* stopServer()
+
+### Elements
+
 * Remplacer la méthode `shift` par une méthode `offset`, qu'on retrouverait aussi dans la classe `Note`. La classe `note` doit connaître son parent `Seq`.
 * Micro-tonalité avec le pitch bend
 * Pouvoir associer une fonction de callback à la réception d'un contrôle midi
@@ -34,7 +61,8 @@
 
 ### Méthodes de la classe Seq
 
-* Methode de Seq
+#### Methode de Seq
+
   * shapeVel(fn)
   * shapePitch(fn)
   * separte(fn) -> Sépare les notes de la séquence en deux séquences différentes, d'après fonction
@@ -53,7 +81,8 @@
     Étale les notes qui se chevauchent, de façon à ce qu'il n'y ai pas 2 notes qui se jouent au même moment. Proposer un paramètre de façon à décider si les notes démarrant au même instant s'étalent en montant (de grave à aigüe) ou en descendant (aigüe à grave).
   * delay(offset, num, att)
 
-* Class Chord
+#### Class Chord
+
   * fonction `omit(*degrees)`
 
 * Class Note

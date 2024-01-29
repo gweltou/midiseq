@@ -8,6 +8,7 @@ from rtmidi.midiconstants import (
     VOLUME, PORTAMENTO,
 )
 
+from .definitions import *
 from .engine import (
     listOutputs, openOutput, _getOutputs,
     listInputs, openInput, listen, rec,
@@ -21,9 +22,9 @@ from .utils import (
     rnd, rndWalk, rndGauss, rndPick, rndDur,
     euclid, lcm,
 )
-from .definitions import *
-from .generators import *
 from .whistle import whistle, whistleDur, tap, tapDur
+from .generators import *
+# from .seqs import *
 import midiseq.env as env
 
 

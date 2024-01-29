@@ -20,6 +20,7 @@ def test_parser():
 		
 		# Modifiers
 		("[do sol]%4", Seq((0.0, Note(48,4)), (0.0, Note(55,4)), dur=0.5)),
+		("[do sol]%.5", Seq((0.0, Note(48,0.5)), (0.0, Note(55,0.5)), dur=0.5)),
 		("[do sol]^2", Seq((0.0, Note(50)), (0.0, Note(57)), dur=0.125)),
 		("[do sol]^2%4", Seq((0.0, Note(50,4.0)), (0.0, Note(57,4.0)), dur=0.5)),
 	]

@@ -83,6 +83,7 @@ def str2pitch(tone: str) -> int:
         Returns the midi pitch number given a spelled note
         
         String pitches
+            48 50 52
             a b c d e f g
             do re mi fa sol la si
             a# la# cb dob
@@ -96,7 +97,7 @@ def str2pitch(tone: str) -> int:
 
     tone = tone.strip()
     if tone.isdecimal():
-        return int(tone)
+        return min(max(0, int(tone)), 255)
 
     note_value = {  'c': 0,	   'do': 0,
                     'd': 2,	   're': 2,	'ré': 2,
@@ -118,6 +119,9 @@ def str2pitch(tone: str) -> int:
 
 
 def str2elt(string) -> Union[Note, Chord, Sil]:
+    """
+        Parse a string to a single element
+    """
     match = re.fullmatch(NOTE_CHORD_PATTERN, string)
     if match:
         pitch = str2pitch(string)
@@ -171,7 +175,12 @@ def str2elt(string) -> Union[Note, Chord, Sil]:
 
 def parse(string) -> Seq:
     """
-        Translate a string sequence to a Seq object
+        Parse a string sequence to a Seq object
+
+        String sequence examples:
+         * Chords: "[do mi sol][mi sol si]"
+         * Tuplets: "do_re mi_fa do_re_mi"
+         * PNotes: "{do re mi}"
     """
 
     def resolve_tuplet():
@@ -182,19 +191,32 @@ def parse(string) -> Seq:
         elts_stack[-1].append(tuplet)
     
     def apply_modifiers():
+        """Apply modifiers to last parsed element"""
         if not modifiers:
             return
-        print(modifiers)
-        print(elts_stack[-1][-1])
         if "stretch" in modifiers:
             elts_stack[-1][-1].stretch(modifiers["stretch"])
         if "transpose" in modifiers:
             elts_stack[-1][-1].transpose(modifiers["transpose"])
         modifiers.clear()
 
+    def commit():
+        """Called at end of each element, before the next element or operator"""
+        nonlocal commited
+        if commited:
+            return
+        if op_stack[-1] == '_':
+            resolve_tuplet()
+        apply_modifiers()
+        if op_stack[-1] == '{' and len(weights_stack[-1]) < len(elts_stack[-1]):
+            weights_stack[-1].append(1)
+        commited = True
+
     op_stack = ['add']
     elts_stack = [[]]
     modifiers = {}
+    weights_stack = []
+    commited = False
     string = string.replace('\n', '')
 
     while string:
@@ -202,9 +224,12 @@ def parse(string) -> Seq:
 
         # Element separator
         if string[0] == ' ':
-            if op_stack[-1] == '_':
-                resolve_tuplet()
-            apply_modifiers()
+            # if op_stack[-1] == '_':
+            #     resolve_tuplet()
+            # apply_modifiers()
+            # if op_stack[-1] == '{' and len(elts_probweights) < len(elts_stack):
+            #     elts_probweights.append(1)
+            commit()
             string = string[1:]
             continue
 
@@ -220,19 +245,20 @@ def parse(string) -> Seq:
 
         # Opening explicit chord
         if string[0] == '[':
+            # apply_modifiers()
+            commit()
             op_stack.append('[')
             elts_stack.append([])
-            apply_modifiers()
             string = string[1:]
             continue
 
         # Closing explicit chord
         if string[0] == ']':
-            if op_stack[-1] == '_':
-                resolve_tuplet()
-            elif op_stack[-1] != '[':
+            # if op_stack[-1] == '_':
+            #     resolve_tuplet()
+            commit()
+            if op_stack[-1] != '[':
                 raise ValueError("Bad string sequence argument")
-            
             op_stack.pop()
             exp_chord = Seq()
             for elt in elts_stack.pop():
@@ -241,20 +267,41 @@ def parse(string) -> Seq:
             string = string[1:]
             continue
 
+        # Opening Schroedinger's element
         if string[0] == '{':
-            # Schroedinger's element
+            # apply_modifiers()
+            commit()
             op_stack.append('{')
-            
-            apply_modifiers()
+            elts_stack.append([])
+            weights_stack.append([])
             string = string[1:]
             continue
 
+        # Closing Schroedinger's element
         if string[0] == '}':
-            # Closing explicit chord
-            if not op_stack or op_stack[-1] != '{':
+            commit()
+            # if op_stack[-1] == '_':
+            #     resolve_tuplet()
+            if op_stack[-1] != '{':
                 raise ValueError("Bad string sequence argument")
+            if len(weights_stack[-1]) < len(elts_stack[-1]):
+                weights_stack[-1].append(1)
+            # Do probs
+            weights = weights_stack.pop()
+            sum_weights = sum(weights)
+            prob = 0; keeper = None
+            for i, elt in enumerate(elts_stack.pop()):
+                prob += weights[i] / sum_weights
+                if random.random() < prob:
+                    keeper = elt
+                    break
+            elts_stack[-1].append(keeper)
+            op_stack.pop()
+
             string = string[1:]
             continue
+
+        commited = False
 
         match = re.match(NOTE_CHORD_PATTERN, string)
         if match:
@@ -301,7 +348,8 @@ def parse(string) -> Seq:
             scl = env.scale if env.scale else Scl("chromatic", 'c')
             degree = roman2num[match[2].lower()]
             if degree > len(scl.scale):
-                raise ValueError(f"Scale doesn't have a {match[2].upper()}th degree")
+                degree %= len(scl.scale)
+                #raise ValueError(f"Scale doesn't have a {match[2].upper()}th degree")
             dur = 1 if not match[4] else eval(match[4][1:])
             oct_off = _get_octave(match[1]) - env.default_octave
             # Single Note
@@ -321,7 +369,7 @@ def parse(string) -> Seq:
 
         # Group modifiers
         # Stretch modifier '%'
-        match = re.match(r"%(\d+(?:.\d+)?(?:/\d+(?:.\d+)?)?)", string)
+        match = re.match(r"%(\d*\.?\d+)", string)
         if match:
             modifiers["stretch"] = eval(match[1])
             string = string[len(match[0]):]
@@ -332,6 +380,17 @@ def parse(string) -> Seq:
         if match:
             modifiers["transpose"] = int(match[1])
             string = string[len(match[0]):]
+            continue
+            
+        # Probability modifier ':'
+        match = re.match(r":(\d*\.?\d+)", string)
+        if match:
+            prob = eval(match[1])
+            string = string[len(match[0]):]
+            if op_stack[-1] == '{':
+                weights_stack[-1].append(prob)
+            elif isinstance(elts_stack[-1][-1], Note):
+                elts_stack[-1][-1].prob = prob
             continue
     
         raise ValueError("Bad string sequence argument", string)
@@ -346,6 +405,8 @@ def parse(string) -> Seq:
     for elt in elts_stack[0]:
         s.add(elt)
     return s
+
+
 
 
 
@@ -575,15 +636,20 @@ class Note():
 
 
 
+
+
 class PNote(Note):
-    def __init__(self, pdict, dur=None, vel=100, prob=1):
+    def __init__(self, wdict, dur=None, vel=100, prob=1):
         """
+            A Schroedinger's note
+            Only one will be played, depending on probability weights
+            All given notes should be of the same duration
+
             Parameters
             ----------
                 pdict: dict
                     '{"do": 1, "mi": 2, "sol": 1}'
             
-            * What if given notes are of different duration ? Impossible
             * Could we give Chords instead of notes ? Maybe
         """
         self.dur = dur if dur != None else env.note_dur # XXX Absolute duration
@@ -595,32 +661,72 @@ class PNote(Note):
         self.patval = None
 
         self.pdict = {}
-        if isinstance(pdict, dict):
+        self.sum_weights = 0
+        if isinstance(wdict, dict):
             # Normalizing probabilites
-            sump = sum(pdict.values())
-            cumul = 0
-            for n, p in pdict.items():
-                if isinstance(n, str):
-                    n = str2pitch(n)
-                cumul += p/sump
-                self.pdict[n] = cumul
-        elif isinstance(pdict, (list, tuple, set)):
-            cumul = 1/len(pdict)
-            for n in pdict:
+            self.sum_weights = sum(wdict.values())
+            self.pdict = self._weights_to_prob(wdict)
+        elif isinstance(wdict, (list, tuple, set)):
+            # Same probability for all notes
+            self.sum_weights = len(wdict)
+            cumul = 1/len(wdict)
+            for n in wdict:
                 if isinstance(n, str):
                     n = str2pitch(n)
                 elif isinstance(n, (Note,)):
                     n = n.pitch
                 self.pdict[n] = cumul
-                cumul += 1/len(pdict)
-        elif isinstance(pdict, str):
-            notes = [str2pitch(n) for n in pdict.split()]
-            cumul = 1/len(notes)
-            for n in notes:
-                self.pdict[n] = cumul
-                cumul += 1/len(notes)
+                cumul += 1/len(wdict)
+        elif isinstance(wdict, str):
+            # Same probability for all notes
+            self.pdict = self._weights_to_prob( {str2pitch(n): 1 for n in wdict.split()} )
+            self.sum_weights = len(wdict)
         else:
             raise TypeError("pdict should be a dictionary (pitch -> prob weight) or an iterable")
+    
+
+    def copy(self):
+        n = PNote({})
+        n.pdict = self.pdict
+        n.sum_weights = self.sum_weights
+        n.dur = self.dur # Overrides the env note_dur multiplier
+        n.vel = self.vel
+        n.prob = self.prob
+        n.pat = self.pat
+        n.patval = self.patval
+        return n
+
+
+    def add(self, pitch, weight):
+        """ Add a note, with a probability weight """
+        wdict = self._prop_to_weights()
+        if isinstance(pitch, str):
+            pitch = str2pitch(pitch)
+        wdict[pitch] = weight
+        self.pdict = self._weights_to_prob(wdict)
+
+
+    @staticmethod
+    def _weights_to_prob(wdict: dict) -> dict:
+        pdict = dict()
+        sum_weights = sum(wdict.values())
+        cumul = 0
+        for n, w in wdict.items():
+            if isinstance(n, str):
+                n = str2pitch(n)
+            cumul += w/sum_weights
+            pdict[n] = cumul
+        return pdict
+
+    def _prop_to_weights(self) -> dict:
+        wdict = dict()
+        last_p = 0
+        for n, p in self.pdict.items():
+            w = (p - last_p) * self.sum_weights
+            last_p = p
+            wdict[n] = w
+        return wdict
+    
 
     @property
     def pitch(self) -> int:
@@ -633,18 +739,15 @@ class PNote(Note):
     def pitch(self, i: int) -> None:
         print("You shouldn't assign a pitch to a PNote")
 
-    def copy(self):
-        n = PNote({})
-        n.pdict = self.pdict
-        n.dur = self.dur # Overrides the env note_dur multiplier
-        n.vel = self.vel
-        n.prob = self.prob
-        n.pat = self.pat
-        n.patval = self.patval
-        return n
 
     def transpose(self, semitones):
         self.pdict = {n+semitones: self.pdict[n] for n in self.pdict}
+
+    def __repr__(self):
+        return f"PNote({self._prop_to_weights()})"
+
+
+
 
 
 
@@ -653,6 +756,10 @@ class Sil():
     
     def __init__(self, dur=1):
         self.dur = dur * env.note_dur
+
+    def stretch(self, factor):
+        self.dur *= factor
+        return self
     
     def __add__(self, other) -> Union[Sil, Seq]:
         if isinstance(other, Sil):
@@ -899,6 +1006,7 @@ class Seq():
             self.add(Note(other))
         elif isinstance(other, str):
             self.add(parse(other))
+            self.rstring += other + ' '
         elif isinstance(other, Note):
             self.notes.append( (self.head, other.copy()) )
             self.head += other.dur
@@ -1590,9 +1698,9 @@ class Track():
             Add a sequence or a generator to this track.
         """
 
-        if isinstance(sequence, str):
-            sequence = str2elt(sequence)
-        elif callable(sequence) or isinstance(sequence, Generator):
+        # if isinstance(sequence, str):
+        #     sequence = parse(sequence)
+        if callable(sequence) or isinstance(sequence, Generator):
             return self._addGen(sequence, *args, **kwargs)
         self.seqs.append(sequence)
         return self
@@ -1601,7 +1709,8 @@ class Track():
     def _addGen(self, func: Union[Generator, callable], *args, **kwargs) -> Track:
         """
             Add a sequence generator to this track.
-            A callable must be provided, not the generator itself
+            A callable should be provided, not the generator itself.
+            When a callable is provided, the generator can be resetted.
         """
 
         if isinstance(func, Generator):
@@ -1689,7 +1798,7 @@ class Track():
         if self.ended or not self.seqs:
             return
         
-        # Time flowing
+        # Let time flow, until next event
         self._next_timer -= timedelta
         if self._next_timer > 0.0:
             return
@@ -1719,8 +1828,10 @@ class Track():
                         # Skip
                         self.seq_i += 1
                         return self.update(0.0)
-                else:
-                    self.seq_i -= 1
+                # else:
+                #     self.seq_i -= 1
+            elif isinstance(sequence, str):
+                sequence = parse(sequence)
             
             self.seq_i += 1
 
