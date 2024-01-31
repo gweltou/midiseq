@@ -2,6 +2,8 @@
 # import mido
 # import rtmidi
 
+from typing import Optional
+
 from rtmidi.midiconstants import (
     PITCH_BEND, MODULATION_WHEEL,
     POLY_AFTERTOUCH, CHANNEL_AFTERTOUCH,
@@ -33,7 +35,7 @@ def setNoteDur(d):
     """ Set default note length, relative to a full note """
     env.note_dur = d
 
-def setScl(scale="chromatic", tonic="c"):
+def setScale(scale="chromatic", tonic="c"):
     env.scale = Scl(scale, tonic)
 
 def setBpm(bpm):
@@ -59,7 +61,7 @@ def mutesw(*tracks) -> None:
 
 env.METRONOME_NOTES = (sit13, sit16)
 
-setScl("major", "c")
+setScale("major", "c")
 
 
 midi_out = dict()
@@ -89,6 +91,7 @@ elif "fluid" in midi_out:
 elif "irig" in midi_out:
     env.default_output = midi_out["irig"]
 
+
 t1 = Track(0, name="t1")
 t2 = Track(1, name="t2", sync_from=t1)
 t3 = Track(2, name="t3", sync_from=t1)
@@ -108,3 +111,74 @@ t16 = Track(15, name="t16", sync_from=t1)
 
 env.tracks = TrackGroup()
 env.tracks.addTrack(t1)
+
+
+def _playT(track: Track, seq: Optional[str]=None):
+    """ Start a single track """
+    track.stopped = False
+    if seq:
+        track.clearAdd(seq)
+    
+    if env.is_playing:
+        return
+    
+    # Synchronize all other tracks to this track
+    for t in env.tracks:
+        if t == track:
+            t.reset()
+            t.syncFrom(None)
+        else:
+            t.stopped = True
+            t.syncFrom(track)
+    play()
+
+def play1(seq : Optional[str]=None):
+    _playT(t1, seq)
+def play2(seq : Optional[str]=None):
+    _playT(t2, seq)
+def play3(seq : Optional[str]=None):
+    _playT(t3, seq)
+def play4(seq : Optional[str]=None):
+    _playT(t4, seq)
+def play5(seq : Optional[str]=None):
+    _playT(t5, seq)
+def play6(seq : Optional[str]=None):
+    _playT(t6, seq)
+def play7(seq : Optional[str]=None):
+    _playT(t7, seq)
+def play8(seq : Optional[str]=None):
+    _playT(t8, seq)
+
+
+
+def _stopT(track: Track):
+    track.stopped = True
+
+    still_playing = list(filter(lambda t: not t.stopped, env.tracks))
+    if len(still_playing) == 0:
+        stop()
+    elif len(still_playing) == 1:
+        # Set remaining track as main track
+        main_track = still_playing[0]
+        for t in env.tracks:
+            if t == main_track:
+                t.syncFrom(None)
+            else:
+                t.syncFrom(main_track)
+
+def stop1():
+    _stopT(t1)
+def stop2():
+    _stopT(t2)
+def stop3():
+    _stopT(t3)
+def stop4():
+    _stopT(t4)
+def stop5():
+    _stopT(t5)
+def stop6():
+    _stopT(t6)
+def stop7():
+    _stopT(t7)
+def stop8():
+    _stopT(t8)

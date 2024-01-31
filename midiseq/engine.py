@@ -71,11 +71,12 @@ def activeNotesOff() -> None:
 
 
 class TrackGroup:
+    """ A group of synchronized Tracks
+    """
 
     def __init__(self):
         self.tracks = set()
         self.priority_list = [] # Must update in this order
-        # self.top_priority = []  # list of tracks to update first
 
     def addTrack(self, track: Track):
         self.tracks.add(track)
@@ -83,6 +84,10 @@ class TrackGroup:
         for t in track._get_priority_list():
             self.tracks.add(t)
         self._build_priority_list()
+
+    # def stopAll(self):
+    #     for t in self.tracks:
+    #         t.stopped = True
 
     def _build_priority_list(self) -> None:
         # Build priority tree
@@ -160,6 +165,7 @@ def play(
     
     _playing_threads.add(thread)
     thread.start()
+    env.is_playing = True
 
 
 
@@ -233,6 +239,7 @@ def _play(track_group: TrackGroup, loop=False):
         if must_sort:
             midi_events.sort(key=lambda n: (n[0],n[1][0]), reverse=True)
         if all_ended and len(midi_events) == 0:
+            env.is_playing = False
             break
 
         new_noteon = False
@@ -395,6 +402,7 @@ def stop():
 
     _recording = False
     _armed = False
+    env.is_playing = False
     #panic()
 
 

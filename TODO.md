@@ -26,6 +26,14 @@
 ### Parser
 
 * "note__n" -> ratcheting
+* "(do re mi)*4" -> repeat
+* Sequencial group (ex: "<do re mi>")
+* Existence modifier, with prob (do?0.1)
+
+#### Aliases
+  Les alias auraient la précédence sur les autres formes de notations.
+  Stockées dans un dictionnaire.
+  (ex: "K" -> 48).
 
 ### Engine
 
@@ -59,9 +67,11 @@
 * générateur de la suite de Recaman
 * Les fonctions lambda de `filter`, `separate`, etc... doivent accepter 3 paramètres : `i` (index), `t` (time) et `n` (Note)
 
-### Méthodes de la classe Seq
+### Class Note
+  * Ratchet(n) -> Divise la note en `n` notes de durée égales
+  * offset (shift) -> Deplace la note dans le temps, si elle appartient à une séquence
 
-#### Methode de Seq
+### Classe Seq
 
   * shapeVel(fn)
   * shapePitch(fn)
@@ -81,10 +91,10 @@
     Étale les notes qui se chevauchent, de façon à ce qu'il n'y ai pas 2 notes qui se jouent au même moment. Proposer un paramètre de façon à décider si les notes démarrant au même instant s'étalent en montant (de grave à aigüe) ou en descendant (aigüe à grave).
   * delay(offset, num, att)
 
-#### Class Chord
+### Classe Chord
 
   * fonction `omit(*degrees)`
 
-* Class Note
-  * Ratchet(n) -> Divise la note en `n` notes de durée égales
-  * offset (shift) -> Deplace la note dans le temps, si elle appartient à une séquence
+### Classe Track
+
+  * addClear([Seq, str]) Supprime toutes les séquences et ajoute celle-ci, seulement à la fin de la séquence actuelle.

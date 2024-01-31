@@ -173,7 +173,7 @@ def str2elt(string) -> Union[Note, Chord, Sil]:
 
 
 
-def parse(string) -> Seq:
+def parse(input_string) -> Seq:
     """
         Parse a string sequence to a Seq object
 
@@ -182,6 +182,7 @@ def parse(string) -> Seq:
          * Tuplets: "do_re mi_fa do_re_mi"
          * PNotes: "{do re mi}"
     """
+    input_string = ' '.join(input_string.split())
 
     def resolve_tuplet():
         op_stack.pop()
@@ -212,13 +213,13 @@ def parse(string) -> Seq:
             weights_stack[-1].append(1)
         commited = True
 
-    op_stack = ['add']
+    op_stack = ['(']
     elts_stack = [[]]
     modifiers = {}
     weights_stack = []
     commited = False
-    string = string.replace('\n', '')
 
+    string = input_string
     while string:
         # print(string)
 
@@ -230,6 +231,19 @@ def parse(string) -> Seq:
             # if op_stack[-1] == '{' and len(elts_probweights) < len(elts_stack):
             #     elts_probweights.append(1)
             commit()
+            string = string[1:]
+            continue
+
+        # Opening addition operator (default)
+        if string[0] == '(':
+            commit()
+            string = string[1:]
+            continue
+
+        if string[0] == ')':
+            commit()
+            if op_stack[-1] != '(':
+                raise ValueError("Bad string sequence argument")
             string = string[1:]
             continue
 
@@ -404,6 +418,7 @@ def parse(string) -> Seq:
     s = Seq()
     for elt in elts_stack[0]:
         s.add(elt)
+    s.rstring = input_string
     return s
 
 
@@ -1669,18 +1684,19 @@ class Track():
                 name=None, loop=True,
                 sync_from: Optional[Track] = None
                 ):
+        self.name = name #or f"Track{len(Track._all_tracks)+1}"
         self.port = None
         self.channel = channel
         self.instrument = instrument or 0
         self.seqs: List[Union[Seq, Generator]] = []
         self.generators = dict()  # Dictionary of generators and their args
         self.muted = False
+        self.stopped = False
+        self.ended = True
         self.transpose = 0
         self.loop = loop
         self.loop_type = "all" # "last" / "all"
         # self.shuffle = False
-        self.name = name #or f"Track{len(Track._all_tracks)+1}"
-        self.ended = True
         self.offset = 0.0        
         self.send_program_change = True
         self._nmess_this_cycle = 0 # Number of notes sent during the last cycle
@@ -1762,14 +1778,19 @@ class Track():
         for t in self._sync_children:
             t.setGroup(track_group)
 
-    def syncFrom(self, other: Track) -> None:
+    def syncFrom(self, other: Optional[Track]) -> None:
+        if self._sync_from != None:
+            # Unsync first
+            self._sync_from._sync_children.remove(self)
         self._sync_from = other
+        if other != None:
+            other._sync_children.append(self)
     
     def _sync(self) -> None:
         if not self.seqs:
             return
         
-        if self.ended:
+        if self.ended and not self.stopped:
             self.reset()
     
     def _get_priority_list(self) -> List[Track]:
@@ -1803,6 +1824,10 @@ class Track():
         if self._next_timer > 0.0:
             return
         
+        if self.stopped:
+            self.ended = True
+            return
+
         for t in self._sync_children:
             t._sync()
 
@@ -1859,8 +1884,8 @@ class Track():
         elif self.seq_i >= len(self.seqs):
             # End of track reached
             if not self.loop or self._nmess_this_cycle == 0: # Stop if no messages were sent
-                print("Track stopped")
                 self.ended = True
+                print("Track stopped")
                 return
             self._nmess_this_cycle = 0
             
