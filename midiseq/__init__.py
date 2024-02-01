@@ -150,6 +150,40 @@ def play8(seq : Optional[str]=None):
     _playT(t8, seq)
 
 
+def pushT1(method: callable):
+    t1.pushTrans(method)
+def pushT2(method: callable):
+    t2.pushTrans(method)
+def pushT3(method: callable):
+    t3.pushTrans(method)
+def pushT4(method: callable):
+    t4.pushTrans(method)
+def pushT5(method: callable):
+    t5.pushTrans(method)
+def pushT6(method: callable):
+    t6.pushTrans(method)
+def pushT7(method: callable):
+    t7.pushTrans(method)
+def pushT8(method: callable):
+    t8.pushTrans(method)
+
+def popT1(method: callable):
+    t1.popTrans(method)
+def popT2(method: callable):
+    t2.popTrans(method)
+def popT3(method: callable):
+    t3.popTrans(method)
+def popT4(method: callable):
+    t4.popTrans(method)
+def popT5(method: callable):
+    t5.popTrans(method)
+def popT6(method: callable):
+    t6.popTrans(method)
+def popT7(method: callable):
+    t7.popTrans(method)
+def popT8(method: callable):
+    t8.popTrans(method)
+
 
 def _stopT(track: Track):
     track.stopped = True

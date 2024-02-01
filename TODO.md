@@ -16,6 +16,7 @@
 
 # Changelog
 
+* Simple interface : playX/stopX/pushTx/popTx
 * New `parse` function for convert a string sequence to a Seq
 * New `PNote` class, a type of Note that can resolve to different pitches with probabilities.
 * `openOutput` accepts a `str` argument, with is matched against ports descriptions
@@ -27,47 +28,37 @@
 
 * "note__n" -> ratcheting
 * "(do re mi)*4" -> repeat
-* Sequencial group (ex: "<do re mi>")
+* Sequencial group (ex: "<do re mi>"), but that would need storing and passing a state
 * Existence modifier, with prob (do?0.1)
 
 #### Aliases
+
   Les alias auraient la précédence sur les autres formes de notations.
   Stockées dans un dictionnaire.
   (ex: "K" -> 48).
 
 ### Engine
 
-* play1-16()
-* stop1-16()
 * fadePlay([str, Seq], sec)
 * fadeStop(sec)
-* pushT1-16()  # transformation
 * pushM1-16()  # Midi modulation
-* popT1-16()
 * popM1-16()
 
 * env.localOffset
 * env.netOffset
 
-### Net
-
-* connect(ip)
-* disconnect()
-* startServer()
-* stopServer()
-
 ### Elements
 
-* Remplacer la méthode `shift` par une méthode `offset`, qu'on retrouverait aussi dans la classe `Note`. La classe `note` doit connaître son parent `Seq`.
+* Remplacer la méthode `shift` par une méthode `offset`, qu'on retrouverait aussi dans la classe `Note`. La classe `note` doit connaître son parent `Seq` (why ?).
 * Micro-tonalité avec le pitch bend
 * Pouvoir associer une fonction de callback à la réception d'un contrôle midi
 * Listen() devrait n'avoir à s'appeler qu'une seule fois. Créer une fonction stop_listen().
 * Possibilité de jouer des notes d'une séquence se trouvent au delà de la taille (param length) de la séquence.
 * Autoriser les pitch négatifs (utile lorsqu'on utilise la transposition)
-* générateur de la suite de Recaman
 * Les fonctions lambda de `filter`, `separate`, etc... doivent accepter 3 paramètres : `i` (index), `t` (time) et `n` (Note)
 
 ### Class Note
+
   * Ratchet(n) -> Divise la note en `n` notes de durée égales
   * offset (shift) -> Deplace la note dans le temps, si elle appartient à une séquence
 
@@ -98,3 +89,10 @@
 ### Classe Track
 
   * addClear([Seq, str]) Supprime toutes les séquences et ajoute celle-ci, seulement à la fin de la séquence actuelle.
+
+### Net
+
+* connect(ip)
+* disconnect()
+* startServer()
+* stopServer()

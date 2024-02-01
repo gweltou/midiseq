@@ -10,6 +10,7 @@ from .definitions import *
 ####                           Exemple sequences                           ####
 ###############################################################################
 
+
 seq_kaini_industries = Seq("""
     -g#%1.5 -a#%.5 b_b -g#_b -g#_a# f#_-g# -2b -g#_-f#
     c# -c#%4 f#%2 g#
@@ -48,6 +49,9 @@ seq_4tet_green1 = Seq("""
 
 
 
+###############################################################################
+####                         Sequences generators                          ####
+###############################################################################
 
 
 def gen_recaman():
@@ -190,7 +194,6 @@ def gen_japscale():
 
 
 
-
 ###############################################################################
 ####                            DRUM PATTERNS                              ####
 ###############################################################################
@@ -290,26 +293,3 @@ def drm_djdave_easy():
     kick = pattern("x--x --x- --x- -x--", K)
     clap = pattern("---- x---", Cl) * 2
     return kick & clap
-
-
-
-
-def gen_mf_mel1():
-    """ 22/11/2022
-    """
-    s = Seq()
-    s.dur = 1
-    scale = Scl("major", "sol")
-    degree = 0
-    while True:
-        if random.random() > 0.8:
-            degree = random.randint(-5, 5)
-        degree += random.gauss(0, 4)
-        degree = min(5, max(-5, degree))
-        chord = scale.triad(degree, dur=1/8)
-        s.add(chord)
-        if random.random() > 0.8:
-            s.add(chord, head=0.87)
-        s.humanize()
-        yield s
-        s.clear()

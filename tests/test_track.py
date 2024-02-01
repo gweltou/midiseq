@@ -52,9 +52,9 @@ def test_trackgroup():
 def test_track_modifiers():
     t = Track()
     t.add(rnd(8))
-    t.pushMod(Seq.stretch, 2.0)
+    t.pushTrans(Seq.stretch, 2.0)
     m = t.update(0.0)
     print(f"{m=}")
 
-    t.popMod()
-    assert len(t.modifiers) == 0
+    t.popTrans()
+    assert len(t.transforms) == 0

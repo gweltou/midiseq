@@ -155,7 +155,7 @@ def str2elt(string) -> Union[Note, Chord, Sil]:
         scl = env.scale if env.scale else Scl("chromatic", 'c')
         degree = roman2num[match[2].lower()]
         if degree > len(scl.scale):
-            raise ValueError(f"Scale doesn't have a {match[2].upper()}th degree")
+            raise ValueError(f"Scale doesn't have a {match[2].upper()}th degree") # XXX
         dur = 1 if not match[4] else eval(match[4][1:])
         oct_off = _get_octave(match[1]) - env.default_octave
         # Single Note
@@ -237,6 +237,8 @@ def parse(input_string) -> Seq:
         # Opening addition operator (default)
         if string[0] == '(':
             commit()
+            op_stack.append('(')
+            elts_stack.append([])
             string = string[1:]
             continue
 
@@ -244,6 +246,11 @@ def parse(input_string) -> Seq:
             commit()
             if op_stack[-1] != '(':
                 raise ValueError("Bad string sequence argument")
+            op_stack.pop()
+            sub_seq = Seq()
+            for elt in elts_stack.pop():
+                sub_seq.add(elt)
+            elts_stack[-1].append(sub_seq)
             string = string[1:]
             continue
 
@@ -361,8 +368,7 @@ def parse(input_string) -> Seq:
         if match:
             scl = env.scale if env.scale else Scl("chromatic", 'c')
             degree = roman2num[match[2].lower()]
-            if degree > len(scl.scale):
-                degree %= len(scl.scale)
+            # if degree > len(scl.scale):
                 #raise ValueError(f"Scale doesn't have a {match[2].upper()}th degree")
             dur = 1 if not match[4] else eval(match[4][1:])
             oct_off = _get_octave(match[1]) - env.default_octave
@@ -1706,7 +1712,7 @@ class Track():
         if sync_from != None:
             sync_from._sync_children.append(self)
         
-        self.modifiers = []
+        self.transforms = []
 
 
     def add(self, sequence: Union[str, Seq, callable, Generator], *args, **kwargs) -> Track:
@@ -1800,15 +1806,15 @@ class Track():
         return pl
 
 
-    def pushMod(self, method, *args, **kwargs):
-        """ Add a modifier to the pile
+    def pushTrans(self, method: callable, *args, **kwargs):
+        """ Add a transform operation to the pile (a method from Seq class)
             Sequences from the Track will go through the pile of modifiers
         """
-        self.modifiers.append((method, args, kwargs))
+        self.transforms.append((method, args, kwargs))
     
 
-    def popMod(self):
-        del self.modifiers[-1]
+    def popTrans(self):
+        del self.transforms[-1]
 
 
     def update(self, timedelta) -> Optional[list]:
@@ -1861,9 +1867,9 @@ class Track():
             self.seq_i += 1
 
             # Modifiers
-            if self.modifiers:
+            if self.transforms:
                 sequence = sequence.copy()
-                for mod, args, kwargs in self.modifiers:
+                for mod, args, kwargs in self.transforms:
                     sequence = mod(sequence, *args, **kwargs)
 
             messages = (sequence^self.transpose).getMidiMessages(self.channel)

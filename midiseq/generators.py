@@ -3,8 +3,6 @@ import random
 
 import midiseq.env as env
 from .elements import Note, Sil, Seq, Scl, Chord, parse
-# from .definitions import *
-
 
 
 ####  ALIASES
@@ -12,7 +10,6 @@ from .elements import Note, Sil, Seq, Scl, Chord, parse
 # s = Sil
 # c = Chord
 # sq = Seq
-
 
 
 
@@ -87,3 +84,28 @@ def genRotate(seq: Seq, dir=-1, repeat: int=1):
 def genSil(durs=[1, 2]):
     d = random.choice(durs)
     yield Seq(dur=d)
+
+
+
+#### other ####
+
+
+def gen_mf_mel1():
+    """ 22/11/2022
+    """
+    s = Seq()
+    s.dur = 1
+    scale = Scl("major", "sol")
+    degree = 0
+    while True:
+        if random.random() > 0.8:
+            degree = random.randint(-5, 5)
+        degree += random.gauss(0, 4)
+        degree = min(5, max(-5, degree))
+        chord = scale.triad(degree, dur=1/8)
+        s.add(chord)
+        if random.random() > 0.8:
+            s.add(chord, head=0.87)
+        s.humanize()
+        yield s
+        s.clear()
