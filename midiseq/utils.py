@@ -1,5 +1,4 @@
 from typing import Union
-import re
 import random
 
 from .elements import Note, Sil, Chord, Seq, Scl, str2pitch, str2elt, parse

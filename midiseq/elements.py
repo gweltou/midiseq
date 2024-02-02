@@ -181,6 +181,11 @@ def parse(input_string) -> Seq:
          * Chords: "[do mi sol][mi sol si]"
          * Tuplets: "do_re mi_fa do_re_mi"
          * PNotes: "{do re mi}"
+        
+        Element modifiers:
+            * %n stretch
+            * ^n transpose
+            * :n probability
     """
     input_string = ' '.join(input_string.split())
 
@@ -199,6 +204,11 @@ def parse(input_string) -> Seq:
             elts_stack[-1][-1].stretch(modifiers["stretch"])
         if "transpose" in modifiers:
             elts_stack[-1][-1].transpose(modifiers["transpose"])
+        if "prob" in modifiers:
+            if op_stack[-1] == '{':
+                weights_stack[-1].append(prob)
+            elif isinstance(elts_stack[-1][-1], Note):
+                elts_stack[-1][-1].prob = prob
         modifiers.clear()
 
     def commit():
@@ -406,11 +416,8 @@ def parse(input_string) -> Seq:
         match = re.match(r":(\d*\.?\d+)", string)
         if match:
             prob = eval(match[1])
+            modifiers["prob"] = prob
             string = string[len(match[0]):]
-            if op_stack[-1] == '{':
-                weights_stack[-1].append(prob)
-            elif isinstance(elts_stack[-1][-1], Note):
-                elts_stack[-1][-1].prob = prob
             continue
     
         raise ValueError("Bad string sequence argument", string)
@@ -633,6 +640,11 @@ class Note():
         n.pitch = min(max(n.pitch + semitones, 0), 127)
         return n
 
+    def __mod__(self, factor: float) -> Note:
+        n = self.copy()
+        n.stretch(factor)
+        return n
+
     def __eq__(self, other):
         return self.pitch == other.pitch and \
                self.dur == other.dur and \
@@ -846,7 +858,12 @@ class Chord():
 
     def copy(self) -> Note:
         return Chord(self)
+    
 
+    def stretch(self, factor) -> Note:
+        for n in self.notes:
+            n.dur *= factor
+        return self
 
     def arp(self, mode="up", oct=1) -> Seq:
         """ Arpeggiate a Chord
@@ -938,6 +955,11 @@ class Chord():
 
     def __add__(self, other):
         return Seq().add(self).add(other)
+
+    def __mod__(self, factor: float) -> Chord:
+        chord = self.copy()
+        chord.stretch(factor)
+        return chord
 
     def __eq__(self, other):
         if self.dur != other.dur:
@@ -1744,6 +1766,7 @@ class Track():
             "func": func if callable(func) else None,
             "args": args, "kwargs": kwargs,
             "generator": generator,
+            # "seqs": [],
             }
         self.seqs.append(gen_id)
         return self
@@ -1847,6 +1870,8 @@ class Track():
                 try:
                     # Generator is still generating
                     sequence = next(self.generators[gen_id]["generator"])
+                    # Add generated sequence to cache
+                    # self.generators[gen_id]["seqs"].append(sequence)
                 except StopIteration:
                     if gen_data["func"]:
                         # Reload generator
@@ -1860,6 +1885,7 @@ class Track():
                         self.seq_i += 1
                         return self.update(0.0)
                 # else:
+                     # sequence index won't increment until generator finishes
                 #     self.seq_i -= 1
             elif isinstance(sequence, str):
                 sequence = parse(sequence)
@@ -1909,8 +1935,8 @@ class Track():
     
     def __repr__(self):
         if self._sync_from != None:
-            return f"Track({self.channel=},{self.loop=}, {self.name=}, {self._sync_from.name=})"
-        return f"Track({self.channel=},{self.loop=}, {self.name=})"
+            return f"Track({self.channel=}, {self.loop=}, {self.name=}, {self._sync_from.name=})"
+        return f"Track({self.channel=}, {self.loop=}, {self.name=})"
 
 
 

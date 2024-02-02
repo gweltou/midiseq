@@ -24,6 +24,11 @@ def genStr2seq(string: str) -> Seq:
 
 
 def genFunc(func: callable, repeat=0, *args, **kwargs):
+    """ Make a generator from a function.
+        Arguments to the function can be passed as well.
+
+        Ex: genFun(rndWalk, steps=[-1,0,1])
+    """
     if repeat > 0:
         for _ in range(repeat):
             yield func(*args, **kwargs)
@@ -33,7 +38,8 @@ def genFunc(func: callable, repeat=0, *args, **kwargs):
 
 
 def genPattern(func: callable, pattern="ABAB", repeat: int=1, *args, **kwargs):
-    """ Yield sequences from a function, following a given pattern
+    """ Yield sequences from a function, following a given pattern.
+        Arguments to the function can be passed as well.
 
         Parameters
         ----------

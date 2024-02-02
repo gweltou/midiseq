@@ -1,18 +1,10 @@
 # TODO
 
 - [ ] Iteration sur la classe Chord
-- [ ] Opérateur `%` (durée des notes) à la classe Seq
-- [ ] Rajouter l'opérateur `%` aux classes Note et Chord (bon ça parraît un peu redondant mais c'est pour la coherence)
 - [ ] Synchronisation du bpm depuis un signal extérieur
 - [ ] Émission de messages de tempo
 - [ ] Permettre des enregistrements midi live silencieux
-- [X] Tap rhythm with microphone
-- [X] Opérateur `^` (transposition) à la classe Chord
-- [X] Améliorer l'ajout de générateurs (avec et sans arguments) à une Track
-- [X] Chord string notation
-- [X] Opérateur `^` (transposition) à la classe Seq
-- [X] Paramètre `silprob` pour les fonctions randXXX
-- [X] Track instrument selection (via midi program changes)
+- [ ] Méthodes __mul__ et __rmull__ à la classe Chord
 
 # Changelog
 
@@ -24,12 +16,15 @@
 
 ## Développement futur / idées à explorer
 
+Devrait-on supprimer les paramètres "silprob" des fonctions rnd, runDur, rndWalk, rndGauss & co ?
+(Redondance avec la transformation "decimate". Différence: silprob ajoute des Sil à la séquence)
+
 ### Parser
 
-* "note__n" -> ratcheting
-* "(do re mi)*4" -> repeat
 * Sequencial group (ex: "<do re mi>"), but that would need storing and passing a state
-* Existence modifier, with prob (do?0.1)
+* Repeat modifier, (ex: "(do re mi)*4")
+* Ratcheting modifier, "note__n"
+* Existence modifier, with prob ("do?0.1")
 
 #### Aliases
 
@@ -49,7 +44,7 @@
 
 ### Elements
 
-* Remplacer la méthode `shift` par une méthode `offset`, qu'on retrouverait aussi dans la classe `Note`. La classe `note` doit connaître son parent `Seq` (why ?).
+* Remplacer la méthode `shift` par une méthode `offset`, qu'on retrouverait aussi dans la classe `Note`. La classe `note` doit connaître son parent `Seq`.
 * Micro-tonalité avec le pitch bend
 * Pouvoir associer une fonction de callback à la réception d'un contrôle midi
 * Listen() devrait n'avoir à s'appeler qu'une seule fois. Créer une fonction stop_listen().
@@ -66,7 +61,7 @@
 
   * shapeVel(fn)
   * shapePitch(fn)
-  * separte(fn) -> Sépare les notes de la séquence en deux séquences différentes, d'après fonction
+  * separate(fn) -> Sépare les notes de la séquence en deux séquences différentes, d'après fonction
   * monophy()
     supprime la polyphonie
   * flatten() # Nom à revoir
