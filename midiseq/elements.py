@@ -1300,6 +1300,18 @@ class Seq():
         return self
 
 
+    def octaveShift(self, prob_up=0.1, prob_down=0.1) -> Seq:
+        """ Transpose notes one octave up or one octave down randomly
+            Modifies sequence in-place
+        """
+        for _, note in self.notes:
+            if random.random() < prob_up:
+                note.transpose(12)
+            elif random.random() < prob_down:
+                note.transpose(-12)
+        return self
+
+
     def crop(self) -> Seq:
         """ Shorten or delete notes before time 0 and after the sequence's duration
             Modifies sequence in-place
@@ -1835,9 +1847,11 @@ class Track():
         """
         self.transforms.append((method, args, kwargs))
     
-
     def popTrans(self):
         del self.transforms[-1]
+    
+    def clearTrans(self):
+        self.transforms.clear()
 
 
     def update(self, timedelta) -> Optional[list]:

@@ -8,11 +8,12 @@
 
 # Changelog
 
-* Simple interface : playX/stopX/pushTx/popTx
-* New `parse` function for convert a string sequence to a Seq
+* New `octaveShift` method for Seq.
+* Simple interface : playX/stopX/pushTx/popTx.
+* New `parse` function for convert a string sequence to a Seq.
 * New `PNote` class, a type of Note that can resolve to different pitches with probabilities.
-* `openOutput` accepts a `str` argument, with is matched against ports descriptions
-* New Seq methods : `mask` and `maskNot`
+* `openOutput` accepts a `str` argument, with is matched against ports descriptions.
+* New Seq methods : `mask` and `maskNot`.
 
 ## Développement futur / idées à explorer
 
@@ -55,7 +56,7 @@ Devrait-on supprimer les paramètres "silprob" des fonctions rnd, runDur, rndWal
 ### Class Note
 
   * Ratchet(n) -> Divise la note en `n` notes de durée égales
-  * offset (shift) -> Deplace la note dans le temps, si elle appartient à une séquence
+  * offset(shift) -> Deplace la note dans le temps, si elle appartient à une séquence
 
 ### Classe Seq
 
