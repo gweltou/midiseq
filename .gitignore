@@ -1,4 +1,6 @@
 __pycache__/
+midiseq.egg-info/
 venv/
 .vscode
 songs/
+TODO.md

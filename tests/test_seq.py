@@ -59,14 +59,18 @@ def test_seq_reverse():
 def test_seq_shift():
     s = Seq("do re mi")
     sc = s.copy()
-    assert s == sc.shift(1).shift(-1)
-    s.shift(1)
+    assert s == sc.shift(1.0).shift(-1.0)
+    s.shift(1.0)
     assert s.notes[0][0] == 1.0
-    s.shift(-1)
+    s.shift(-1.0)
     s.shift(env.note_dur, wrap=True)
     assert s == Seq("mi do re")
+    s.shift(-1, wrap=True)
+    assert s == Seq("do re mi")
     sc.shift(-env.note_dur, wrap=True)
     assert sc == Seq("re mi do")
+
+
 
 
 def test_seq_strip():
@@ -87,18 +91,18 @@ def test_seq_strip():
     assert len(s2) == 3
 
 
-def test_seq_expandpitch():
+def test_seq_scalepitch():
     scl = Scl("minor", "g")
     env.scale = scl
     s = rnd(16)
     for n in s:
         assert n.pitch in scl.notes
 
-    s.expandPitch(0.5)
+    s.scalePitch(0.5)
     for n in s:
         assert n.pitch in scl.notes
     
-    s.expandPitch(2.0)
+    s.scalePitch(2.0)
     for n in s:
         assert n.pitch in scl.notes
 
@@ -113,14 +117,15 @@ def test_merge():
 
 
 def test_crop():
+    env.note_dur = 1/4  
     s = rnd(6)
     s.head = -0.35
     s.add(Note(66))
-    s.length = 1
     assert len(s) == 7
     assert s.notes[0][0] == -0.35
+    s.dur = 1
     s.crop()
-    assert len(s) == 5
+    assert len(s) == 4
 
 
 def test_select():
@@ -130,13 +135,15 @@ def test_select():
 
 
 def test_index_slice():
+    env.note_dur = 1/4
     s = Seq("60 61 62 63 64 65")
+    print(len(s), s.dur)
     assert s[0] == Note(60)
     assert len(s[0:3]) == 3
     assert len(s[:3]) == 3
     s = s[0.0:1.0]
     assert len(s) == 4
-    assert s.length == 1.0
+    assert s.dur == 1.0
 
 
 def test_filter():

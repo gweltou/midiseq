@@ -8,12 +8,14 @@ import rtmidi
 from rtmidi.midiconstants import (
     NOTE_ON, NOTE_OFF,
     ALL_SOUND_OFF, RESET_ALL_CONTROLLERS,
+    CONTROL_CHANGE,
 )
 import mido
 #from mido import MidiFile
 
 import midiseq.env as env
-from .elements import Seq, Note, Chord, Track, Song, str2seq
+from .elements import Seq, Note, PNote, Chord, Track, Song, parse
+from .generators import genStr2seq
 
 
 # DEBUG = True
@@ -49,7 +51,6 @@ midiin = rtmidi.MidiIn()
 
 
 def panic(port=env.default_output): # XXX: default param doesn't work
-    print(port)
     for channel in range(16):
         port.send_message([CONTROL_CHANGE | channel, ALL_SOUND_OFF, 0])
         port.send_message([CONTROL_CHANGE | channel, RESET_ALL_CONTROLLERS, 0])
@@ -70,11 +71,12 @@ def activeNotesOff() -> None:
 
 
 class TrackGroup:
+    """ A group of synchronized Tracks
+    """
 
     def __init__(self):
         self.tracks = set()
         self.priority_list = [] # Must update in this order
-        # self.top_priority = []  # list of tracks to update first
 
     def addTrack(self, track: Track):
         self.tracks.add(track)
@@ -82,6 +84,10 @@ class TrackGroup:
         for t in track._get_priority_list():
             self.tracks.add(t)
         self._build_priority_list()
+
+    # def stopAll(self):
+    #     for t in self.tracks:
+    #         t.stopped = True
 
     def _build_priority_list(self) -> None:
         # Build priority tree
@@ -104,6 +110,9 @@ class TrackGroup:
     
     def __iter__(self):
         yield from self.tracks
+    
+    def __getitem__(self, index):
+        return sorted(self.tracks, key=lambda t:t.name)[index]
                 
 
 
@@ -113,12 +122,12 @@ def play(
         channel=0, instrument=0,
         loop=False,
         blocking=False):
-    """ Play a Track, a Sequence or a single Note
+    """ Play a Track, a Sequence or a single Note.
 
         Parameters
         ----------
             channel : int
-                Midi channel, between 1 and 16 (defaults to 1)
+                Midi channel, between 0 and 15 (defaults to 0)
             instrument : int
                 Instrument to play with (program change message)
             loop : boolean
@@ -133,11 +142,11 @@ def play(
     if what:
         # Play solo track, seq or note
         if isinstance(what, str):
-            what = str2seq(what)
-        elif type(what) in (Note, Chord):
+            what = Track(channel=channel, instrument=instrument, loop=loop)._addGen(genStr2seq, what)
+        elif type(what) in (Note, PNote, Chord):
             what = Seq().add(what)
         elif isinstance(what, Generator):
-            what = Track(channel=channel, instrument=instrument, loop=loop).addGen(what)
+            what = Track(channel=channel, instrument=instrument, loop=loop)._addGen(what)
 
         track_group = TrackGroup()
         if isinstance(what, Track):
@@ -156,6 +165,7 @@ def play(
     
     _playing_threads.add(thread)
     thread.start()
+    env.is_playing = True
 
 
 
@@ -229,6 +239,7 @@ def _play(track_group: TrackGroup, loop=False):
         if must_sort:
             midi_events.sort(key=lambda n: (n[0],n[1][0]), reverse=True)
         if all_ended and len(midi_events) == 0:
+            env.is_playing = False
             break
 
         new_noteon = False
@@ -281,6 +292,16 @@ def _play(track_group: TrackGroup, loop=False):
 
 
 
+def playMetro(beats=4, cycles=1):
+    """ Play metronome """
+    _lo, _hi = env.METRONOME_NOTES
+    clicks = [_hi] + [_lo] * (beats-1)
+    metr = Seq(clicks) * (0.5/env.note_dur)
+    metr *= int(cycles)
+    play(metr, blocking=True)
+
+
+
 def listen(forward=True, forward_channel=1):
     # Wait for other playing thread to stop
     global _listening_thread
@@ -288,17 +309,16 @@ def listen(forward=True, forward_channel=1):
     if _listening_thread != None:
         _must_stop = True
         _listening_thread.join()
-
-    _listening_thread = threading.Thread(target=_listen, args=(forward, forward_channel,), daemon=True)
-    
     _must_stop = False
+
+    _listening_thread = threading.Thread(target=_listen, args=(forward, forward_channel,), daemon=True)    
     _listening_thread.start()
 
 
 
 def _listen(forward=True, forward_channel=1):
     #XXX Doesn't take tempo into account...
-    print("++++ LISTEN to midi all midi channels")
+    print("++++ LISTEN to midi on all midi channels")
 
     active_notes = set()
     noteon_time = dict()
@@ -314,27 +334,27 @@ def _listen(forward=True, forward_channel=1):
         new_noteon = False
         mess = midiin.get_message()
         while mess:
-            pitch = mess[1]
-            if mess.isNoteOn():
-                active_notes.add(pitch)
-                noteon_time[pitch] = time.time()
+            (status, data1, data2), _ = mess
+            if status & NOTE_ON == NOTE_ON and data2 > 0:
+                active_notes.add(data1)
+                noteon_time[data1] = time.time()
                 new_noteon = True
                 if forward:
-                    mess.setChannel(forward_channel)
+                    mess = [(status & 0xf0) | forward_channel, data1, data2]
                     env.default_output.send_message(mess)
-            elif mess.isNoteOff():
-                active_notes.discard(pitch)
+            elif status & NOTE_OFF == NOTE_OFF or (status & NOTE_OFF == NOTE_OFF and data2 == 0):
+                active_notes.discard(data1)
                 if _recording:
-                    if pitch in noteon_time:
+                    if data1 in noteon_time:
                         # t = noteon_time[pitch] - t0
-                        dur = time.time() - noteon_time[pitch]
-                        _record.addNote(pitch, dur, head=_recording_time)
+                        dur = time.time() - noteon_time[data1]
+                        _record.addNote(data1, dur, head=_recording_time)
                 if forward:
-                    mess.setChannel(forward_channel)
+                    mess = [(status & 0xf0) | forward_channel, data1, data2]
                     env.default_output.send_message(mess)
             if env.verbose and not env.DISPLAY:
                     print("Recieved", mess)
-            mess = midiin.get_message()
+            # mess = midiin.get_message()
         
         if env.DISPLAY and new_noteon:
             # Visualize notes
@@ -351,16 +371,6 @@ def _listen(forward=True, forward_channel=1):
     print("++++ LISTEN Stopped")
     global _listening_thread
     _listening_thread = None
-
-
-
-def playMetro(beats=4, cycles=1):
-    """ Play metronome """
-    _lo, _hi = env.METRONOME_NOTES
-    clicks = [_hi] + [_lo] * (beats-1)
-    metr = Seq(clicks) * (0.5/env.note_dur)
-    metr *= int(cycles)
-    play(metr, blocking=True)
 
 
 
@@ -392,7 +402,9 @@ def stop():
 
     _recording = False
     _armed = False
+    env.is_playing = False
     #panic()
+
 
 
 def wait():
@@ -409,13 +421,14 @@ def wait():
         time.sleep(0.2)
 
 
+
 def listInputs():
     for i in range(midiin.get_port_count()):
-        print( "[{}] {}".format(i, midiin.getPortName(i)) )
+        print( "[{}] {}".format(i, midiin.get_port_name(i)) )
 
 
 def _getInputs():
-    return [ (i, midiin.getPortName(i)) for i in range(midiin.get_port_count()) ]
+    return [ (i, midiin.get_port_name(i)) for i in range(midiin.get_port_count()) ]
 
 
 def listOutputs():
@@ -429,11 +442,20 @@ def _getOutputs():
 
 
 
-def openOutput(port_n):
+def openOutput(port_n : Union[int, str]):
+    if isinstance(port_n, str):
+        for i, name in _getOutputs():
+            if port_n.lower() in name.lower():
+                port_n = i
+                break
+        else:
+            print(f"Can't find '{port_n}'")
+            port_n = 0
+
     midiout = rtmidi.MidiOut()
     # if midiout.is_port_open():
     #     midiout.close_port()
-    print("Opening port {} [{}], setting as env.default_output".format(port_n, midiout.get_port_name(port_n)) )    
+    print(f"Opening port {port_n} [{midiout.get_port_name(port_n)}], setting as env.default_output")    
     midiout.open_port(port_n)
     env.default_output = midiout
     past_opened.append(midiout)

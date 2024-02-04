@@ -14,8 +14,8 @@ def test_sil_operators():
     assert type(Sil() + Chord(60, 62, 66)) == Seq
     assert (Sil() + Chord(60, 62, 66)).dur == 2*env.note_dur
 
-    assert type(Sil() + Seq((60, 62, 66))) == Seq
-    assert (Sil() + Seq((60, 62, 66))).dur == 4*env.note_dur
+    assert type(Sil() + Seq(60, 62, 66)) == Seq
+    assert (Sil() + Seq(60, 62, 66)).dur == 4*env.note_dur
 
 
 
@@ -36,7 +36,7 @@ def test_chord_init():
     assert len(Chord(Note(10), Note(20), Note(30), 40)) == 4
     assert len(Chord("a b c")) == 3
     assert len(Chord("a b", "C")) == 5
-    assert len(Chord("a#|b", 60, "Dm")) == 6
+    assert len(Chord("60", "Dm")) == 4
     assert len(Chord("C", "Cm")) == 4
     assert len(Chord("C Cm")) == 4
     assert len(Chord(Chord("Dm"), Chord("Dm"))) == 3

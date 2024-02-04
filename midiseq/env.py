@@ -1,6 +1,7 @@
 # !/usr/bin/env python3
 
 tracks = None
+is_playing = False
 
 bpm = 120
 note_dur = 1/8

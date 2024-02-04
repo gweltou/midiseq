@@ -1,8 +1,7 @@
-from typing import Optional, Union
-import re
+from typing import Union
 import random
 
-from .elements import Note, Sil, Chord, Seq, Scl, str2pitch, str2elt, str2seq
+from .elements import Note, Sil, Chord, Seq, Scl, str2pitch, str2elt, parse
 import midiseq.env as env
 
 
@@ -38,7 +37,7 @@ def noob2seq(noob: str):
     s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
     s = s.replace('-', '_') # Tuplets
     s = ' '.join(s.split()).lower()
-    return str2seq(s)
+    return parse(s)
 
 
 
@@ -47,7 +46,7 @@ def noob2seq(noob: str):
 ###############################################################################
 
 
-def rnd(n=4, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
+def rnd(n=8, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
     """ Generate a sequence of random notes
 
         Parameters
@@ -68,7 +67,7 @@ def rnd(n=4, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
-            pitch = env.scale.getClosest(random.randint(lo, hi))
+            pitch = scl.getClosest(random.randint(lo, hi))
             s.add(Note(pitch, notedur))
         else:
             s.add(Sil(notedur))
@@ -83,6 +82,8 @@ def rndDur(
         silprob=0.0,
         scl:Scl=None
     ) -> Seq:
+    """
+    """
     assert dur > max(durs) * env.note_dur
     if not scl:
         scl = env.scale if env.scale else Scl("chromatic", 'c')
@@ -100,7 +101,7 @@ def rndDur(
     picks = [d / env.note_dur for d in picks]
     for pick in picks:
         if not silprob or random.random() > silprob:
-            pitch = env.scale.getClosest(random.randint(lo, hi))
+            pitch = scl.getClosest(random.randint(lo, hi))
             s.add(Note(pitch, dur=pick))
         else:
             s.add(Sil(pick))
@@ -112,7 +113,7 @@ def rndDur(
 
 
 def rndWalk(
-        n=4,
+        n=8,
         start: Union[str,int]=None,
         steps=[-3,-2,-1,0,1,2,3],
         silprob=0.0,
@@ -158,7 +159,7 @@ def rndWalk(
 
 
 
-def rndGauss(n=4, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
+def rndGauss(n=8, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
     """ Generate random notes with a normal distribution around a mean value
 
         Parameters
@@ -187,7 +188,7 @@ def rndGauss(n=4, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq
 
 
 
-def rndPick(sequence: Seq, n=4, sil=True) -> Seq:
+def rndPick(sequence: Seq, n=8, sil=True) -> Seq:
         """ Pick randomly among previous notes in sequence """
         num_n = len(sequence.notes)
         num_s = len(sequence.silences) if sil else 0
@@ -205,6 +206,9 @@ def rndPick(sequence: Seq, n=4, sil=True) -> Seq:
 
 
 def rndGrid(note=36, n=4, grid=16) -> Seq:
+    """
+        Fill a sequence randomly with a given number of the same note
+    """
     elts = [Note(note)] * n + [Sil() * (grid-n)]
     random.shuffle(elts)
     s = Seq()
@@ -233,15 +237,16 @@ def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
     
     offset = offset % grid
     onsets = [ (offset+round(grid*i/n)) % grid for i in range(n) ]
-    s = Seq()
+    s = Seq(dur=grid*env.note_dur)
     for i in onsets:
         t = i * env.note_dur
         s.add(note.copy(), head=t)
+    s.head = s.dur
     return s
 
 
 
-def lcm(*seqs):
+def lcm(*seqs, tolerance=0.0001):
     """ Combine two or more sequence to build
         the least common multiplier of them all.
         You better use quantized sequences !
@@ -249,11 +254,11 @@ def lcm(*seqs):
     def samelen(seqs):
         first = seqs[0]
         for s in seqs[1:]:
-            if s.dur != first.dur:
+            if abs(s.dur - first.dur) > tolerance:
                 return False
         return True
 
-    seqs_init = [ str2seq(s) if isinstance(s, str) else s for s in seqs ]
+    seqs_init = [ parse(s) if isinstance(s, str) else s for s in seqs ]
     seqs = [ s.copy() for s in seqs_init ]
     while not samelen(seqs):
         # Find index of shortest seq:

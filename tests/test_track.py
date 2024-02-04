@@ -1,10 +1,14 @@
 
 from midiseq.elements import Track, Seq
 from midiseq.engine import TrackGroup
+from midiseq.utils import rnd
+from midiseq import env as env
+
 
 
 def test_track():
     t = Track(name="my_track")
+    env.note_dur = 1/8
     t.add(Seq("do re mi fa"))
     assert t.name == "my_track"
     assert len(t.seqs) == 1
@@ -17,7 +21,6 @@ def test_track():
     t.clear()
     assert len(t.seqs) == 0
     assert t.seq_i == 0
-    print(t._next_timer)
 
 
 def test_instrument():
@@ -44,3 +47,14 @@ def test_trackgroup():
         print(t)
     
     assert len(tg.priority_list) == 2
+
+
+def test_track_modifiers():
+    t = Track()
+    t.add(rnd(8))
+    t.pushTrans(Seq.stretch, 2.0)
+    m = t.update(0.0)
+    print(f"{m=}")
+
+    t.popTrans()
+    assert len(t.transforms) == 0
