@@ -20,7 +20,7 @@ def test_parser():
 		
 		# Modifiers
 		("[do sol]%4", Seq((0.0, Note(48,4)), (0.0, Note(55,4)), dur=0.5)),
-		("[do sol]%.5", Seq((0.0, Note(48,0.5)), (0.0, Note(55,0.5)), dur=0.5)),
+		("[do sol]%.5", Seq((0.0, Note(48,0.5)), (0.0, Note(55,0.5)), dur=0.0625)),
 		("[do sol]^2", Seq((0.0, Note(50)), (0.0, Note(57)), dur=0.125)),
 		("[do sol]^2%4", Seq((0.0, Note(50,4.0)), (0.0, Note(57,4.0)), dur=0.5)),
 	]
@@ -30,3 +30,23 @@ def test_parser():
 		# print(seq)
 		print(hyp)
 		assert hyp == seq
+
+
+def test_sequencial_op():
+	test_cases = [
+		("< a b c >", "<a b c>#1"),
+		("<a b c>#1", "<a b c>#2"),
+		("<a b c>#2", "<a b c>#0"),
+		#("({a b c} a)", "( { a b c} a )"),
+	]
+	for input, output in test_cases:
+		assert output == parse(input)._sstring
+
+
+def test_sstrings():
+	test_cases = [
+		("a b c", "a b c"),
+		("({a b c} a)", "( { a b c} a )"),
+	]
+	for gt, case in test_cases:
+		assert gt == parse(case)._sstring

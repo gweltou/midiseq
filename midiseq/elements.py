@@ -180,14 +180,17 @@ def parse(input_string) -> Seq:
         String sequence examples:
          * Chords: "[do mi sol][mi sol si]"
          * Tuplets: "do_re mi_fa do_re_mi"
-         * PNotes: "{do re mi}"
+         * Schroedinger's operator: "{do re mi}"
+         * Sequencial operator:
+            "<do +do> <mi sol +sol>"
         
         Element modifiers:
             * %n stretch
             * ^n transpose
-            * :n probability
+            * :n probability/weight
+            * ?n
+            * *n
     """
-    input_string = ' '.join(input_string.split())
 
     def resolve_tuplet():
         op_stack.pop()
@@ -228,8 +231,9 @@ def parse(input_string) -> Seq:
     modifiers = {}
     weights_stack = []
     commited = False
+    parsed_string = ""
 
-    string = input_string
+    string = ' '.join(input_string.split())
     while string:
         # print(string)
 
@@ -242,6 +246,8 @@ def parse(input_string) -> Seq:
             #     elts_probweights.append(1)
             commit()
             string = string[1:]
+            if parsed_string and parsed_string[-1] not in "([{<":
+                parsed_string += ' '
             continue
 
         # Opening addition operator (default)
@@ -250,6 +256,7 @@ def parse(input_string) -> Seq:
             op_stack.append('(')
             elts_stack.append([])
             string = string[1:]
+            parsed_string += '('
             continue
 
         if string[0] == ')':
@@ -262,6 +269,9 @@ def parse(input_string) -> Seq:
                 sub_seq.add(elt)
             elts_stack[-1].append(sub_seq)
             string = string[1:]
+            if parsed_string and parsed_string[-1] == ' ':
+                parsed_string = parsed_string[:-1]
+            parsed_string += ')'
             continue
 
         # Tuplet separator
@@ -272,6 +282,7 @@ def parse(input_string) -> Seq:
                 last_elt = elts_stack[-1].pop()
                 elts_stack.append([last_elt])
             string = string[1:]
+            parsed_string += '_'
             continue
 
         # Opening explicit chord
@@ -281,6 +292,7 @@ def parse(input_string) -> Seq:
             op_stack.append('[')
             elts_stack.append([])
             string = string[1:]
+            parsed_string += '['
             continue
 
         # Closing explicit chord
@@ -296,6 +308,9 @@ def parse(input_string) -> Seq:
                 exp_chord.merge(elt)
             elts_stack[-1].append(exp_chord)
             string = string[1:]
+            if parsed_string and parsed_string[-1] == ' ':
+                parsed_string = parsed_string[:-1]
+            parsed_string += ']'
             continue
 
         # Opening Schroedinger's element
@@ -306,13 +321,12 @@ def parse(input_string) -> Seq:
             elts_stack.append([])
             weights_stack.append([])
             string = string[1:]
+            parsed_string += '{'
             continue
 
         # Closing Schroedinger's element
         if string[0] == '}':
             commit()
-            # if op_stack[-1] == '_':
-            #     resolve_tuplet()
             if op_stack[-1] != '{':
                 raise ValueError("Bad string sequence argument")
             if len(weights_stack[-1]) < len(elts_stack[-1]):
@@ -324,13 +338,47 @@ def parse(input_string) -> Seq:
             for i, elt in enumerate(elts_stack.pop()):
                 prob += weights[i] / sum_weights
                 if random.random() < prob:
-                    keeper = elt
+                    #keeper = elt
                     break
-            elts_stack[-1].append(keeper)
+            elts_stack[-1].append(elt)
             op_stack.pop()
 
             string = string[1:]
+            if parsed_string and parsed_string[-1] == ' ':
+                parsed_string = parsed_string[:-1]
+            parsed_string += '}'
             continue
+
+        # Sequential op
+        if string[0] == '<':
+            # apply_modifiers()
+            commit()
+            op_stack.append('<')
+            elts_stack.append([])
+            #weights_stack.append([])
+            string = string[1:]
+            parsed_string += '<'
+            continue
+        
+        # Sequential op
+        match = re.match(r">(?:#(\d+))?", string)
+        if match:
+            commit()
+            if op_stack[-1] != '<':
+                raise ValueError("Bad string sequence argument")
+            op_stack.pop()
+
+            elts = elts_stack.pop()
+            n = int(match[1])%len(elts) if match[1] else 0
+            elts_stack[-1].append(elts[n])
+
+            string = string[len(match[0]):]
+            if parsed_string and parsed_string[-1] == ' ':
+                parsed_string = parsed_string[:-1]
+            parsed_string += '>#{}'.format((n+1)%len(elts))
+            continue
+
+
 
         commited = False
 
@@ -350,6 +398,7 @@ def parse(input_string) -> Seq:
             
             length = match.end() - match.start()
             string = string[length:]
+            parsed_string += match[0]
             continue
 
         match = re.match(SILENCE_PATTERN, string)
@@ -360,6 +409,7 @@ def parse(input_string) -> Seq:
             
             length = match.end() - match.start()
             string = string[length:]
+            parsed_string += match[0]
             continue
 
         match = re.match(MIDI_PITCH_PATTERN, string)
@@ -372,6 +422,7 @@ def parse(input_string) -> Seq:
             
             length = match.end() - match.start()
             string = string[length:]
+            parsed_string += match[0]
             continue
         
         match = re.match(ROMAN_CHORD_PATTERN, string)
@@ -394,6 +445,7 @@ def parse(input_string) -> Seq:
             elts_stack[-1].append(elt)
             
             length = match.end() - match.start()
+            parsed_string += match[0]
             string = string[length:]
             continue
 
@@ -403,6 +455,7 @@ def parse(input_string) -> Seq:
         if match:
             modifiers["stretch"] = eval(match[1])
             string = string[len(match[0]):]
+            parsed_string += match[0]
             continue
         
         # Transpose modifier '^'
@@ -410,6 +463,7 @@ def parse(input_string) -> Seq:
         if match:
             modifiers["transpose"] = int(match[1])
             string = string[len(match[0]):]
+            parsed_string += match[0]
             continue
             
         # Probability modifier ':'
@@ -418,6 +472,7 @@ def parse(input_string) -> Seq:
             prob = eval(match[1])
             modifiers["prob"] = prob
             string = string[len(match[0]):]
+            parsed_string += match[0]
             continue
     
         raise ValueError("Bad string sequence argument", string)
@@ -431,7 +486,7 @@ def parse(input_string) -> Seq:
     s = Seq()
     for elt in elts_stack[0]:
         s.add(elt)
-    s.rstring = input_string
+    s._sstring = parsed_string
     return s
 
 
@@ -674,9 +729,11 @@ class Note():
 class PNote(Note):
     def __init__(self, wdict, dur=None, vel=100, prob=1):
         """
-            A Schroedinger's note
-            Only one will be played, depending on probability weights
-            All given notes should be of the same duration
+            *Experimental*
+        
+            A Schroedinger's note.
+            Only one will be played, depending on probability weights.
+            All given notes should be of the same duration.
 
             Parameters
             ----------
@@ -1004,7 +1061,7 @@ class Seq():
         self.silences = []  # Keep a record of silence, used for random picking
                             # so no need to sort it
         self.modseq = None
-        self.rstring = ""
+        self._sstring = ""  # Symbolic string representation
 
         for elt in notes:
             if isinstance(elt, int):
@@ -1027,7 +1084,7 @@ class Seq():
         new.silences = [ (t, s) for t, s in self.silences ]
         new.dur = self.dur
         new.head = self.head
-        new.rstring = self.rstring
+        new._sstring = self._sstring
         return new
     
 
@@ -1035,7 +1092,7 @@ class Seq():
         self.notes.clear()
         self.silences.clear()
         self.head = 0.0
-        self.rstring = ""
+        self._sstring = ""
 
 
     def add(self, other, head: Optional[float]=None) -> Seq:
@@ -1048,8 +1105,9 @@ class Seq():
         if isinstance(other, int):
             self.add(Note(other))
         elif isinstance(other, str):
-            self.add(parse(other))
-            self.rstring += other + ' '
+            s = parse(other)
+            self._sstring = ' '.join([self._sstring, s._sstring])
+            self.add(s)
         elif isinstance(other, Note):
             self.notes.append( (self.head, other.copy()) )
             self.head += other.dur
@@ -1075,12 +1133,6 @@ class Seq():
             self.notes.sort(key=lambda x: x[0])
         else:
             raise TypeError("Only instances of Note, Sil, Chord, Seq or string sequences can be added to a Sequence")
-        
-        # if self.rstring != None \
-        #     and head == None \
-        #     and hasattr(other, "rstring") \
-        #     and other.rstring:
-        #     self.rstring = self.rstring + ' ' + other.rstring
         
         return self
     
@@ -1301,8 +1353,8 @@ class Seq():
 
 
     def octaveShift(self, prob_up=0.1, prob_down=0.1) -> Seq:
-        """ Transpose notes one octave up or one octave down randomly
-            Modifies sequence in-place
+        """ Transpose notes one octave up or one octave down randomly.
+            Modifies sequence in-place.
         """
         for _, note in self.notes:
             if random.random() < prob_up:
@@ -1313,8 +1365,8 @@ class Seq():
 
 
     def crop(self) -> Seq:
-        """ Shorten or delete notes before time 0 and after the sequence's duration
-            Modifies sequence in-place
+        """ Shorten or delete notes before time 0 and after the sequence's duration.
+            Modifies sequence in-place.
         """
         cropped_notes = []
         for t, n in self.notes:
@@ -1902,7 +1954,10 @@ class Track():
                      # sequence index won't increment until generator finishes
                 #     self.seq_i -= 1
             elif isinstance(sequence, str):
+                # A symbolic string sequence
                 sequence = parse(sequence)
+                # Update string sequence state
+                self.seqs[self.seq_i] = sequence._sstring
             
             self.seq_i += 1
 
@@ -1929,7 +1984,7 @@ class Track():
 
         elif self.seq_i >= len(self.seqs):
             # End of track reached
-            if not self.loop or self._nmess_this_cycle == 0: # Stop if no messages were sent
+            if not self.loop: # or self._nmess_this_cycle == 0: # Stop if no messages were sent
                 self.ended = True
                 print("Track stopped")
                 return

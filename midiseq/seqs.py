@@ -20,18 +20,19 @@ seq_kaini_industries = Seq("""
 
 seq_mario = "e_e ._e ._c e_. g . -g"
 
-seq_sunburn1 = Seq("""
-    -b b g e b g e g
-    -a b e c b e c e
-    c +c g e +c g e g
-    -a b e c b e c e
-    """)^12
-seq_sunburn2 = Seq("""
-    e +e b g +e b g b
-    -a +e +c a +f# +e +c +e
-    c +f# +e +c +a +g +f# +e
-    -a +e +c a +f# +e +c +e
-    """)^12
+seq_sunburn1 = """
+    ( -b b g e b g e g
+      -a b e c b e c e
+      c +c g e +c g e g
+      -a b e c b e c e )^12
+    """
+                   
+seq_sunburn2 = """
+    ( e +e b g +e b g b
+      -a +e +c a +f# +e +c +e
+      c +f# +e +c +a +g +f# +e
+      -a +e +c a +f# +e +c +e )^12
+    """
 
 # https://www.youtube.com/watch?v=2aA72rBmWFQ
 # Should be played at 110 bpm
