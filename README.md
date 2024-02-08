@@ -1,7 +1,7 @@
 # MidiSeq
 
 Polyphonic real-time midi sequencer with Python.
-With a strong emphasis on generative composition and live performances.
+Emphasizing on generative composition and live performances.
 Clear and short syntax while trying to remain as little esoteric as possible.
 Explicit docstrings and error messages.
 
@@ -9,11 +9,9 @@ Explicit docstrings and error messages.
 
 ## Setup
 
-    pip install rtmidi
+    pip install -r requirements
 
-## Usage
-
-### Basic usage
+## Basic usage
 
 ```python
 >>> from miditool import *
@@ -26,16 +24,65 @@ Explicit docstrings and error messages.
 Opening port 1 [VCV Rack:VCV Rack input 133:0]
 
 >>> setBpm(60)
->>> play("c 5c c d g", loop=True)
+>>> play("c 5c c d g_g", loop=True)
 >>> stop()
+
+>>> setScale("minor", "d")
+>>> play1("i i .. i . i v")
+>>> play2("i .. i +i ..")
+>>> stop1()
+>>> stop2()
 ```
 
-### Notes, Silences and Sequences
+## Deep dive
 
-Here's how you create a note :
+### Symbolic string sequences
+
+The most straightforward way to write a sequence.
+
+English notation (c d e f g a b) as well as solfège notation (do re mi fa sol la si) can be used to compose a sequence in a string.
 
 ```python
-Note("c")
+>>> s = Seq("e b f# e +b")
+>>> play(s)
+>>> print(s)
+Seq((0.0, Note(52)), (0.125, Note(59)), (0.25, Note(54)), (0.375, Note(52)), (0.5, Note(71)), dur=0.625)
+```
+
+Sharp and flats are noted with the symbols `#` and `b` after the note name. Octave transposition is done by prepending the note name by a single number (absolute octave transposition) and with a `+`/`-` sign for relative transposition. The number can be omitted for a transposition of just 1 octave up or down.
+
+```python
+play("+e d -e +2b") # The play function will automatically convert a string to a Seq
+```
+
+Silences can be added in a string sequence with dots `.`.
+You can coalesce dots together as well : `....`.
+
+A note's duration can be subdivided by suffixing it with the `%`, symbol followed by a factor applied to the default duration of the note.
+
+	"c#%.5" divides the note's duration by two
+	"d%1/3" divides the note's duration by three
+
+#### Tuplets
+
+
+
+### Scales
+
+```python
+setScl("minor", "c")
+```
+
+### Element objects sequences
+
+The pythonic OOP way.
+
+#### Notes, Silences and Sequences
+
+A single note :
+
+```python
+Note("c") or Note(48)
 ```
 
 You can sets its length with the `dur` parameter and add a silence/rest after it :
@@ -44,14 +91,13 @@ You can sets its length with the `dur` parameter and add a silence/rest after it
 Note("c", dur=2) + Sil(1.5)
 ```
 
-Now, the duration of a note is not an absolute value. It's a relative value by which the default length is multiplied to give the note's true length (same for the silence).\
-If the default length was set with `setNoteDur(1/4)` (default value), the previous sequence would play as a 'c' half note, followed by a dotted quarter rest.
-
 Sequences are automatically created when you add Notes, Silences or Chords together.
 
 ```python
-s = Note("c") + Note("e") + Note("g")
-s = 2*s + Sil() + 2*s
+>>> s = Note("c") + Note("e") + Note("g")
+>>> s = 2*s + Sil() + 2*s
+>>> print(type(s))
+<class 'midiseq.elements.Seq'>
 ```
 
 #### Notes with probabilites
@@ -67,7 +113,9 @@ n.prob = 0.5
 
 #### PNotes, a.k.a. Schrödinger's notes
 
-PNotes are a special kind of notes that can randomly resolve to different pitches. You can create them by providing a dictionary, mapping pitches to probability weights, or by providing a list, tuple or a set (each pitch will have an equal probability in this case).
+*Experimental*
+
+PNotes are a special kind of notes that can randomly resolve to different pitches. You can create them by providing a dictionary, mapping pitches to probability weights, or by providing a list, tuple or a set (each pitch will have an equal probability in that case).
 
 ```python
 n = PNote({"c": 1, "e": 2})
@@ -91,39 +139,6 @@ Possible type of chords:
 * Seventh: "C7" (dominant seventh), "CM7" (major seventh), "Cm7" (minor seventh), "C+7" (augmented seventh)
 * Ninth: "C9" (dominant ninth), "CM9" (major ninth)
 
-### String sequences
-
-English notation (c d e f g a b) as well as solfège notation (do re mi fa sol la si) can be used to compose a sequence in a string.
-
-```python
-Seq("e b f# e b")
-```
-
-Sharp and flats are noted with the symbols `#` and `b` after the note name. Octave transposition is done by prepending the note name by a single number (absolute octave transposition) and with a +/- sign for relative transposition. The number can be omitted for a transposition of just 1 octave up or down.
-
-```python
-play("+e d -e +2b") # The play function will automatically convert a string to a Seq
-```
-
-Silences can be added in a string sequence with dots `.`. Many silences can be chained by concanetating the dots together.
-Thus, `. . . .` is equivalent to `....`.
-
-A note's duration can be subdivided by suffixing it with the `%`, symbol followed by a factor applied to the default duration of the note.
-
-	"c#%.5" divides the note's duration by two
-	"d%1/3" divides the note's duration by three
-
-#### Tuplets
-
-### Scales
-
-You can constrain all generated notes in newly created sequences to a scale with the `setScale` function.
-
-```python
-setScl("minor", "c")
-```
-
-This won't affect previously created sequences.
 
 ### Sequence modifiers
 
@@ -138,10 +153,11 @@ transpose | int     | Transose the whole sequence by semitones
 expandPitch | float | Raise or lower pitches around a mean value
 splitNotes | int    | Split all notes (or a single note)
 decimate | prob: float    | Remove notes randomly with a given probability
-attenuate |         |
-humanize |          | Randomize sligthly notes time, duration and velocity
+attenuate | factor=1.0 | Attenuate notes velocity by a given factor
+humanize | tfactor=0.01, veldev=5 | Randomize sligthly notes time, duration and velocity
+octaveShift | prob_up=0.1, prob_down=0.1 | Transpose notes one octave up or one octave down randomly |
 crop    |           | Crop notes (or parts of notes) before and after the sequence duration
-strip   |           | Remove silences from both ends of the sequence. Change the sequence duration accordingly
+strip   |           | Remove silences from both ends of the sequence
 stripHead |         | Remove silences in front of the sequence
 stripTail |         | Remove silences at the end of the sequence
 shift   | float     | Shift onset of all notes in sequence
