@@ -15,21 +15,22 @@ from .modulation import Mod, ModSeq
 
 
 
-
 NOTE_CHORD_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
                                     (do|re|ré|mi|fa|sol|la|si|ti|[a-g])
                                     (b|\#)?			# Accidentals (flat or sharp)
                                     (M|m|mM|\+|°|sus2|sus4)? # Maj, min, min/Maj, aug,...
                                     (7|9|11)?		# Seventh, ninth, eleventh
-                                    (%[\d/.]+)?		# Time multiplication factor
+                                    #(%[\d/.]+)?		# Time multiplication factor
                                 """, re.X|re.I)
 
-MIDI_PITCH_PATTERN = re.compile(r"(\d+)(%[\d/.]+)?")
+# MIDI_PITCH_PATTERN = re.compile(r"(\d+)(%[\d/.]+)?")
+MIDI_PITCH_PATTERN = re.compile(r"(\d+)")
 
-ROMAN_CHORD_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
+
+ROMAN_DEGREE_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
                                     ([ivx]+)		# Degree
                                     (7|9|11)?		# Seventh, ninth, eleventh
-                                    (%[\d/.]+)?	    # Time multiplication factor
+                                    #(%[\d/.]+)?	    # Time multiplication factor
                                 """, re.X|re.I)
 
 SILENCE_PATTERN = re.compile(r"(\.+)")
@@ -115,381 +116,6 @@ def str2pitch(tone: str) -> int:
         pitch += 1 if match[3]=='#' else -1 if match[3]=='b' else 0
         return pitch
     return -1
-
-
-
-def str2elt(string) -> Union[Note, Chord, Sil]:
-    """
-        Parse a string to a single element
-    """
-    match = re.fullmatch(NOTE_CHORD_PATTERN, string)
-    if match:
-        pitch = str2pitch(string)
-        is_chord = match[2][0].isupper()
-        dur = 1 if not match[6] else eval(match[6][1:])
-        if is_chord:
-            chord_type = (match[4] or '') + (match[5] or '')
-            pitches = ( pitch + i for i in chord_intervals[chord_type] )
-            elt = Chord(*pitches, dur=dur)
-        else:
-            elt = Note(pitch, dur=dur)
-        elt.rstring = match[0]
-        return elt
-
-    match = re.fullmatch(SILENCE_PATTERN, string)
-    if match:
-        elt = Sil(len(match[0]))
-        elt.rstring = match[0]
-        return elt
-
-    match = re.fullmatch(MIDI_PITCH_PATTERN, string)
-    if match:
-        pitch = int(match[1])
-        dur = 1 if not match[2] else eval(match[2][1:])
-        elt = Note(pitch, dur=dur)
-        elt.rstring = string
-        return elt
-    
-    match = re.match(ROMAN_CHORD_PATTERN, string)
-    if match:
-        scl = env.scale if env.scale else Scl("chromatic", 'c')
-        degree = roman2num[match[2].lower()]
-        if degree > len(scl.scale):
-            raise ValueError(f"Scale doesn't have a {match[2].upper()}th degree") # XXX
-        dur = 1 if not match[4] else eval(match[4][1:])
-        oct_off = _get_octave(match[1]) - env.default_octave
-        # Single Note
-        if match[2].islower():
-            elt = Note(scl.getDegree(degree))^(12*oct_off)
-        # Chords
-        elif match[3] == '7':
-            elt = scl.seventh(degree, dur)^(12*oct_off)
-        else:
-            elt = scl.triad(degree, dur)^(12*oct_off)
-        elt.rstring = string
-        return elt
-    
-    raise ValueError
-
-
-
-def parse(input_string) -> Seq:
-    """
-        Parse a string sequence to a Seq object
-
-        String sequence examples:
-         * Chords: "[do mi sol][mi sol si]"
-         * Tuplets: "do_re mi_fa do_re_mi"
-         * Schroedinger's operator: "{do re mi}"
-         * Sequencial operator:
-            "<do +do> <mi sol +sol>"
-        
-        Element modifiers:
-            * %n stretch
-            * ^n transpose
-            * :n probability/weight
-            * ?n
-            * *n
-    """
-
-    def resolve_tuplet():
-        op_stack.pop()
-        notes = elts_stack.pop()
-        tuplet = Seq(*notes)
-        tuplet.stretch(1/len(notes))
-        elts_stack[-1].append(tuplet)
-    
-    def apply_modifiers():
-        """Apply modifiers to last parsed element"""
-        if not modifiers:
-            return
-        if "stretch" in modifiers:
-            elts_stack[-1][-1].stretch(modifiers["stretch"])
-        if "transpose" in modifiers:
-            elts_stack[-1][-1].transpose(modifiers["transpose"])
-        if "prob" in modifiers:
-            if op_stack[-1] == '{':
-                weights_stack[-1].append(prob)
-            elif isinstance(elts_stack[-1][-1], Note):
-                elts_stack[-1][-1].prob = prob
-        modifiers.clear()
-
-    def commit():
-        """Called at end of each element, before the next element or operator"""
-        nonlocal commited
-        if commited:
-            return
-        if op_stack[-1] == '_':
-            resolve_tuplet()
-        apply_modifiers()
-        if op_stack[-1] == '{' and len(weights_stack[-1]) < len(elts_stack[-1]):
-            weights_stack[-1].append(1)
-        commited = True
-
-    op_stack = ['(']
-    elts_stack = [[]]
-    modifiers = {}
-    weights_stack = []
-    commited = False
-    parsed_string = ""
-
-    string = ' '.join(input_string.split())
-    while string:
-        # print(string)
-
-        # Element separator
-        if string[0] == ' ':
-            # if op_stack[-1] == '_':
-            #     resolve_tuplet()
-            # apply_modifiers()
-            # if op_stack[-1] == '{' and len(elts_probweights) < len(elts_stack):
-            #     elts_probweights.append(1)
-            commit()
-            string = string[1:]
-            if parsed_string and parsed_string[-1] not in "([{<":
-                parsed_string += ' '
-            continue
-
-        # Opening addition operator (default)
-        if string[0] == '(':
-            commit()
-            op_stack.append('(')
-            elts_stack.append([])
-            string = string[1:]
-            parsed_string += '('
-            continue
-
-        if string[0] == ')':
-            commit()
-            if op_stack[-1] != '(':
-                raise ValueError("Bad string sequence argument")
-            op_stack.pop()
-            sub_seq = Seq()
-            for elt in elts_stack.pop():
-                sub_seq.add(elt)
-            elts_stack[-1].append(sub_seq)
-            string = string[1:]
-            if parsed_string and parsed_string[-1] == ' ':
-                parsed_string = parsed_string[:-1]
-            parsed_string += ')'
-            continue
-
-        # Tuplet separator
-        if string[0] == '_':
-            if not op_stack or op_stack[-1] != '_':
-                op_stack.append('_')
-                # put last element in new elts_stack layer
-                last_elt = elts_stack[-1].pop()
-                elts_stack.append([last_elt])
-            string = string[1:]
-            parsed_string += '_'
-            continue
-
-        # Opening explicit chord
-        if string[0] == '[':
-            # apply_modifiers()
-            commit()
-            op_stack.append('[')
-            elts_stack.append([])
-            string = string[1:]
-            parsed_string += '['
-            continue
-
-        # Closing explicit chord
-        if string[0] == ']':
-            # if op_stack[-1] == '_':
-            #     resolve_tuplet()
-            commit()
-            if op_stack[-1] != '[':
-                raise ValueError("Bad string sequence argument")
-            op_stack.pop()
-            exp_chord = Seq()
-            for elt in elts_stack.pop():
-                exp_chord.merge(elt)
-            elts_stack[-1].append(exp_chord)
-            string = string[1:]
-            if parsed_string and parsed_string[-1] == ' ':
-                parsed_string = parsed_string[:-1]
-            parsed_string += ']'
-            continue
-
-        # Opening Schroedinger's element
-        if string[0] == '{':
-            # apply_modifiers()
-            commit()
-            op_stack.append('{')
-            elts_stack.append([])
-            weights_stack.append([])
-            string = string[1:]
-            parsed_string += '{'
-            continue
-
-        # Closing Schroedinger's element
-        if string[0] == '}':
-            commit()
-            if op_stack[-1] != '{':
-                raise ValueError("Bad string sequence argument")
-            if len(weights_stack[-1]) < len(elts_stack[-1]):
-                weights_stack[-1].append(1)
-            # Do probs
-            weights = weights_stack.pop()
-            sum_weights = sum(weights)
-            prob = 0; keeper = None
-            for i, elt in enumerate(elts_stack.pop()):
-                prob += weights[i] / sum_weights
-                if random.random() < prob:
-                    #keeper = elt
-                    break
-            elts_stack[-1].append(elt)
-            op_stack.pop()
-
-            string = string[1:]
-            if parsed_string and parsed_string[-1] == ' ':
-                parsed_string = parsed_string[:-1]
-            parsed_string += '}'
-            continue
-
-        # Sequential op
-        if string[0] == '<':
-            # apply_modifiers()
-            commit()
-            op_stack.append('<')
-            elts_stack.append([])
-            #weights_stack.append([])
-            string = string[1:]
-            parsed_string += '<'
-            continue
-        
-        # Sequential op
-        match = re.match(r">(?:#(\d+))?", string)
-        if match:
-            commit()
-            if op_stack[-1] != '<':
-                raise ValueError("Bad string sequence argument")
-            op_stack.pop()
-
-            elts = elts_stack.pop()
-            n = int(match[1])%len(elts) if match[1] else 0
-            elts_stack[-1].append(elts[n])
-
-            string = string[len(match[0]):]
-            if parsed_string and parsed_string[-1] == ' ':
-                parsed_string = parsed_string[:-1]
-            parsed_string += '>#{}'.format((n+1)%len(elts))
-            continue
-
-
-
-        commited = False
-
-        match = re.match(NOTE_CHORD_PATTERN, string)
-        if match:
-            pitch = str2pitch(string)
-            is_chord = match[2][0].isupper()
-            dur = 1 if not match[6] else eval(match[6][1:])
-            if is_chord:
-                chord_type = (match[4] or '') + (match[5] or '')
-                pitches = ( pitch + i for i in chord_intervals[chord_type] )
-                elt = Chord(*pitches, dur=dur)
-            else:
-                elt = Note(pitch, dur=dur)
-            elt.rstring = match[0]
-            elts_stack[-1].append(elt)
-            
-            length = match.end() - match.start()
-            string = string[length:]
-            parsed_string += match[0]
-            continue
-
-        match = re.match(SILENCE_PATTERN, string)
-        if match:
-            elt = Sil(len(match[0]))
-            elt.rstring = match[0]
-            elts_stack[-1].append(elt)
-            
-            length = match.end() - match.start()
-            string = string[length:]
-            parsed_string += match[0]
-            continue
-
-        match = re.match(MIDI_PITCH_PATTERN, string)
-        if match:
-            pitch = int(match[1])
-            dur = 1 if not match[2] else eval(match[2][1:])
-            elt = Note(pitch, dur=dur)
-            elt.rstring = string
-            elts_stack[-1].append(elt)
-            
-            length = match.end() - match.start()
-            string = string[length:]
-            parsed_string += match[0]
-            continue
-        
-        match = re.match(ROMAN_CHORD_PATTERN, string)
-        if match:
-            scl = env.scale if env.scale else Scl("chromatic", 'c')
-            degree = roman2num[match[2].lower()]
-            # if degree > len(scl.scale):
-                #raise ValueError(f"Scale doesn't have a {match[2].upper()}th degree")
-            dur = 1 if not match[4] else eval(match[4][1:])
-            oct_off = _get_octave(match[1]) - env.default_octave
-            # Single Note
-            if match[2].islower():
-                elt = Note(scl.getDegree(degree))^(12*oct_off)
-            # Chords
-            elif match[3] == '7':
-                elt = scl.seventh(degree, dur)^(12*oct_off)
-            else:
-                elt = scl.triad(degree, dur)^(12*oct_off)
-            elt.rstring = string
-            elts_stack[-1].append(elt)
-            
-            length = match.end() - match.start()
-            parsed_string += match[0]
-            string = string[length:]
-            continue
-
-        # Group modifiers
-        # Stretch modifier '%'
-        match = re.match(r"%(\d*\.?\d+)", string)
-        if match:
-            modifiers["stretch"] = eval(match[1])
-            string = string[len(match[0]):]
-            parsed_string += match[0]
-            continue
-        
-        # Transpose modifier '^'
-        match = re.match(r"\^(-?\d+)", string)
-        if match:
-            modifiers["transpose"] = int(match[1])
-            string = string[len(match[0]):]
-            parsed_string += match[0]
-            continue
-            
-        # Probability modifier ':'
-        match = re.match(r":(\d*\.?\d+)", string)
-        if match:
-            prob = eval(match[1])
-            modifiers["prob"] = prob
-            string = string[len(match[0]):]
-            parsed_string += match[0]
-            continue
-    
-        raise ValueError("Bad string sequence argument", string)
-    
-    # Remaining operations
-    if op_stack[-1] == '_':
-        resolve_tuplet()
-    if modifiers:
-        apply_modifiers()
-    
-    s = Seq()
-    for elt in elts_stack[0]:
-        s.add(elt)
-    s._sstring = parsed_string
-    return s
-
-
 
 
 
@@ -657,9 +283,11 @@ class Note():
             self.patval = self.pat.getValues(0.0, 1.0, stretch=self.dur)
         return self
 
+
     def transpose(self, semitones):
-        self.pitch += semitones
+        self.pitch = min(max(self.pitch + semitones, 0), 127)
         return self
+
 
     def __add__(self, other) -> Seq:
         return Seq().add(self).add(other)
@@ -707,8 +335,8 @@ class Note():
                self.prob == other.prob
 
     def __str__(self):
-        if hasattr(self, "rstring"):
-            return self.rstring
+        if hasattr(self, "string"):
+            return self.string
         return self.__repr__()
     
     def __repr__(self):
@@ -869,8 +497,8 @@ class Sil():
         return self.dur == other.dur
 
     def __str__(self):
-        if hasattr(self, "rstring"):
-            return self.rstring
+        if hasattr(self, "string"):
+            return self.string
         return self.__repr__()
     
     def __repr__(self):
@@ -916,11 +544,6 @@ class Chord():
     def copy(self) -> Note:
         return Chord(self)
     
-
-    def stretch(self, factor) -> Note:
-        for n in self.notes:
-            n.dur *= factor
-        return self
 
     def arp(self, mode="up", oct=1) -> Seq:
         """ Arpeggiate a Chord
@@ -988,11 +611,8 @@ class Chord():
 
 
     def _parse_string(self, string: str) -> None:
-        other = parse(string)
-        for elt in other:
-            pass
         for elt in string.split():
-            elt = str2elt(elt)
+            elt = parse_element(elt)
             if isinstance(elt, Note):
                 self._insert_note(elt)
             elif isinstance(elt, Chord):
@@ -1004,6 +624,20 @@ class Chord():
     def _merge_chord(self, other: Chord) -> None:
         for note in other.notes:
             self._insert_note(note)
+
+
+    def stretch(self, factor) -> Note:
+        for n in self.notes:
+            n.dur *= factor
+        self.dur *= factor
+        return self
+
+
+    def transpose(self, semitones):
+        for n in self.notes:
+            n.transpose(semitones)
+        self.pitches = set([n.pitch for n in self.notes])
+        return self
 
 
     def __xor__(self, semitones):
@@ -1032,8 +666,8 @@ class Chord():
         yield from self.notes
     
     def __str__(self):
-        if hasattr(self, "rstring"):
-            return self.rstring
+        if hasattr(self, "string"):
+            return self.string
         return self.__repr__()
 
     def __repr__(self):
@@ -1061,7 +695,7 @@ class Seq():
         self.silences = []  # Keep a record of silence, used for random picking
                             # so no need to sort it
         self.modseq = None
-        self._sstring = ""  # Symbolic string representation
+        self.string = ""  # Symbolic string representation
 
         for elt in notes:
             if isinstance(elt, int):
@@ -1084,7 +718,7 @@ class Seq():
         new.silences = [ (t, s) for t, s in self.silences ]
         new.dur = self.dur
         new.head = self.head
-        new._sstring = self._sstring
+        new.string = self.string
         return new
     
 
@@ -1092,7 +726,7 @@ class Seq():
         self.notes.clear()
         self.silences.clear()
         self.head = 0.0
-        self._sstring = ""
+        self.string = ""
 
 
     def add(self, other, head: Optional[float]=None) -> Seq:
@@ -1105,8 +739,8 @@ class Seq():
         if isinstance(other, int):
             self.add(Note(other))
         elif isinstance(other, str):
-            s = parse(other)
-            self._sstring = ' '.join([self._sstring, s._sstring])
+            s, _ = parse(other)
+            self.string = ' '.join([self.string, s.string])
             self.add(s)
         elif isinstance(other, Note):
             self.notes.append( (self.head, other.copy()) )
@@ -1132,7 +766,7 @@ class Seq():
             self.dur = max(self.dur, self.head)
             self.notes.sort(key=lambda x: x[0])
         else:
-            raise TypeError("Only instances of Note, Sil, Chord, Seq or string sequences can be added to a Sequence")
+            raise TypeError(f"Only instances of Note, Sil, Chord, Seq or string sequences can be added to a Sequence, got {other} ({type(other)})")
         
         return self
     
@@ -1955,9 +1589,9 @@ class Track():
                 #     self.seq_i -= 1
             elif isinstance(sequence, str):
                 # A symbolic string sequence
-                sequence = parse(sequence)
+                sequence, updated_sequence = parse_seq(sequence)
                 # Update string sequence state
-                self.seqs[self.seq_i] = sequence._sstring
+                self.seqs[self.seq_i] = updated_sequence
             
             self.seq_i += 1
 
@@ -2017,3 +1651,254 @@ class Song():
         self.tempo = 120
         self.time_signature = (4, 4)
         self.tracks = []
+
+
+
+
+Element = Union[Note, Chord, Sil, Seq]
+
+
+
+def split_elements(seq_string):
+    """Split symbolic string sequence in its root sub-elements"""
+    seq_string = seq_string.strip()
+    op_depth = 0
+    elements = []
+    elt_start = 0
+    for i in range(len(seq_string)):
+        if seq_string[i] in "<{[(":
+            # Check for coalesced operators (ex: "[a b c][d e f]")
+            if op_depth == 0 and i > 0 and seq_string[i-1] != ' ':
+                elements.append(seq_string[elt_start:i])
+                elt_start = i
+            op_depth += 1
+        elif seq_string[i] in ">}])":
+            # Check if there is a prepended modifier
+            op_depth -= 1
+        
+        if op_depth == 0 and seq_string[i].isspace():
+            # Skip multi-spaces
+            if i > 0 and seq_string[i-1].isspace():
+                pass
+            else:
+                elements.append(seq_string[elt_start:i])
+            elt_start = i+1
+    
+    elements.append(seq_string[elt_start:])
+    return elements
+
+
+def apply_modifiers(elt: Element, modifiers: str) -> Element:
+    # Stretch modifier '%'
+    match = re.search(r"%(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+    if match:
+        elt.stretch(eval(match[1]))
+
+    # Transpose modifier '^'
+    match = re.search(r"\^(-?\d+)", modifiers)
+    if match:
+        elt.transpose(int(match[1]))
+                
+    # Probability modifier ':'
+    #         match = re.match(r":(\d*\.?\d+)", string)
+    #         if match:
+    #             prob = eval(match[1])
+    #             modifiers["prob"] = prob
+    #             string = string[len(match[0]):]
+    #             parsed_string += match[0]
+    #             continue
+
+    return elt
+
+
+def parse_element(elt_string) -> Element:
+    """Parse a single element (everything that is not a group)"""
+    match = re.match(NOTE_CHORD_PATTERN, elt_string)
+    if match:
+        pitch = str2pitch(match[0])
+        is_chord = match[2][0].isupper()
+        if is_chord:
+            chord_type = (match[4] or '') + (match[5] or '')
+            pitches = ( pitch + i for i in chord_intervals[chord_type] )
+            elt = Chord(*pitches)
+        else:
+            elt = Note(pitch)
+        modifiers = elt_string[match.end():]
+        elt = apply_modifiers(elt, modifiers)
+        elt.string = elt_string
+        return elt
+
+    match = re.match(ROMAN_DEGREE_PATTERN, elt_string)
+    if match:
+        scl = env.scale if env.scale else Scl("chromatic", 'c')
+        degree = roman2num[match[2].lower()]
+        # if degree > len(scl.scale):
+            #raise ValueError(f"Scale doesn't have a {match[2].upper()}th degree")
+        oct_off = _get_octave(match[1]) - env.default_octave
+        # Single Note
+        if match[2].islower():
+            elt = Note(scl.getDegree(degree))^(12*oct_off)
+        # Chords
+        elif match[3] == '7':
+            elt = scl.seventh(degree)^(12*oct_off)
+        else:
+            elt = scl.triad(degree)^(12*oct_off)
+        modifiers = elt_string[match.end():]
+        elt = apply_modifiers(elt, modifiers)
+        elt.string = elt_string
+        return elt
+    
+    match = re.match(SILENCE_PATTERN, elt_string)
+    if match:
+        elt = Sil(len(match[0]))
+        modifiers = elt_string[match.end():]
+        elt = apply_modifiers(elt, modifiers)
+        elt.string = elt_string
+        return elt
+
+    match = re.match(MIDI_PITCH_PATTERN, elt_string)
+    if match:
+        pitch = int(match[1])
+        elt = Note(pitch)
+        modifiers = elt_string[match.end():]
+        elt = apply_modifiers(elt, modifiers)
+        elt.string = elt_string
+        return elt
+
+
+def _parse_fn_default(seq_string: str, modifiers: str) -> Tuple[Element, str]:
+    """
+        Add all sub-elements in a single Sequence
+        Return a single Sequence
+
+        All _parse_fn_* functions should return a tuple with
+        the element or sequence resulting from this function,
+        the updated seq_string
+    """
+    seq = Seq()
+    string_elts = []
+    for string_elt in split_elements(seq_string):
+        elt, updated_string_elt = _parse(string_elt)
+        seq.add(elt)
+        string_elts.append(updated_string_elt)
+    seq = apply_modifiers(seq, modifiers)
+    return seq, f"({' '.join(string_elts)}){modifiers}"
+
+
+def _parse_fn_chord(seq_string: str, modifiers: str) -> Tuple[Element, str]:
+    seq = Seq()
+    string_elts = []
+    for string_elt in split_elements(seq_string):
+        elt, updated_string_elt = _parse(string_elt)
+        seq.merge(elt)
+        string_elts.append(updated_string_elt)
+    seq = apply_modifiers(seq, modifiers)
+    return seq, f"[{' '.join(string_elts)}]{modifiers}"
+
+
+def _parse_fn_tuplet(seq_string: str) -> Tuple[Element, str]:
+    """ All notes duration are divided by the number of notes in tuplet
+
+        No modifiers should be provided to tuplet groups.
+        To apply modifiers to a tuplet group you need to use parentesis :
+        Ex: (a_b_c)%2
+    """
+    string_elts = seq_string.split('_')
+    seq = Seq()
+    updated_string_elts = []
+    for string_elt in string_elts:
+        elt, updated_string_elt = _parse(string_elt)
+        seq.add(elt)
+        updated_string_elts.append(updated_string_elt)
+    seq.stretch(1/len(string_elts))
+    return seq, '_'.join(updated_string_elts)
+
+
+def _parse_fn_sequencial(seq_string: str, modifiers: str) -> Tuple[Element, str]:
+    """Return the `seq_i`-th element in the group"""
+    match_seq_i = re.match(r"#(\d+)", modifiers)
+    if match_seq_i:
+        seq_i = int(match_seq_i[1])
+        modifiers = modifiers[:match_seq_i.start()] + modifiers[match_seq_i.end():]
+    else:
+        seq_i = 0
+    string_elts = split_elements(seq_string)
+    elt, updated_substring = _parse(string_elts[seq_i])
+    elt = apply_modifiers(elt, modifiers)
+    string_elts[seq_i] = updated_substring
+    seq_i = (seq_i + 1) % len(string_elts)
+    return elt, f"<{' '.join(string_elts)}>#{seq_i}{modifiers}"
+
+
+def _parse_fn_schroedinger(seq_string: str, modifiers: str) -> Tuple[Element, str]:
+    string_elts = split_elements(seq_string)
+    prob_weights = []
+    for string_elt in string_elts:
+        match = re.search(r":(\d*\.?\d+(?:\/\d*\.?\d+)?)$", string_elt)
+        prob_weights.append(eval(match[1]) if match else 1)
+    sum_weights = sum(prob_weights)
+    keeper = None; keeper_idx = -1
+    updated_string_elt = ""
+    prob = 0
+    for i, string_elt in enumerate(string_elts):
+        prob += prob_weights[i] / sum_weights
+        if random.random() < prob:
+            keeper_idx = i
+            keeper, updated_string_elt = _parse(string_elt)
+            break
+    string_elts[keeper_idx] = updated_string_elt
+    keeper = apply_modifiers(keeper, modifiers)
+    return keeper, f"{{{' '.join(string_elts)}}}{modifiers}"
+
+
+
+def _parse(seq_string) -> Tuple[Element, str]:
+
+    # Default group
+    match = re.fullmatch(r"\((.+)\)(\S*)", seq_string)
+    if match:        
+        return _parse_fn_default(match[1], match[2])
+
+    # Chord group
+    match = re.fullmatch(r"\[(.+)\](\S*)", seq_string)
+    if match:
+        return _parse_fn_chord(match[1], match[2])
+
+    # Sequecial group
+    match = re.fullmatch(r"<(.+)>(\S*)", seq_string)
+    if match:
+        return _parse_fn_sequencial(match[1], match[2])
+
+    # Schroedinger group
+    match = re.fullmatch(r"{(.*)}(\S*)", seq_string)
+    if match:
+        return _parse_fn_schroedinger(match[1], match[2])
+
+    # Tuplet group
+    if '_' in seq_string:
+        return _parse_fn_tuplet(seq_string)
+
+    try:
+        elt = parse_element(seq_string)
+        return elt, seq_string
+    except:
+        raise ValueError
+
+
+def parse(seq_string) -> Tuple[Element, str]:
+    """Parse a symbolic string sequence"""
+    seq_string = seq_string.strip()
+    if len(split_elements(seq_string)) > 1:
+        # Add explicit append operator
+        seq_string = '(' + seq_string + ')'
+    seq, updated_string = _parse(seq_string)
+    seq.string = updated_string
+    return seq, updated_string
+
+
+def parse_seq(seq_string) -> Tuple[Element, str]:
+    """Parse a symbolic string sequence and return a Seq"""
+    element, updated_string = parse(seq_string)
+    if not isinstance(element, Seq):
+        element = Seq(element)
+    return element, updated_string

@@ -1,7 +1,7 @@
 from typing import Union
 import random
 
-from .elements import Note, Sil, Chord, Seq, Scl, str2pitch, str2elt, parse
+from .elements import Note, Sil, Chord, Seq, Scl, str2pitch, parse, parse_element
 import midiseq.env as env
 
 
@@ -15,7 +15,7 @@ def pattern(pat: str, note: Union[int, str, Note, Chord], vel=100) -> Seq:
     if isinstance(note, int):
         note = Note(note)
     elif isinstance(note, str):
-        note = str2elt(note)
+        note = parse_element(note)
     if isinstance(note, Note):
         note.vel = vel
     for c in pat:
@@ -37,7 +37,7 @@ def noob2seq(noob: str):
     s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
     s = s.replace('-', '_') # Tuplets
     s = ' '.join(s.split()).lower()
-    return parse(s)
+    return parse(s)[0]
 
 
 
@@ -258,7 +258,7 @@ def lcm(*seqs, tolerance=0.0001):
                 return False
         return True
 
-    seqs_init = [ parse(s) if isinstance(s, str) else s for s in seqs ]
+    seqs_init = [ parse(s)[0] if isinstance(s, str) else s for s in seqs ]
     seqs = [ s.copy() for s in seqs_init ]
     while not samelen(seqs):
         # Find index of shortest seq:

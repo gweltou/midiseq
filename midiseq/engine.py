@@ -14,7 +14,7 @@ import mido
 #from mido import MidiFile
 
 import midiseq.env as env
-from .elements import Seq, Note, PNote, Chord, Track, Song, parse
+from .elements import Seq, Note, PNote, Chord, Track, Song
 from .generators import genStr2seq
 
 
@@ -142,7 +142,8 @@ def play(
     if what:
         # Play solo track, seq or note
         if isinstance(what, str):
-            what = Track(channel=channel, instrument=instrument, loop=loop)._addGen(genStr2seq, what)
+            # what = Track(channel=channel, instrument=instrument, loop=loop)._addGen(genStr2seq, what)
+            what = Track(channel=channel, instrument=instrument, loop=loop).add(what)
         elif type(what) in (Note, PNote, Chord):
             what = Seq().add(what)
         elif isinstance(what, Generator):

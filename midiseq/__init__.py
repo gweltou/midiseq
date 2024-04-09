@@ -17,7 +17,10 @@ from .engine import (
     play, stop, panic, playMetro, wait,
     TrackGroup, getPastOpened
 )
-from .elements import Seq, Chord, Note, Sil, Track, PNote
+from .elements import (
+    Seq, Chord, Note, Sil, Track, PNote, Element,
+    parse, parse_element
+)
 from .modulation import *
 from .utils import (
     pattern, noob2seq,

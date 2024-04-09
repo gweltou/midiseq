@@ -34,7 +34,13 @@ Opening port 1 [VCV Rack:VCV Rack input 133:0]
 >>> stop2()
 ```
 
-## Deep dive
+## Documentation
+
+### Scales
+
+```python
+setScl("minor", "c")
+```
 
 ### Symbolic string sequences
 
@@ -63,14 +69,46 @@ A note's duration can be subdivided by suffixing it with the `%`, symbol followe
 	"c#%.5" divides the note's duration by two
 	"d%1/3" divides the note's duration by three
 
-#### Tuplets
+#### Symbolic strings functions
 
+##### Tuplets
 
+```
+do_re_mi
+```
 
-### Scales
+##### Chords
 
-```python
-setScl("minor", "c")
+Play all elements at the same time.
+
+```
+[do mi sol]
+```
+
+##### Sequencial
+
+Return the next element on the list, loop at the end.
+
+```
+<mi sol +sol>
+```
+
+Iteration number :
+
+```
+<mi sol +sol>#2
+```
+
+#### Schroedinger
+
+Return a randomly picked element, with optional probabilities.
+
+```
+{do re mi}
+```
+
+```
+{do:2 re:1 mi:1}
 ```
 
 ### Element objects sequences
