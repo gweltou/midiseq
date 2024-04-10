@@ -15,7 +15,6 @@ import mido
 
 import midiseq.env as env
 from .elements import Seq, Note, PNote, Chord, Track, Song
-from .generators import genStr2seq
 
 
 # DEBUG = True

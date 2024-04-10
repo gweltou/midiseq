@@ -5,9 +5,8 @@ from .definitions import *
 
 
 
-
 ###############################################################################
-####                           Exemple sequences                           ####
+####                           Example sequences                           ####
 ###############################################################################
 
 
@@ -25,21 +24,22 @@ seq_sunburn1 = """
       -a b e c b e c e
       c +c g e +c g e g
       -a b e c b e c e )^12
-    """
-                   
+    """            
 seq_sunburn2 = """
     ( e +e b g +e b g b
       -a +e +c a +f# +e +c +e
       c +f# +e +c +a +g +f# +e
       -a +e +c a +f# +e +c +e )^12
     """
+seq_sunburn = seq_sunburn1*2 + seq_sunburn2*2
 
 # https://www.youtube.com/watch?v=2aA72rBmWFQ
-# Should be played at 110 bpm
+# Played at 110 bpm
 seq_freya_theme1 = lcm("d%3 a%2 .", "+a%2 +f%2")
 seq_freya_theme2 = lcm("c%3 a%2 .", "[+a%2 +2e%2] +e%2")
 seq_freya_theme3 = lcm("-a#%3 a%2 .", "[+a%2 +2d%2] +d%2")
 seq_freya_theme4 = lcm("g%3 +d%2 .", "[+a#%2 +2d%2] +g%2")
+seq_frey_theme = seq_freya_theme1*4 + seq_freya_theme2*4 + seq_freya_theme3*4 + seq_freya_theme4*4
 
 # https://www.youtube.com/watch?v=m3X-XEjTqz4
 seq_4tet_green1 = """
@@ -164,6 +164,7 @@ def gen_tintinnabuli3():
         s.dur = note_dur + abs(random.gauss(0, 3))
         s.humanize(0.02).attenuate(0.7)
         yield s
+
 
 def gen_fratres():
     # Tintinnabuli fratres

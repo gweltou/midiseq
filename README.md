@@ -71,13 +71,25 @@ A note's duration can be subdivided by suffixing it with the `%`, symbol followe
 
 #### Symbolic strings functions
 
-##### Tuplets
+#### Default function
+
+By default, elements are played one after the other. The default group is implicitely defined.
+
+`e c e g -g` is equal to `(e c e g -g)`
+
+You also explicitely define a default group by surrounding the group with parentesis. This can help to apply a modifier to a whole sequence of notes.
+
+```
+(e c e g -g)^-12 # The sequence will be played one octave down
+```
+
+##### Tuplet function
 
 ```
 do_re_mi
 ```
 
-##### Chords
+##### Sync function
 
 Play all elements at the same time.
 
@@ -85,7 +97,7 @@ Play all elements at the same time.
 [do mi sol]
 ```
 
-##### Sequencial
+##### Sequencial function
 
 Return the next element on the list, loop at the end.
 
@@ -93,13 +105,13 @@ Return the next element on the list, loop at the end.
 <mi sol +sol>
 ```
 
-Iteration number :
+An iteration number can be provided by prepending the group with `#n` :
 
 ```
-<mi sol +sol>#2
+<mi sol +sol>#2 # Will play 'sol'
 ```
 
-#### Schroedinger
+#### Schroedinger function
 
 Return a randomly picked element, with optional probabilities.
 
@@ -108,7 +120,7 @@ Return a randomly picked element, with optional probabilities.
 ```
 
 ```
-{do:2 re:1 mi:1}
+{do:2 re:1 mi:1} # 'do' is twice as likely to be played than 're' or 'mi'
 ```
 
 ### Element objects sequences

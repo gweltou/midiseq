@@ -1785,7 +1785,8 @@ def _parse_fn_default(seq_string: str, modifiers: str) -> Tuple[Element, str]:
     return seq, f"({' '.join(string_elts)}){modifiers}"
 
 
-def _parse_fn_chord(seq_string: str, modifiers: str) -> Tuple[Element, str]:
+def _parse_fn_sync(seq_string: str, modifiers: str) -> Tuple[Element, str]:
+    """All elements are played at the same time"""
     seq = Seq()
     string_elts = []
     for string_elt in split_elements(seq_string):
@@ -1855,22 +1856,22 @@ def _parse_fn_schroedinger(seq_string: str, modifiers: str) -> Tuple[Element, st
 def _parse(seq_string) -> Tuple[Element, str]:
 
     # Default group
-    match = re.fullmatch(r"\((.+)\)(\S*)", seq_string)
+    match = re.fullmatch(r"\((.+)\)(\S*)", seq_string, re.DOTALL)
     if match:        
         return _parse_fn_default(match[1], match[2])
 
     # Chord group
-    match = re.fullmatch(r"\[(.+)\](\S*)", seq_string)
+    match = re.fullmatch(r"\[(.+)\](\S*)", seq_string, re.DOTALL)
     if match:
-        return _parse_fn_chord(match[1], match[2])
+        return _parse_fn_sync(match[1], match[2])
 
     # Sequecial group
-    match = re.fullmatch(r"<(.+)>(\S*)", seq_string)
+    match = re.fullmatch(r"<(.+)>(\S*)", seq_string, re.DOTALL)
     if match:
         return _parse_fn_sequencial(match[1], match[2])
 
     # Schroedinger group
-    match = re.fullmatch(r"{(.*)}(\S*)", seq_string)
+    match = re.fullmatch(r"{(.*)}(\S*)", seq_string, re.DOTALL)
     if match:
         return _parse_fn_schroedinger(match[1], match[2])
 
@@ -1896,7 +1897,7 @@ def parse(seq_string) -> Tuple[Element, str]:
     return seq, updated_string
 
 
-def parse_seq(seq_string) -> Tuple[Element, str]:
+def parse_seq(seq_string) -> Tuple[Seq, str]:
     """Parse a symbolic string sequence and return a Seq"""
     element, updated_string = parse(seq_string)
     if not isinstance(element, Seq):
