@@ -3,6 +3,7 @@
 # import rtmidi
 
 from typing import Optional
+from queue import LifoQueue
 
 from rtmidi.midiconstants import (
     PITCH_BEND, MODULATION_WHEEL,
@@ -134,6 +135,18 @@ def _playT(track: Track, seq: Optional[str]=None):
             t.stopped = True
             t.syncFrom(track)
     play()
+
+def splay(*args, **kwargs):
+    if env.is_playing:
+        stop()
+    play(*args, **kwargs)
+
+history = LifoQueue(512)
+
+def play(*args, **kwargs):
+    state = (args, kwargs)
+    history.put(state)
+    engine.play(*args, **kwargs)
 
 def play1(seq : Optional[str]=None):
     _playT(t1, seq)

@@ -75,7 +75,7 @@ class TrackGroup:
 
     def __init__(self):
         self.tracks = set()
-        self.priority_list = [] # Must update in this order
+        self.priority_list: List[Track] = [] # Must update in this order
 
     def addTrack(self, track: Track):
         self.tracks.add(track)
@@ -90,7 +90,7 @@ class TrackGroup:
 
     def _build_priority_list(self) -> None:
         # Build priority tree
-        self.priority_list = []
+        self.priority_list: List[Track] = []
         top_priority = []
         for track in self.tracks:
             track._sync_children = []
@@ -231,11 +231,11 @@ def _play(track_group: TrackGroup, loop=False):
         all_ended = True    # Will stay True if all Tracks are ended
         for track in track_group.priority_list:
             new_events = track.update(timedelta)
-            all_ended &= track.ended
             if new_events:
                 must_sort = True
                 for t, mess in new_events:
                     midi_events.append( (t + song_time, mess, track.port) )
+            all_ended &= track.ended
         if must_sort:
             midi_events.sort(key=lambda n: (n[0],n[1][0]), reverse=True)
         if all_ended and len(midi_events) == 0:

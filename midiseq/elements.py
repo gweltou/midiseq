@@ -270,7 +270,7 @@ class Note():
         return n
 
 
-    def aftertouch(self, mod:Mod):
+    def aftertouch(self, mod: Mod):
         """ Add a poly-aftertouch modulation to this note """
         self.pat = mod
         self.patval = mod.getValues(0.0, 1.0, stretch=self.dur)
@@ -857,6 +857,15 @@ class Seq():
         return self
 
 
+    def noteStretch(self, factor) -> Seq:
+        """ Stretch notes without modifying the sequence's length
+            Modifies the sequence in-place
+        """
+        for _, note in self.notes:
+            note.stretch(factor)
+        return self
+
+
     def reverse(self) -> Seq:
         """ Reverse notes order
         """
@@ -970,9 +979,9 @@ class Seq():
 
             Parameters
             ----------
-                tfactor : 0.0 < float < 1.0
+                tfactor : 0.0 < float < 1.0 (default 0.01)
                     variation en note temporal position
-                veldev : float
+                veldev : float (default 5)
                     velocity standard deviation
         """
         new_notes = []
@@ -1061,10 +1070,10 @@ class Seq():
                 wrap : bool
                     If True, notes that were pushed out of the sequence get appendend to the other side
         """
-
+        
         if not(offset):
             return self
-            
+        
         if isinstance(offset, int):
             offset *= env.note_dur
 
@@ -1096,13 +1105,12 @@ class Seq():
         messages = []
         for pos, note in self.notes:
             # End of sequence
-            if pos >= self.dur:
-                break
+            # if pos >= self.dur:
+            #     break
             # Truncate last note if necesary
-            # TODO: disable this behaviour
-            if pos + note.dur > self.dur:
-                note = note.copy()
-                note.dur = self.dur - pos
+            # if pos + note.dur > self.dur:
+            #     note = note.copy()
+            #     note.dur = self.dur - pos
 
             # Probability
             if note.prob < 1 and random.random() > note.prob:
@@ -1301,15 +1309,13 @@ class Seq():
         new_sequence.stretch(1/factor)
         return new_sequence
     
-    def __rshift__(self, other) -> Seq:
-        if isinstance(other, float):
-            copy = self.copy()
-            copy.shift(other)
-            return copy
+    def __rshift__(self, offset: Union[int, float]) -> Seq:
+        copy = self.copy()
+        copy.shift(offset)
+        return copy
 
-    def __lshift__(self, other) -> Seq:
-        if isinstance(other, float):
-            return self.__rshift__(-other)
+    def __lshift__(self, offset) -> Seq:
+        return self.__rshift__(-offset)
     
     def __mod__(self, factor: float) -> Seq:
         copy = self.copy()
@@ -1602,6 +1608,7 @@ class Track():
                     sequence = mod(sequence, *args, **kwargs)
 
             messages = (sequence^self.transpose).getMidiMessages(self.channel)
+            # Add midi modulation sequence
             if sequence.modseq != None:
                 messages.extend(sequence.modseq.getMidiMessages(self.channel))
 
