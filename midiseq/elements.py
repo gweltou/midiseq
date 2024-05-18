@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Optional, Union, List, Tuple, Generator
 import random
 import re
+from math import pow
 
 from rtmidi.midiconstants import (
     NOTE_ON, NOTE_OFF,
@@ -245,7 +246,7 @@ class Scl():
 
 class Note():
 
-    def __init__(self, pitch, dur=1, vel=100, prob=1):
+    def __init__(self, pitch, dur=1, vel:int=100, prob:float=1.0):
         if isinstance(pitch, str):
             pitch = str2pitch(pitch)
         elif isinstance(pitch, int) and (pitch < 0 or pitch > 127):
@@ -1089,6 +1090,30 @@ class Seq():
         self.notes = sorted(new_notes)
         return self
     
+
+    def echo(self, offset, n=1, att=0.5) -> Seq:
+        """ Add delay/echo to sequence without changing its duration
+        
+            Parameters
+            ----------
+                offset : [int, float]
+                    Time delay
+                n : int
+                    Number of echoes
+                att : float [0.0-1.0]
+                    velocity attenuation of echoes 
+        """
+        new_notes = []
+        for t, note in self.notes:
+            new_notes.append( (t, note) )
+            for i in range(n):
+                t_echo = t + offset * (i+1)
+                note_echo = note.copy()
+                note_echo.vel = round(note_echo.vel * att**(i+1))
+                new_notes.append( (t_echo, note_echo) )
+        self.notes = sorted(new_notes, key=lambda x: x[0])
+        return self
+
 
     def shuffle(self):
         """ Shuffle the sequence """
