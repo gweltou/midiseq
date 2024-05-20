@@ -4,7 +4,6 @@ from random import random
 from rtmidi.midiconstants import (
     CONTROL_CHANGE, PROGRAM_CHANGE,
     PITCH_BEND, MODULATION_WHEEL,
-    CHANNEL_AFTERTOUCH,
 )
 
 import midiseq.env as env
