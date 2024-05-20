@@ -1672,8 +1672,8 @@ class Track():
     
     def __repr__(self):
         if self._sync_from != None:
-            return f"Track({self.channel=}, {self.loop=}, {self.name=}, {self._sync_from.name=})"
-        return f"Track({self.channel=}, {self.loop=}, {self.name=})"
+            return f"Track({self.channel}, {self.loop}, {self.name}, {self._sync_from.name})"
+        return f"Track({self.channel}, {self.loop}, {self.name})"
 
 
 
