@@ -7,9 +7,11 @@ from queue import LifoQueue
 
 from rtmidi.midiconstants import (
     PITCH_BEND, MODULATION_WHEEL,
-    POLY_AFTERTOUCH, CHANNEL_AFTERTOUCH,
     VOLUME, PORTAMENTO,
 )
+
+POLY_AFTERTOUCH = 160
+CHANNEL_AFTERTOUCH = 208
 
 from .definitions import *
 from .engine import (

@@ -237,6 +237,7 @@ def _play(track_group: TrackGroup, loop=False):
                     midi_events.append( (t + song_time, mess, track.port) )
             all_ended &= track.ended
         if must_sort:
+            # Sort by time first, then midi off precedes midi on messages
             midi_events.sort(key=lambda n: (n[0],n[1][0]), reverse=True)
         if all_ended and len(midi_events) == 0:
             env.is_playing = False

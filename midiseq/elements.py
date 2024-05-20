@@ -1091,7 +1091,7 @@ class Seq():
         return self
     
 
-    def echo(self, offset, n=1, att=0.5) -> Seq:
+    def echo(self, offset, n=1, att=0.8) -> Seq:
         """ Add delay/echo to sequence without changing its duration
         
             Parameters
@@ -1113,7 +1113,7 @@ class Seq():
                 new_notes.append( (t_echo, note_echo) )
         self.notes = sorted(new_notes, key=lambda x: x[0])
         return self
-
+    
 
     def shuffle(self):
         """ Shuffle the sequence """
@@ -1676,7 +1676,6 @@ class Track():
 
 
 
-
 class Song():
 
     def __init__(self):
@@ -1688,7 +1687,6 @@ class Song():
 
 
 Element = Union[Note, Chord, Sil, Seq]
-
 
 
 def split_elements(seq_string):
