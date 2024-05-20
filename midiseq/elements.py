@@ -6,7 +6,6 @@ from math import pow
 
 from rtmidi.midiconstants import (
     NOTE_ON, NOTE_OFF,
-    POLY_AFTERTOUCH,
     PROGRAM_CHANGE,
 )
 
