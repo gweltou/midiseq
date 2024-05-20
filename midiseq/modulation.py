@@ -83,7 +83,7 @@ class Mod():
         # We could store the last X states for caching
 
         # Check if requested state has been seen in last X states
-        assert fn_start < fn_end, f"{fn_start=} {fn_end=}"
+        assert fn_start < fn_end, f"fn_start={fn_start} fn_end={fn_end}"
 
         if self.scalar:
             return [(start, self.scalar)]
