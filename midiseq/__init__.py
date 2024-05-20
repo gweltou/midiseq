@@ -6,10 +6,10 @@ from typing import Optional
 from queue import LifoQueue
 
 from rtmidi.midiconstants import (
-    PITCH_BEND, MODULATION_WHEEL,
-    VOLUME, PORTAMENTO,
+    PITCH_BEND, MODULATION_WHEEL, PORTAMENTO,
 )
 
+VOLUME = 7
 POLY_AFTERTOUCH = 160
 CHANNEL_AFTERTOUCH = 208
 
