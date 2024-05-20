@@ -10,6 +10,8 @@ from rtmidi.midiconstants import (
     PROGRAM_CHANGE,
 )
 
+POLY_AFTERTOUCH = 160
+
 import midiseq.env as env
 from .definitions import scales, modes
 from .modulation import Mod, ModSeq
