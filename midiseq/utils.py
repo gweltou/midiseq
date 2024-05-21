@@ -26,6 +26,13 @@ def pattern(pat: str, note: Union[int, str, Note, Chord], vel=100) -> Seq:
     return seq
 
 
+def noteRange(note_from=36, note_to=60, dur=1):
+    s = Seq()
+    for pitch in range(note_from, note_to):
+        s.add(Note(pitch, dur=dur))
+    return s
+
+
 
 def noob2seq(noob: str):
     """ https://noobnotes.net/

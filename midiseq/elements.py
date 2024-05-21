@@ -724,6 +724,45 @@ class Seq():
         return new
     
 
+    def getMidiMessages(self, channel=0) -> List[tuple]:
+        """
+            Parameters
+            ----------
+                channel : int
+                    Midi channel [0-15]
+        """
+        messages = []
+        for pos, note in self.notes:
+            # End of sequence
+            # if pos >= self.dur:
+            #     break
+            # Truncate last note if necesary
+            # if pos + note.dur > self.dur:
+            #     note = note.copy()
+            #     note.dur = self.dur - pos
+
+            # Probability
+            if note.prob < 1 and random.random() > note.prob:
+                continue
+            
+            pitch = min(max(note.pitch, 0), 127)
+            note_on = [NOTE_ON|channel, pitch, note.vel]
+            messages.append( (pos, note_on) )
+            if note.pat != None:
+                messages.extend( [ (pos+p,
+                                    [POLY_AFTERTOUCH|channel,
+                                    note.pitch,
+                                    min(max(int(val * 128), 0), 127)]
+                                )
+                                for p, val in note.patval ] )
+
+            note_off = [NOTE_OFF|channel, pitch, 0]
+            messages.append( (pos + note.dur, note_off) )
+
+        # messages.sort(key=lambda n: (n[0],n[1][0]))
+        return messages
+
+
     def clear(self):
         self.notes.clear()
         self.silences.clear()
@@ -1119,45 +1158,6 @@ class Seq():
     def shuffle(self):
         """ Shuffle the sequence """
         raise NotImplementedError
-
-
-    def getMidiMessages(self, channel=0) -> List[tuple]:
-        """
-            Parameters
-            ----------
-                channel : int
-                    Midi channel [0-15]
-        """
-        messages = []
-        for pos, note in self.notes:
-            # End of sequence
-            # if pos >= self.dur:
-            #     break
-            # Truncate last note if necesary
-            # if pos + note.dur > self.dur:
-            #     note = note.copy()
-            #     note.dur = self.dur - pos
-
-            # Probability
-            if note.prob < 1 and random.random() > note.prob:
-                continue
-            
-            pitch = min(max(note.pitch, 0), 127)
-            note_on = [NOTE_ON|channel, pitch, note.vel]
-            messages.append( (pos, note_on) )
-            if note.pat != None:
-                messages.extend( [ (pos+p,
-                                    [POLY_AFTERTOUCH|channel,
-                                    note.pitch,
-                                    min(max(int(val * 128), 0), 127)]
-                                )
-                                for p, val in note.patval ] )
-
-            note_off = [NOTE_OFF|channel, pitch, 0]
-            messages.append( (pos + note.dur, note_off) )
-
-        # messages.sort(key=lambda n: (n[0],n[1][0]))
-        return messages
     
 
     def replacePitch(self, old, new) -> Seq:
