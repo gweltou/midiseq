@@ -774,6 +774,8 @@ class Seq():
         """ Add a single musical element or whole sequences at the recording head position
             This will grow the sequence's duration if necessary
         """
+        if not head:
+            self.head = self.dur
         if isinstance(head, float):
             self.head = head
         
@@ -895,10 +897,11 @@ class Seq():
                 note.stretch(factor)
             self.notes[i] = t * factor, note
         self.dur *= factor
+        self.head *= factor
         return self
 
 
-    def noteStretch(self, factor) -> Seq:
+    def stretchNotes(self, factor) -> Seq:
         """ Stretch notes without modifying the sequence's length
             Modifies the sequence in-place
         """
