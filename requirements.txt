@@ -1,2 +1,4 @@
 python-rtmidi
 mido
+sounddevice
+matplotlib

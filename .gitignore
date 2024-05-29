@@ -1,6 +1,8 @@
 __pycache__/
-midiseq.egg-info/
-venv/
+.env/
 .vscode
+midiseq.egg-info/
+nn/notochord/
+nn/iipyper/
 songs/
 TODO.md

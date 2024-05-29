@@ -1,6 +1,6 @@
 ### source: https://eli.thegreenplace.net/2011/12/27/python-threads-communication-and-stopping
 
-from typing import Union, List, Generator
+from typing import Union, List, Generator, Optional
 import time
 import threading
 
@@ -305,7 +305,7 @@ def playMetro(beats=4, cycles=1):
 
 
 
-def listen(forward=True, forward_channel=1):
+def listen(forward=True, forward_channel:Optional[int]=None):
     # Wait for other playing thread to stop
     global _listening_thread
     global _must_stop
@@ -319,10 +319,11 @@ def listen(forward=True, forward_channel=1):
 
 
 
-def _listen(forward=True, forward_channel=1):
+def _listen(forward=True, forward_channel:Optional[int]=None):
     #XXX Doesn't take tempo into account...
     print("++++ LISTEN to midi on all midi channels")
-
+    if forward_channel:
+        print(f"++++ Forwarding midi to channel {forward_channel}")
     active_notes = set()
     noteon_time = dict()
     t0 = time.time()
@@ -337,15 +338,18 @@ def _listen(forward=True, forward_channel=1):
         new_noteon = False
         mess = midiin.get_message()
         while mess:
-            (status, data1, data2), _ = mess
+            (status, data1, data2), dt = mess
+            mess_channel = status & 0xf
+            channel = forward_channel or mess_channel
             if status & NOTE_ON == NOTE_ON and data2 > 0:
+                # Note on
                 active_notes.add(data1)
                 noteon_time[data1] = time.time()
                 new_noteon = True
                 if forward:
-                    mess = [(status & 0xf0) | forward_channel, data1, data2]
-                    env.default_output.send_message(mess)
-            elif status & NOTE_OFF == NOTE_OFF or (status & NOTE_OFF == NOTE_OFF and data2 == 0):
+                    env.default_output.send_message([(status & 0xf0) | channel, data1, data2])
+            elif status & NOTE_OFF == NOTE_OFF or (status & NOTE_ON == NOTE_ON and data2 == 0):
+                # Note off
                 active_notes.discard(data1)
                 if _recording:
                     if data1 in noteon_time:
@@ -353,11 +357,10 @@ def _listen(forward=True, forward_channel=1):
                         dur = time.time() - noteon_time[data1]
                         _record.addNote(data1, dur, head=_recording_time)
                 if forward:
-                    mess = [(status & 0xf0) | forward_channel, data1, data2]
-                    env.default_output.send_message(mess)
+                    env.default_output.send_message([(status & 0xf0) | channel, data1, data2])
             if env.verbose and not env.DISPLAY:
                     print("Recieved", mess)
-            # mess = midiin.get_message()
+            mess = midiin.get_message()
         
         if env.DISPLAY and new_noteon:
             # Visualize notes

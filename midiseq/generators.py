@@ -18,23 +18,40 @@ from .elements import Note, Sil, Seq, Scl, Chord, parse_seq
 ###############################################################################
 
 
-def genStr2seq(string: str) -> Seq:
+def genStr2seq(string: str):
     while True:
         yield parse_seq(string)[0]
 
 
-def genFunc(func: callable, repeat=0, *args, **kwargs):
+def genFunc(func: callable, repeat=1, max_iter=0, *args, **kwargs):
     """ Make a generator from a function.
         Arguments to the function can be passed as well.
 
         Ex: genFun(rndWalk, steps=[-1,0,1])
+        
+        Arguments
+        ---------
+            repeat : (int)
+                Number of time the same sequence is repeated
+            
+            max_iter: (int)
+                Maximum number of sequence generated
     """
+    n = 0
     if repeat > 0:
+        s = func(*args, **kwargs)
         for _ in range(repeat):
-            yield func(*args, **kwargs)
+            yield s.copy()
+            n += 1
+            if max_iter > 0 and n >= max_iter:
+                break
     else:
         while True:
             yield func(*args, **kwargs)
+            n += 1
+            if max_iter > 0 and n >= max_iter:
+                break
+            
 
 
 def genPattern(func: callable, pattern="ABAB", repeat: int=1, *args, **kwargs):
