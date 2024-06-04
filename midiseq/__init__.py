@@ -35,6 +35,8 @@ from .generators import *
 # from .seqs import *
 import midiseq.env as env
 
+###### Generative Neural Network #######
+# from .nn import nnFeed, nnGet, nnReset
 
 
 def setNoteDur(d):
