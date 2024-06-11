@@ -776,7 +776,7 @@ class Seq():
         """
         if not head:
             self.head = self.dur
-        if isinstance(head, float):
+        if type(head) in (float, int):
             self.head = head
         
         if isinstance(other, int):
@@ -1723,16 +1723,29 @@ def split_elements(seq_string):
 
 
 def apply_modifiers(elt: Element, modifiers: str) -> Element:
-    # Stretch modifier '%'
-    match = re.search(r"%(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+    # Stretch modifier '*', followed by a float or a fraction
+    match = re.search(r"*(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
     if match:
         elt.stretch(eval(match[1]))
+
+    # Gate modifier '%', followed by a float or a fraction
+    match = re.search(r"%(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+    if match:
+        elt.stretchNotes(eval(match[1]))
 
     # Transpose modifier '^'
     match = re.search(r"\^(-?\d+)", modifiers)
     if match:
         elt.transpose(int(match[1]))
-                
+    
+    # Multiply modifier '×'
+    match = re.search(r"×(\d+)", modifiers)
+    if match:
+        new_sequence = Seq()
+        for _ in range(int(match[1])):
+            new_sequence.add(elt)
+        elt = new_sequence
+
     # Probability modifier ':'
     #         match = re.match(r":(\d*\.?\d+)", string)
     #         if match:
