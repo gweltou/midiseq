@@ -120,7 +120,7 @@ class TrackGroup:
 
 def play(
         what: Union[Track, Note, Seq, Generator, None]=None,
-        channel=0, instrument=0,
+        channel=None, instrument=0,
         loop=False,
         blocking=False):
     """ Play a Track, a Sequence or a single Note.
@@ -138,6 +138,9 @@ def play(
     global _playing_threads
     global _must_stop
     _must_stop = False
+
+    if not channel:
+        channel = env.default_channel
     
 
     if what:

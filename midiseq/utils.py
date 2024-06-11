@@ -9,7 +9,7 @@ import midiseq.env as env
 def pattern(pat: str, note: Union[int, str, Note, Chord], vel=100) -> Seq:
     """
         Build a Sequence from a Sonic Pi type pattern
-        Ex: pattern("x--- --x- --x- -x--", 36)
+        Ex: pattern("x--- --X- --x- -X--", 36)
     """
     seq = Seq()
     if isinstance(note, int):
@@ -20,6 +20,9 @@ def pattern(pat: str, note: Union[int, str, Note, Chord], vel=100) -> Seq:
         note.vel = vel
     for c in pat:
         if c == 'x':
+            seq.add(note)
+        elif c == 'X':
+            note.vel = 127
             seq.add(note)
         elif c == '-':
             seq.add(Sil())

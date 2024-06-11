@@ -26,7 +26,7 @@ from .elements import (
 )
 from .modulation import *
 from .utils import (
-    pattern, noob2seq,
+    pattern, noob2seq, noteRange,
     rnd, rndWalk, rndGauss, rndPick, rndDur,
     euclid, lcm,
 )

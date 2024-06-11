@@ -18,3 +18,4 @@ default_output = None
 DISPLAY = False
 DISPLAY_RANGE = (36, 96)
 verbose = False
+default_channel = 0
