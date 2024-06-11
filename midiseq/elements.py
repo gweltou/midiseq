@@ -1724,7 +1724,7 @@ def split_elements(seq_string):
 
 def apply_modifiers(elt: Element, modifiers: str) -> Element:
     # Stretch modifier '*', followed by a float or a fraction
-    match = re.search(r"*(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+    match = re.search(r"\*(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
     if match:
         elt.stretch(eval(match[1]))
 
@@ -1738,8 +1738,8 @@ def apply_modifiers(elt: Element, modifiers: str) -> Element:
     if match:
         elt.transpose(int(match[1]))
     
-    # Multiply modifier '×'
-    match = re.search(r"×(\d+)", modifiers)
+    # Multiply modifier 'x'
+    match = re.search(r"x(\d+)", modifiers)
     if match:
         new_sequence = Seq()
         for _ in range(int(match[1])):
