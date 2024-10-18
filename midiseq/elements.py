@@ -245,7 +245,32 @@ class Scl():
 
 
 
-class Note():
+class BaseElement():
+
+    def __mul__(self, factor: Union[int, float]) -> Element:
+        if isinstance(factor, int):
+            # Repeat
+            s = Seq()
+            for _ in range(factor):
+                s.add(self.copy())
+            return s
+        elif isinstance(factor, float):
+            # Stretch
+            n = self.copy()
+            n.stretch(factor)
+            return n
+        else:
+            raise TypeError("Can only multiply elements by an int or a float")
+    
+    def __rmul__(self, factor: Union[int, float]) -> Element:
+        return self.__mul__(factor)
+
+
+
+
+
+
+class Note(BaseElement):
 
     def __init__(self, pitch, dur=1, vel:int=100, prob:float=1.0):
         if isinstance(pitch, str):
@@ -293,24 +318,6 @@ class Note():
 
     def __add__(self, other) -> Seq:
         return Seq().add(self).add(other)
-
-    def __mul__(self, factor: Union[int, float]) -> Union[Note, Seq]:
-        if isinstance(factor, int):
-            # Multiply number of notes
-            s = Seq()
-            for _ in range(factor):
-                s.add(self.copy())
-            return s
-        elif isinstance(factor, float):
-            # New note with dur multiplied
-            n = self.copy()
-            n.stretch(factor)
-            return n
-        else:
-            raise TypeError("Can only multiply Note by an int or a float")
-    
-    def __rmul__(self, factor: Union[int, float]) -> Union[Note, Seq]:
-        return self.__mul__(factor)
     
     def __truediv__(self, factor: Union[int, float]):
         n = self.copy()
@@ -471,7 +478,7 @@ class PNote(Note):
 
 
 
-class Sil():
+class Sil(BaseElement):
     """ Silence (non-mutable) """
     
     def __init__(self, dur=1):
@@ -488,9 +495,6 @@ class Sil():
 
     def __mul__(self, factor: Union[int, float]) -> Sil:
         return Sil(self.dur * factor / env.note_dur)
-    
-    def __rmul__(self, factor: Union[int, float]) -> Sil:
-        return self.__mul__(factor)
     
     def __truediv__(self, factor: Union[int, float]) -> Sil:
         return Sil(self.dur / (factor * env.note_dur))
@@ -509,9 +513,7 @@ class Sil():
 
 
 
-
-
-class Chord():
+class Chord(BaseElement):
     """ Chords are made of many notes playing at the same time """
 
     def __init__(self, *notes, dur=None, vel=None):
@@ -531,16 +533,17 @@ class Chord():
                 self._merge_chord(elt)
             else:
                 raise TypeError(f"Argument `notes` must be Notes, strings or integers, got {elt} ({type(elt)})")
-            
-        if dur:
-            # Constrain all notes to the chord duration
-            for n in self.notes:
-                n.dur = dur * env.note_dur
-            self.dur = dur * env.note_dur
-        else:
-            # Use duration of longest note
-            max_dur = max( [n.dur for n in self.notes] )
-            self.dur = max_dur
+        
+        self.dur = (dur or 1.0) * env.note_dur
+        # if dur:
+        #     # Constrain all notes to the chord duration
+        #     for n in self.notes:
+        #         n.dur = dur * env.note_dur
+        #     self.dur = dur * env.note_dur
+        # else:
+        #     # Use duration of longest note
+        #     max_dur = max( [n.dur for n in self.notes] )
+        #     self.dur = max_dur
 
 
     def copy(self) -> Note:
@@ -629,9 +632,14 @@ class Chord():
 
 
     def stretch(self, factor) -> Note:
+        self.dur *= factor
+        return self.stretchNotes(factor)
+
+
+    def stretchNotes(self, factor) -> Note:
+        """ Stretch notes duration without changing the whole chord duration """
         for n in self.notes:
             n.dur *= factor
-        self.dur *= factor
         return self
 
 
@@ -651,7 +659,7 @@ class Chord():
 
     def __mod__(self, factor: float) -> Chord:
         chord = self.copy()
-        chord.stretch(factor)
+        chord.stretchNotes(factor)
         return chord
 
     def __eq__(self, other):
@@ -685,7 +693,7 @@ class Chord():
 
 
 
-class Seq():
+class Seq(BaseElement):
     """
         Sequence of notes
     """
@@ -774,43 +782,36 @@ class Seq():
         """ Add a single musical element or whole sequences at the recording head position
             This will grow the sequence's duration if necessary
         """
-        if not head:
-            self.head = self.dur
+        # if not head:
+        #     self.head = self.dur
         if type(head) in (float, int):
             self.head = head
         
         if isinstance(other, int):
-            self.add(Note(other))
+            return self.add(Note(other))
         elif isinstance(other, str):
             s, _ = parse(other)
             self.string = ' '.join([self.string, s.string])
-            self.add(s)
+            return self.add(s)
+        
         elif isinstance(other, Note):
             self.notes.append( (self.head, other.copy()) )
-            self.head += other.dur
-            self.dur = max(self.dur, self.head)
-            self.notes.sort(key=lambda x: x[0])
         elif isinstance(other, Sil):
             self.silences.append( (self.head, other) )
-            self.head += other.dur
-            self.dur = max(self.dur, self.head)
         elif isinstance(other, Chord):
             for note in other.notes:
                 self.notes.append( (self.head, note.copy()) )
-            self.head += other.dur
-            self.dur = max(self.dur, self.head)
-            self.notes.sort(key=lambda x: x[0])
         elif isinstance(other, Seq):
             for (t, note) in other.notes:
                 self.notes.append( (self.head + t, note.copy()) )
             for (t, sil) in other.silences:
                 self.silences.append( (self.head + t, sil) )
-            self.head += other.dur
-            self.dur = max(self.dur, self.head)
-            self.notes.sort(key=lambda x: x[0])
         else:
             raise TypeError(f"Only instances of Note, Sil, Chord, Seq or string sequences can be added to a Sequence, got {other} ({type(other)})")
         
+        self.head += other.dur
+        self.dur = max(self.dur, self.head)
+        self.notes.sort(key=lambda x: x[0])
         return self
     
 
@@ -1330,9 +1331,6 @@ class Seq():
             return new_sequence
         else: raise TypeError
     
-    def __rmul__(self, factor: Union[int, float]) -> Seq:
-        return self.__mul__(factor)
-    
     def __truediv__(self, factor: Union[int, float]):
         new_sequence = self.copy()
         new_sequence.stretch(1/factor)
@@ -1728,10 +1726,13 @@ def apply_modifiers(elt: Element, modifiers: str) -> Element:
     if match:
         elt.stretch(eval(match[1]))
 
-    # Gate modifier '%', followed by a float or a fraction
+    # Gate modifier '%', followed by an int, a float or a fraction
     match = re.search(r"%(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
     if match:
-        elt.stretchNotes(eval(match[1]))
+        if isinstance(elt, Note):
+            elt.stretch(eval(match[1]))
+        else:
+            elt.stretchNotes(eval(match[1]))
 
     # Transpose modifier '^'
     match = re.search(r"\^(-?\d+)", modifiers)

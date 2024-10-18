@@ -42,7 +42,14 @@ def test_chord_init():
     assert len(Chord(Chord("Dm"), Chord("Dm"))) == 3
 
     assert Chord("C").dur == 1.0 * env.note_dur
-    assert Chord("C%2").dur == 2.0 * env.note_dur
-    assert Chord("C", Note(48, dur=2)).dur == 2.0 * env.note_dur # Keep longest note
+    assert Chord("C%2").dur == 1.0 * env.note_dur # New behaviour
+    assert Chord("C", Note(48, dur=2)).dur == 1.0 * env.note_dur # Keep longest note
 
     assert Chord("c%2 e g").copy() == Chord("c%2 e g")
+
+
+def test_chord_operations():
+    assert (Chord('C')%2).dur == 1.0 * env.note_dur
+    assert (Chord('C')%2).notes[0].dur == 2.0 * env.note_dur
+    assert (Chord('C')*2.0).dur == 2.0 * env.note_dur
+    assert (Chord('C')*2.0).notes[0].dur == 2.0 * env.note_dur

@@ -193,10 +193,7 @@ def _play(track_group: TrackGroup, loop=False):
     clicking = False
     click_note = None
     active_notes_allchan = [False] * 128
-    while True:
-        if _must_stop:
-            activeNotesOff()
-            break
+    while not _must_stop:
         
         if click_note: # Metronome click
             note_off = [0x89, click_note, 0]
@@ -293,6 +290,8 @@ def _play(track_group: TrackGroup, loop=False):
             print("++++ PLAYBACK [warning] load:", load, "%")
         time.sleep(min(max(_timeres, 0), 0.2))
 
+    activeNotesOff()
+    
     if env.verbose:
         print("++++ Playing thread ended")
 
@@ -331,10 +330,7 @@ def _listen(forward=True, forward_channel:Optional[int]=None):
     noteon_time = dict()
     t0 = time.time()
     # t_prev = t0    
-    while True:
-        if _must_stop:
-            break
-
+    while not _must_stop:
         # t = time.time()
         # t_prev = t
 
@@ -393,6 +389,16 @@ def rec():
     global _armed
     _armed = True
     print("++++ RECORDING to global var '_record'")
+
+
+def rec2(bars=1, beats=4, metro=2):
+    assert bars >= 1
+    assert beats >= 1
+
+    dur = bars * beats * 60 / env.bpm
+    if metro > 0:
+        playMetro(beats, cycles=metro)
+    
 
 
 

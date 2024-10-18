@@ -45,4 +45,4 @@ def test_subdiv():
 def test_chords():
 	assert parse_element("C") == Chord(48, 52, 55)
 	assert parse_element("-1Dm") == Chord(38, 41, 45)
-	assert parse_element("C%0.5") == Chord(48, 52, 55, dur=0.5)
+	assert parse_element("C%0.5") == Chord("48%.5 52%.5 55%.5", dur=1.0) # New behaviour

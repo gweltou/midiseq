@@ -21,5 +21,5 @@ setBpm(100)
 
 s = pattern("xxx-xx-x-xx-", "do")
 play(s, loop=True)
-play(genRotate(s^7, dir=-1, repeat=4))
+play(genRotate(s^7, dir=-1, repeat=4), loop=True)
 wait()
