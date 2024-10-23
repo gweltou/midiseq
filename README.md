@@ -10,6 +10,10 @@ Explicit docstrings and error messages.
 ## Setup
 
     pip install -r requirements
+    
+The PortAudio library must be installed for `sounddevice` to load.
+
+    sudo apt-get install libportaudio2
 
 ## Basic usage
 

@@ -36,21 +36,19 @@ def genFunc(func: callable, repeat=1, max_iter=0, *args, **kwargs):
             
             max_iter: (int)
                 Maximum number of sequence generated
+                Set to 0 to loop forever
     """
     n = 0
     if repeat > 0:
-        s = func(*args, **kwargs)
-        for _ in range(repeat):
-            yield s.copy()
-            n += 1
-            if max_iter > 0 and n >= max_iter:
-                break
+        while max_iter == 0 or n < max_iter:
+            s = func(*args, **kwargs)
+            for _ in range(repeat):
+                yield s.copy()
+                n += 1
     else:
-        while True:
+        while max_iter == 0 or n < max_iter:
             yield func(*args, **kwargs)
             n += 1
-            if max_iter > 0 and n >= max_iter:
-                break
             
 
 
@@ -103,6 +101,7 @@ def genRotate(seq: Seq, dir=-1, repeat: int=1):
         for _ in range(repeat):
             yield s
         s.shift(dir, wrap=True)
+
 
 def genSil(durs=[1, 2]):
     d = random.choice(durs)
