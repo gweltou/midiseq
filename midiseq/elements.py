@@ -162,7 +162,7 @@ class Scl():
     def getClosest(self, note: Union[str, int]) -> int:
         """ Find closest note in scale given a pitch
             Returns a corrected pitch, in range [0-127]
-            If the correct pitch is right in the middle, lower pitch takes precedence
+            If the given pitch is between scale pitches, picks the lower scale pitch
         """
         if type(note) == int:
             pitch = min(127, max(0, note))
@@ -181,12 +181,13 @@ class Scl():
         return int(12 * octave + degree + min_dist)
 
 
-    def getDegree(self, n: int) -> int:
+    def getDegree(self, n: int, oct=0) -> int:
         """ get the pitch of the n-th degree note in the current musical scale, relative to the rootnote
             Beware : degrees start at 0. The fifth degree would be n=4.
         """
         
         nth_oct, nth_degree = divmod(round(n), len(self.scale))
+        nth_oct += oct
 
         if n >= 0:
             distances = self.scale
@@ -218,15 +219,15 @@ class Scl():
         return self.notes[idx+n]
 
 
-    def triad(self, degree=0, dur=1, vel=100):
+    def triad(self, degree=0, oct=0, dur=1, vel=100):
         """ Returns a triad Chord of the nth degree in the scale """
-        return Chord(*[self.getDegree(degree+inter) for inter in [0,2,4]],
+        return Chord(*[self.getDegree(degree+inter, oct=oct) for inter in [0,2,4]],
                      dur=dur, vel=vel)
 
 
-    def seventh(self, degree=0, dur=1, vel=100):
+    def seventh(self, degree=0, oct=0, dur=1, vel=100):
         """ Returns a seventh Chord of the nth degree in the scale """
-        return Chord(*[self.getDegree(degree+inter) for inter in [0,2,4,6]],
+        return Chord(*[self.getDegree(degree+inter, oct=oct) for inter in [0,2,4,6]],
                      dur=dur, vel=vel)
 
 
@@ -550,7 +551,7 @@ class Chord(BaseElement):
         return Chord(self)
     
 
-    def arp(self, mode="up", oct=1) -> Seq:
+    def arp(self, oct=1, mode="up") -> Seq:
         """ Arpeggiate a Chord
             Return a Sequence
 
@@ -818,8 +819,7 @@ class Seq(BaseElement):
     def addNotes(self, notes, dur=1, vel=100):
         # XXX: maybe do without this method altogether
         """ Add notes sequencially from a string sequence or an iterable.
-            If an iterable is given, it can contain sub-lists,
-            which will subdivide the time
+            If an iterable is given, it can contain sub-lists to provide notes duration
 
             Parameters
             ----------
@@ -1290,20 +1290,54 @@ class Seq(BaseElement):
         return self._mask(other._getNotActiveMask())
 
 
-    def mapRhythm(self, other: Seq) -> Seq:
-        """ Map the rhythm of another sequence to this sequence
-            If the number of notes in the rhythm sequence is lower, it will crop notes
-            If the numer of notes in the rhythm sequence is bigger, it will wrap notes
+    def mapRhythm(self, rhythm: Union[Seq, list], mode="wrap") -> Seq:
+        """ Map the rhythm of another sequence, or list of duration, to this sequence
+
+            Parameters
+            ----------
+                other (seq|list):
+                    An other sequence to map the rhythm from.
+                    Or a list of duration.
+                mode (str):
+                    "crop": Crop to shortest sequence
+                    "wrap": Wrap to longest sequence
+                    "lcm": least common multiplier
         """
-        in_rhythm = Seq()
-        for i, (t, rhy_note) in enumerate(other.notes):
-            mel_note = self.notes[i%len(self)][1].copy()
-            mel_note.vel = rhy_note.vel
-            in_rhythm.add(mel_note, t)
-        in_rhythm.dur = other.dur
-        in_rhythm.head = other.head
+        def lcm(a, b):
+            """ Returns the least common multiplier between A and B """
+            return a*b
         
-        return in_rhythm
+        if isinstance(rhythm, list):
+            s = Seq()
+            for d in rhythm:
+                s.add(Note('c', dur=d))
+            rhythm = s
+        
+        if mode == "crop":
+            n = min(len(self), len(rhythm))
+        elif mode == "wrap":
+            n = max(len(self), len(rhythm))
+        elif mode == "lcm":
+            n = lcm(len(self), len(rhythm))
+        else:
+            raise ValueError(f"Unrecognized mode: {mode}")
+
+        mapped = Seq()
+        for i in range(n):
+            mel_note = self.notes[i%len(self)][1].copy()
+            t, rhy_note = rhythm.notes[i%len(rhythm)]
+            t += rhythm.dur * (i // len(rhythm))
+            mel_note.dur = rhy_note.dur
+            mel_note.vel = rhy_note.vel # Apply rhythm velocity
+            mapped.add(mel_note, t)
+        m, r = divmod(n, len(rhythm))
+        if r == 0:
+            # The duration of the mapped sequence is set
+            # to a multiple of the duration of the rhythm sequence
+            mapped.dur = m * rhythm.dur
+            mapped.head = mapped.dur
+        
+        return mapped
 
 
     def __and__(self, other: Seq) -> Seq:

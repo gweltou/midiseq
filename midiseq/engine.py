@@ -119,7 +119,7 @@ class TrackGroup:
 
 
 def play(
-        what: Union[Track, Note, Seq, Generator, None]=None,
+        what: Union[str, Track, Note, Seq, Generator, None]=None,
         channel=None, instrument=0,
         loop=False,
         blocking=False):
