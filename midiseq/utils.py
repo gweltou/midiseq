@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 import random
 
 from .elements import Note, Sil, Chord, Seq, Scl, str2pitch, parse, parse_element
@@ -6,7 +6,10 @@ import midiseq.env as env
 
 
 
-def pattern(pat: str, note: Union[int, str, Note, Chord], vel=100) -> Seq:
+def pattern(
+        pat: str,
+        note: Union[int, str, Note, Chord],
+        vel: Optional[int]=None) -> Seq:
     """
         Build a Sequence from a Sonic Pi type pattern
         Ex: pattern("x--- --X- --x- -X--", 36)
@@ -16,14 +19,15 @@ def pattern(pat: str, note: Union[int, str, Note, Chord], vel=100) -> Seq:
         note = Note(note)
     elif isinstance(note, str):
         note = parse_element(note)
-    if isinstance(note, Note):
+    if vel:
         note.vel = vel
     for c in pat:
         if c == 'x':
-            seq.add(note)
+            seq.add(note.copy())
         elif c == 'X':
-            note.vel = 127
-            seq.add(note)
+            n = note.copy()
+            n.vel = 127
+            seq.add(n)
         elif c == '-':
             seq.add(Sil())
     return seq
@@ -73,7 +77,7 @@ def rnd(n=8, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
                 Constrain generated notes to the given scale
     """
     if not scl:
-        scl = env.scale if env.scale else Scl("chromatic", 'c')
+        scl = env.scale or Scl("chromatic", 'c')
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
@@ -96,7 +100,7 @@ def rndDur(
     """
     assert dur > max(durs) * env.note_dur
     if not scl:
-        scl = env.scale if env.scale else Scl("chromatic", 'c')
+        scl = env.scale or Scl("chromatic", 'c')
     durs = [d * env.note_dur for d in durs]
 
     picks = []
@@ -149,10 +153,10 @@ def rndWalk(
             scl : Scl (Scale)
                 Constrain generated notes to the given scale
     """
-    if not start:
-        start = env.scale.tonic if env.scale else 48
     if not scl:
-        scl = env.scale if env.scale else Scl("chromatic", 'c')
+        scl = env.scale or Scl("chromatic", 'c')
+    if not start:
+        start = scl.tonic
     if isinstance(start, str):
         start = str2pitch(start)
     pitch = scl.getClosest(start)
@@ -186,7 +190,7 @@ def rndGauss(n=8, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq
                 Constrain generated notes to the given scale
     """
     if not scl:
-        scl = env.scale if env.scale else Scl("chromatic", 'c')
+        scl = env.scale or Scl("chromatic", 'c')
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
