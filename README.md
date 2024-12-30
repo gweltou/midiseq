@@ -73,9 +73,11 @@ A note's duration can be subdivided by suffixing it with the `%`, symbol followe
 	"c#%.5" divides the note's duration by two
 	"d%1/3" divides the note's duration by three
 
-#### Symbolic strings functions
+#### Symbolic strings groups
 
-#### Default function
+A kind of language for generative composition.
+
+##### Default group
 
 By default, elements are played one after the other. The default group is implicitely defined.
 
@@ -87,13 +89,15 @@ You also explicitely define a default group by surrounding the group with parent
 (e c e g -g)^-12 # The sequence will be played one octave down
 ```
 
-##### Tuplet function
+##### Tuplet group
+
+The duration of each note is divided by the number of notes in the group.
 
 ```
 do_re_mi
 ```
 
-##### Sync function
+##### Sync group
 
 Play all elements at the same time.
 
@@ -101,7 +105,7 @@ Play all elements at the same time.
 [do mi sol]
 ```
 
-##### Sequencial function
+##### Sequencial group
 
 Return the next element on the list, loop at the end.
 
@@ -115,7 +119,7 @@ An iteration number can be provided by prepending the group with `#n` :
 <mi sol +sol>#2 # Will play 'sol'
 ```
 
-#### Schroedinger function
+##### Schroedinger group
 
 Return a randomly picked element, with optional probabilities.
 
@@ -126,6 +130,22 @@ Return a randomly picked element, with optional probabilities.
 ```
 {do:2 re:1 mi:1} # 'do' is twice as likely to be played than 're' or 'mi'
 ```
+
+#### Group modifiers
+
+All elements and groups can be followed by one or more modifiers.
+
+```
+(do?0.1 re mi)x2*2
+```
+
+Operator | Parameter | Description
+-------- | --------- | -----------
+x | int | Repeat
+\* | int/float | Stretch
+^ | int | Transpose
+% | int/float | Gate
+? | float | Existence
 
 ### Element objects sequences
 

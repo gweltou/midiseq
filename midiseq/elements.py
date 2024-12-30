@@ -1474,7 +1474,7 @@ class Track():
 
     def __init__(self,
                 channel=0, instrument=None,
-                name=None, loop=True,
+                name=None, loop=False,
                 sync_from: Optional[Track] = None
                 ):
         self.name = name #or f"Track{len(Track._all_tracks)+1}"
@@ -1492,7 +1492,6 @@ class Track():
         # self.shuffle = False
         self.offset = 0.0        
         self.send_program_change = True
-        self._nmess_this_cycle = 0 # Number of notes sent during the last cycle
 
         self._sync_children: List[Track] = []
         self._sync_from: Optional[Track] = sync_from
@@ -1556,16 +1555,18 @@ class Track():
         self.channel = other.channel
         self.instrument = other.instrument
     
+    def start(self):
+        self.reset()
+        self.stopped = False
+    
+    def stop(self):
+        self.stopped = True
+        self.ended = True
 
     def reset(self):
-        if not self.seqs and not self.generators:
-            return
-        
         self._next_timer = self.offset
         self.ended = False
         self.seq_i = 0
-        self._nmess_this_cycle = 0
-
 
     def setGroup(self, track_group):
         self._sync_group = track_group
@@ -1584,8 +1585,8 @@ class Track():
         if not self.seqs:
             return
         
-        if self.ended and not self.stopped:
-            self.reset()
+        if self.ended or self.stopped:
+            self.start()
     
     def _get_priority_list(self) -> List[Track]:
         pl = [self]
@@ -1662,35 +1663,36 @@ class Track():
             
             self.seq_i += 1
 
-            # Modifiers
-            if self.transforms:
-                sequence = sequence.copy()
-                for mod, args, kwargs in self.transforms:
-                    sequence = mod(sequence, *args, **kwargs)
+            if self.muted:
+                messages = []
+            else:
+                # Modifiers
+                if self.transforms:
+                    sequence = sequence.copy()
+                    for mod, args, kwargs in self.transforms:
+                        sequence = mod(sequence, *args, **kwargs)
 
-            messages = (sequence^self.transpose).getMidiMessages(self.channel)
-            # Add midi modulation sequence
-            if sequence.modseq != None:
-                messages.extend(sequence.modseq.getMidiMessages(self.channel))
+                messages = (sequence^self.transpose).getMidiMessages(self.channel)
+                # Add midi modulation sequence
+                if sequence.modseq != None:
+                    messages.extend(sequence.modseq.getMidiMessages(self.channel))
 
-            # MIDI messages don't need to be sorted at this point
-            messages = [ (t+self._next_timer, mess) for t, mess in messages ]
-            self._next_timer += sequence.dur
-            self._nmess_this_cycle += len(messages)
-
+                # MIDI messages don't need to be sorted at this point
+                messages = [ (t+self._next_timer, mess) for t, mess in messages ]
+            
             if self.instrument and self.send_program_change:
                 program_change = [PROGRAM_CHANGE | self.channel, self.instrument]
                 # Make sure the instrument change precedes the notes
                 return [ (-0.0001, program_change) ] + messages
-            return messages if not self.muted else None
+
+            self._next_timer += sequence.dur
+            return messages
 
         elif self.seq_i >= len(self.seqs):
             # End of track reached
-            if not self.loop: # or self._nmess_this_cycle == 0: # Stop if no messages were sent
+            if not self.loop:
                 self.ended = True
-                print("Track stopped")
                 return
-            self._nmess_this_cycle = 0
             
             # Looping
             if self.loop_type == "all":
@@ -1755,40 +1757,59 @@ def split_elements(seq_string):
 
 
 def apply_modifiers(elt: Element, modifiers: str) -> Element:
-    # Stretch modifier '*', followed by a float or a fraction
-    match = re.search(r"\*(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
-    if match:
-        elt.stretch(eval(match[1]))
+    """ TODO: Modifiers should be read and applied sequencially """
 
-    # Gate modifier '%', followed by an int, a float or a fraction
-    match = re.search(r"%(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
-    if match:
-        if isinstance(elt, Note):
+    while modifiers:
+        # Stretch modifier '*', followed by a float or a fraction
+        match = re.match(r"\*(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+        if match:
             elt.stretch(eval(match[1]))
-        else:
-            elt.stretchNotes(eval(match[1]))
+            modifiers = modifiers[match.end():]
 
-    # Transpose modifier '^'
-    match = re.search(r"\^(-?\d+)", modifiers)
-    if match:
-        elt.transpose(int(match[1]))
-    
-    # Multiply modifier 'x'
-    match = re.search(r"x(\d+)", modifiers)
-    if match:
-        new_sequence = Seq()
-        for _ in range(int(match[1])):
-            new_sequence.add(elt)
-        elt = new_sequence
+        # Gate modifier '%', followed by an int, a float or a fraction
+        match = re.match(r"%(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+        if match:
+            if isinstance(elt, Note):
+                elt.stretch(eval(match[1]))
+            else:
+                elt.stretchNotes(eval(match[1]))
+            modifiers = modifiers[match.end():]
 
-    # Probability modifier ':'
-    #         match = re.match(r":(\d*\.?\d+)", string)
-    #         if match:
-    #             prob = eval(match[1])
-    #             modifiers["prob"] = prob
-    #             string = string[len(match[0]):]
-    #             parsed_string += match[0]
-    #             continue
+        # Transpose modifier '^'
+        match = re.match(r"\^(-?\d+)", modifiers)
+        if match:
+            elt.transpose(int(match[1]))
+            modifiers = modifiers[match.end():]
+        
+        # Multiply modifier 'x'
+        match = re.match(r"x(\d+)", modifiers)
+        if match:
+            new_sequence = Seq()
+            for _ in range(int(match[1])):
+                new_sequence.add(elt)
+            elt = new_sequence
+            modifiers = modifiers[match.end():]
+
+        # Existence modifier '!', followed by a float or a fraction
+        match = re.match(r"\?(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+        if match:
+            prob = min(eval(match[1]), 1.0) # limit prob to 1.0
+            if prob < random.random():
+                elt *= 0
+            modifiers = modifiers[match.end():]
+        
+        # Arpeggiate modifiers (only applies to Chords)
+        match = re.match(r"/(\d+)?", modifiers)
+        if match and isinstance(elt, Chord):
+            n = int(match[1]) if match[1] else 1
+            elt = elt.arp(n, mode="up")
+            modifiers = modifiers[match.end():]
+        
+        match = re.match(r"\\(\d+)?", modifiers)
+        if match and isinstance(elt, Chord):
+            n = int(match[1]) if match[1] else 1
+            elt = elt.arp(n, mode="down")
+            modifiers = modifiers[match.end():]
 
     return elt
 

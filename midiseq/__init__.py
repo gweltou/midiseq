@@ -16,10 +16,17 @@ CHANNEL_AFTERTOUCH = 208
 from .definitions import *
 from .engine import (
     listOutputs, openOutput, _getOutputs,
-    listInputs, openInput, listen, rec,
-    play, stop, panic, playMetro, wait,
-    TrackGroup, getPastOpened
+    listInputs, openInput,
+    # listen, rec,
+    # play, stop, panic, playMetro, wait,
+    # TrackGroup, getPastOpened
 )
+
+from .new_engine import (
+    TrackGroup,
+    play, stop
+)
+
 from .elements import (
     Seq, Chord, Note, Sil, Track, PNote, Element,
     parse, parse_element
@@ -119,6 +126,7 @@ t16 = Track(15, name="t16", sync_from=t1)
 
 env.tracks = TrackGroup()
 env.tracks.addTrack(t1)
+env.default_track = t1
 
 
 def _playT(track: Track, seq: Optional[str]=None):
@@ -140,17 +148,13 @@ def _playT(track: Track, seq: Optional[str]=None):
             t.syncFrom(track)
     play()
 
-def splay(*args, **kwargs):
-    if env.is_playing:
-        stop()
-    play(*args, **kwargs)
 
 history = LifoQueue(512)
 
 def play(*args, **kwargs):
     state = (args, kwargs)
     history.put(state)
-    engine.play(*args, **kwargs)
+    new_engine.play(*args, **kwargs)
 
 def play1(seq : Optional[str]=None):
     _playT(t1, seq)
@@ -209,9 +213,7 @@ def _stopT(track: Track):
     track.stopped = True
 
     still_playing = list(filter(lambda t: not t.stopped, env.tracks))
-    if len(still_playing) == 0:
-        stop()
-    elif len(still_playing) == 1:
+    if len(still_playing) == 1:
         # Set remaining track as main track
         main_track = still_playing[0]
         for t in env.tracks:
