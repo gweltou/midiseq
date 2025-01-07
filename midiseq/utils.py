@@ -129,10 +129,11 @@ def rndDur(
 def rndWalk(
         n=8,
         start: Union[str,int]=None,
-        steps=[-3,-2,-1,0,1,2,3],
+        steps=[-2,-1,0,1,2],
         silprob=0.0,
         notedur=1.0,
-        skip_first=False, scl:Scl=None
+        skip_first=False,
+        scl:Scl=None
     ) -> Seq:
     """ Create a sequence of notes moving from last note by a random interval
 
@@ -153,15 +154,17 @@ def rndWalk(
             scl : Scl (Scale)
                 Constrain generated notes to the given scale
     """
-    if not scl:
-        scl = env.scale or Scl("chromatic", 'c')
+    if scl:
+        old_scl = env.scale
+        env.scale = scl
+    
     if not start:
-        start = scl.tonic
+        start = env.scale.tonic
     if isinstance(start, str):
-        start = str2pitch(start)
-    pitch = scl.getClosest(start)
+        start = parse_element(start).pitch
+    pitch = env.scale.getClosest(start)
     if skip_first:
-        pitch = scl.getDegreeFrom(pitch, random.choice(steps))
+        pitch = env.scale.getDegreeFrom(pitch, random.choice(steps))
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
@@ -169,6 +172,9 @@ def rndWalk(
             pitch = env.scale.getDegreeFrom(pitch, random.choice(steps))
         else:
             s.add(Sil(notedur))
+    
+    if scl:
+        env.scale = old_scl
     return s
 
 

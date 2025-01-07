@@ -21,8 +21,7 @@ NOTE_CHORD_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
                                     (do|re|ré|mi|fa|sol|la|si|ti|[a-g])
                                     (b|\#)?			# Accidentals (flat or sharp)
                                     (M|m|mM|\+|°|sus2|sus4)? # Maj, min, min/Maj, aug,...
-                                    (7|9|11)?		# Seventh, ninth, eleventh
-                                    #(%[\d/.]+)?		# Time multiplication factor
+                                    (6|7|9|11|13)?		# Seventh, ninth, eleventh
                                 """, re.X|re.I)
 
 # MIDI_PITCH_PATTERN = re.compile(r"(\d+)(%[\d/.]+)?")
@@ -31,24 +30,34 @@ MIDI_PITCH_PATTERN = re.compile(r"(\d+)")
 
 ROMAN_DEGREE_PATTERN = re.compile(r"""([+-]?\d?)?	# Octave transposition
                                     ([ivx]+)		# Degree
-                                    (7|9|11)?		# Seventh, ninth, eleventh
-                                    #(%[\d/.]+)?	    # Time multiplication factor
+                                    (6|7|9|11|13)?		# Seventh, ninth, eleventh
                                 """, re.X|re.I)
 
 SILENCE_PATTERN = re.compile(r"(\.+)")
 
 chord_intervals = {
-    'M': (0, 4, 7), '': (0, 4, 7), # Major
-    'm': (0, 3, 7), # Minor
-    '+': (0, 4, 9), # Augmented
-    '°': (0, 3, 6), # Diminished
+    'M':   (0, 4, 7), '': (0, 4, 7), # Major
+    'm':   (0, 3, 7), # Minor
+    '+':   (0, 4, 9), # Augmented
+    '°':   (0, 3, 6), # Diminished
     'sus2':(0, 2, 7), # Suspended second
     'sus4':(0, 5, 7), # Suspended fourth
-    '7': (0, 4, 7, 10), # Dominant seventh
-    'M7':(0, 4, 7, 11), # Major seventh
-    'm7':(0, 3, 7, 10), # Minor seventh
-    'mM7':(0, 3, 7, 11),# Minor/Major seventh
-    '°7':(0, 3, 6, 9),   # Diminished seventh
+    '6':   (0, 4, 7, 9), 'M6': (0, 4, 7, 9), # Major sixth
+    'm6':  (0, 3, 7, 9), # Minor sixth
+    '7':   (0, 4, 7, 10), # Dominant seventh
+    'M7':  (0, 4, 7, 11), # Major seventh
+    'm7':  (0, 3, 7, 10), # Minor seventh
+    'mM7': (0, 3, 7, 11), # Minor/Major seventh
+    '°7':  (0, 3, 6, 9),  # Diminished seventh
+    '9':   (0, 4, 7, 10, 14), # Dominant ninth
+    'M9':  (0, 4, 7, 11, 14), # Major ninth
+    'm9':  (0, 3, 7, 10, 14), # Minor seventh
+    '11':  (0, 4, 7, 10, 14, 17), # Dominant eleventh
+    'M11': (0, 4, 7, 11, 14, 17), # Major eleventh
+    'm11': (0, 3, 7, 10, 14, 17), # Minor eleventh
+    '13':  (0, 4, 7, 10, 14, 17, 21), # Dominant thirteen
+    'M13': (0, 4, 7, 11, 14, 17, 21), # Major thirteen
+    'm13': (0, 3, 7, 10, 14, 17, 21), # Minor thirteen
 }
 
 roman2num = {
@@ -159,17 +168,17 @@ class Scl():
         return pitches
 
 
-    def getClosest(self, note: Union[str, int]) -> int:
+    def getClosest(self, val: Union[str, int]) -> int:
         """ Find closest note in scale given a pitch
             Returns a corrected pitch, in range [0-127]
             If the given pitch is between scale pitches, picks the lower scale pitch
         """
-        if type(note) == int:
-            pitch = min(127, max(0, note))
-        elif type(note) == str:
-            pitch = str2pitch(note)
+        if isinstance(val, int):
+            pitch = min(127, max(0, val))
+        elif isinstance(val, str):
+            pitch = parse_element(val).pitch
         else:
-            raise TypeError("Argument must be a pitch number [0-127] or a valid note name")
+            raise TypeError(f"Argument must be a pitch number [0-127] or a valid note name, got {val}")
 
         octave, degree = divmod(pitch, 12)
         distances = [s-(degree-self.tonic)%12 for s in self.scale]
@@ -273,14 +282,12 @@ class BaseElement():
 
 class Note(BaseElement):
 
-    def __init__(self, pitch, dur=1, vel:int=100, prob:float=1.0):
-        if isinstance(pitch, str):
-            pitch = str2pitch(pitch)
-        elif isinstance(pitch, int) and (pitch < 0 or pitch > 127):
-            raise TypeError("Pitch must be an integer in range [0, 127], got {}".format(pitch))
-        elif not isinstance(pitch, int):
-            raise TypeError("Pitch must be an integer in range [0, 127], got {}".format(pitch))
-        self.pitch = min(max(pitch, 0), 127)
+    def __init__(self, val, dur=1, vel:int=100, prob:float=1.0):
+        if isinstance(val, str):
+            val = parse_element(val).pitch
+        elif isinstance(val, int) and (val < 0 or val > 127):
+            raise TypeError("Pitch must be an integer in range [0, 127], got {}".format(val))
+        self.pitch = min(max(val, 0), 127)
         self.dur = dur * env.note_dur
         self.vel = vel
         self.prob = prob
@@ -902,7 +909,7 @@ class Seq(BaseElement):
         return self
 
 
-    def stretchNotes(self, factor) -> Seq:
+    def gate(self, factor) -> Seq:
         """ Stretch notes without modifying the sequence's length
             Modifies the sequence in-place
         """
@@ -1102,7 +1109,7 @@ class Seq(BaseElement):
         return self
 
 
-    def shift(self, offset, wrap=False) -> Seq:
+    def shift(self, offset, wrap=False, stretch=False) -> Seq:
         """ Shift note onset times by a given *absolute* delta time
             Modifies sequence in-place.
 
@@ -1113,7 +1120,9 @@ class Seq(BaseElement):
                     If `offset` is a `int`, will shift sequence by the default duration of notes
                     A positive `offset` will shift to the right, while negative will shift to the left
                 wrap : bool
-                    If True, notes that were pushed out of the sequence get appendend to the other side
+                    Notes that were pushed out of the sequence get appendend to the other side, if true
+                stretch : bool
+                    A positive shift will grow the Seq duration accordingly, if true
         """
         
         if not(offset):
@@ -1132,6 +1141,10 @@ class Seq(BaseElement):
                     new_time += self.dur
             new_notes.append( (new_time, n) )
         self.notes = sorted(new_notes)
+
+        if stretch and offset > 0:
+            self.dur += offset
+
         return self
     
 
@@ -1657,7 +1670,7 @@ class Track():
                 #     self.seq_i -= 1
             elif isinstance(sequence, str):
                 # A symbolic string sequence
-                sequence, updated_sequence = parse_seq(sequence)
+                sequence, updated_sequence = self.parse_seq(sequence)
                 # Update string sequence state
                 self.seqs[self.seq_i] = updated_sequence
             
@@ -1702,6 +1715,13 @@ class Track():
             else:
                 raise Exception(f"'loop_type' property should be set to 'all' or 'last', but got '{self.loop_type}' instead")
 
+
+    def parse_seq(seq_string) -> Tuple[Seq, str]:
+        """Parse a symbolic string sequence and return a Seq"""
+        element, updated_string = parse(seq_string)
+        if not isinstance(element, Seq):
+            element = Seq(element)
+        return element, updated_string
     
     def __len__(self):
         return len(self.seqs)
@@ -1772,7 +1792,7 @@ def apply_modifiers(elt: Element, modifiers: str) -> Element:
             if isinstance(elt, Note):
                 elt.stretch(eval(match[1]))
             else:
-                elt.stretchNotes(eval(match[1]))
+                elt.gate(eval(match[1]))
             modifiers = modifiers[match.end():]
 
         # Transpose modifier '^'
@@ -1974,7 +1994,7 @@ def _parse(seq_string) -> Tuple[Element, str]:
         return _parse_fn_sequencial(match[1], match[2])
 
     # Schroedinger group
-    match = re.fullmatch(r"{(.*)}(\S*)", seq_string, re.DOTALL)
+    match = re.fullmatch(r"{(.+)}(\S*)", seq_string, re.DOTALL)
     if match:
         return _parse_fn_schroedinger(match[1], match[2])
 
@@ -1998,11 +2018,3 @@ def parse(seq_string) -> Tuple[Element, str]:
     seq, updated_string = _parse(seq_string)
     seq.string = updated_string
     return seq, updated_string
-
-
-def parse_seq(seq_string) -> Tuple[Seq, str]:
-    """Parse a symbolic string sequence and return a Seq"""
-    element, updated_string = parse(seq_string)
-    if not isinstance(element, Seq):
-        element = Seq(element)
-    return element, updated_string

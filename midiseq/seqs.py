@@ -1,4 +1,6 @@
 import random
+
+import midiseq.env as env
 from .elements import Note, Sil, Seq, Scl, Chord
 from .utils import pattern, rndGauss, lcm
 from .definitions import *
@@ -75,6 +77,42 @@ def gen_recaman():
         seen.add(next)
         prev = next
         yield next
+
+
+def gen_proto1():
+    def rnd_note(elts):
+        if random.random() < 0.2:
+            elts.append(Sil())
+        else:
+            elts.append(Note(random.choice(pool)))
+    def rep_last(elts):
+        if len(elts) > 0:
+            elts.append(elts[-1])
+    def rep_last2(elts):
+        if len(elts) > 1:
+            elts.extend(elts[-2:])
+    def rep_n2(elts):
+        if len(elts) > 1:
+            elts.append(elts[-2])
+    def rep_n4(elts):
+        if len(elts) > 3:
+            elts.append(elts[-4])
+    def raise_oct(elts):
+        if len(elts) > 0 and isinstance(elts[-1], Note):
+            elts.append(elts[-1]^12)
+    def lower_oct(elts):
+        if len(elts) > 0 and isinstance(elts[-1], Note):
+            elts.append(elts[-1]^-12)
+    
+    funcs = [rnd_note, rnd_note, rep_last, rep_last2, rep_n2, rep_n4, raise_oct, lower_oct]
+
+    while True:
+        pool = env.scale.notes[30:40]
+        elts = []
+        while len(elts) < 8:
+            random.choice(funcs)(elts)
+        yield Seq(*elts)
+
 
 
 def gen_chords1():

@@ -219,11 +219,10 @@ def _play(track_group: TrackGroup, loop=False):
                     _recording = True
                     _recording_time = 0.0 - env.METRONOME_PRE * env.METRONOME_DIV
                     _armed = False
-                    clicking = env.METRONOME_CLICK
+                    clicking = env.METRONOME
             else:
                 p = env.METRONOME_NOTES[1]
             if clicking:
-                # note_on = rtmidi.MidiMessage.noteOn(10, p, 100)
                 note_on = [0x90, p, 100]
                 env.default_output.send_message(note_on)
                 click_note = p
