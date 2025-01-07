@@ -1716,7 +1716,7 @@ class Track():
                 raise Exception(f"'loop_type' property should be set to 'all' or 'last', but got '{self.loop_type}' instead")
 
 
-    def parse_seq(seq_string) -> Tuple[Seq, str]:
+    def parse_seq(self, seq_string) -> Tuple[Seq, str]:
         """Parse a symbolic string sequence and return a Seq"""
         element, updated_string = parse(seq_string)
         if not isinstance(element, Seq):
@@ -1994,7 +1994,7 @@ def _parse(seq_string) -> Tuple[Element, str]:
         return _parse_fn_sequencial(match[1], match[2])
 
     # Schroedinger group
-    match = re.fullmatch(r"{(.+)}(\S*)", seq_string, re.DOTALL)
+    match = re.fullmatch(r"{(.+)}+(\S*)", seq_string, re.DOTALL)
     if match:
         return _parse_fn_schroedinger(match[1], match[2])
 

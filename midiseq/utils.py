@@ -179,14 +179,14 @@ def rndWalk(
 
 
 
-def rndGauss(n=8, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
+def rndGauss(n=8, mean: Union[str,int]=None, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
     """ Generate random notes with a normal distribution around a mean value
 
         Parameters
         ----------
             n : int
                 Number of notes to generate
-            mean : int
+            mean : int|str
                 Mean pitch value
             dev : float
                 Standard deviation
@@ -195,15 +195,26 @@ def rndGauss(n=8, mean=60, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq
             scl : Scl (Scale)
                 Constrain generated notes to the given scale
     """
-    if not scl:
-        scl = env.scale or Scl("chromatic", 'c')
+    if scl:
+        old_scl = env.scale
+        env.scale = scl
+    
+    if not mean:
+        mean = env.scale.tonic
+    if isinstance(mean, str):
+        mean = parse_element(mean).pitch
+    pitch = env.scale.getClosest(mean)
+
     s = Seq()
     for _ in range(n):
         if not silprob or random.random() > silprob:
-            pitch = scl.getDegreeFrom(mean, round(random.gauss(0, dev)))
+            pitch = env.scale.getDegreeFrom(mean, round(random.gauss(0, dev)))
             s.add(Note(pitch, notedur))
         else:
             s.add(Sil(notedur))
+    
+    if scl:
+        env.scale = old_scl
     return s
 
 

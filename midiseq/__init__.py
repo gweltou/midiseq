@@ -39,7 +39,7 @@ from .utils import (
 )
 from .whistle import whistle, whistleDur, tap, tapDur
 from .generators import *
-# from .seqs import *
+from .seqs import *
 import midiseq.env as env
 
 ###### Generative Neural Network #######
