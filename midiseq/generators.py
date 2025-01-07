@@ -2,7 +2,7 @@ from typing import Union, Generator
 import random
 
 import midiseq.env as env
-from .elements import Note, Sil, Seq, Scl, Chord, parse_seq
+from .elements import Note, Sil, Seq, Scl, Chord, parse
 
 
 ####  ALIASES
@@ -20,7 +20,7 @@ from .elements import Note, Sil, Seq, Scl, Chord, parse_seq
 
 def genStr2seq(string: str):
     while True:
-        yield parse_seq(string)[0]
+        yield parse(string)[0]
 
 
 def genFunc(func: callable, repeat=1, max_iter=0, *args, **kwargs):
