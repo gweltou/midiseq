@@ -146,6 +146,7 @@ x | int | Repeat
 ^ | int | Transpose
 % | int/float | Gate
 ? | float | Existence
+s | int [,float] | Stutter (with prob)
 
 ### Element objects sequences
 
@@ -222,10 +223,11 @@ clear   |            | Clears the sequence
 add     | Note, Chord, Sil, other Seq... | Add an element to the sequence
 merge   | Other Seq  | Mix the two sequences together
 stretch | float     | Stretch or compress the duration of the sequence
+gate    | float     | Stretch the notes durations without changing the sequence's length
 reverse |           | Reverse the order of the notes
 transpose | int     | Transose the whole sequence by semitones
-expandPitch | float | Raise or lower pitches around a mean value
-splitNotes | int    | Split all notes (or a single note)
+scalePitch | float | Raise or lower pitches around a mean value
+stutter | n:int, prob:float [,i:int] | Split all notes (or a single note), with probability
 decimate | prob: float    | Remove notes randomly with a given probability
 attenuate | factor=1.0 | Attenuate notes velocity by a given factor
 humanize | tfactor=0.01, veldev=5 | Randomize sligthly notes time, duration and velocity

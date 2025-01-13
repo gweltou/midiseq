@@ -42,9 +42,6 @@ def test_trackgroup():
     assert len(t1._sync_children) == 1
 
     tg.addTrack(t1)
-
-    for t in tg.tracks:
-        print(t)
     
     assert len(tg.priority_list) == 2
 
@@ -54,7 +51,6 @@ def test_track_modifiers():
     t.add(rnd(8))
     t.pushTrans(Seq.stretch, 2.0)
     m = t.update(0.0)
-    print(f"{m=}")
 
     t.popTrans()
     assert len(t.transforms) == 0

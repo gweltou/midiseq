@@ -32,7 +32,6 @@ def test_parser():
     ]
 
     for strseq, seq in strings:
-        print(strseq)
         assert parse(strseq)[0] == seq
 
 
@@ -53,6 +52,22 @@ def test_symbolic_strings():
     ]
     for gt, case in test_cases:
         assert gt == parse(case)[0].string
+
+
+def test_modifiers():
+    test_cases = [
+        ("cx2", Note("c")*2),
+        ("c^2", Note("d")),
+        ("c*2.0", Note("c", dur=2.0)),
+        ("cs2", Note("c")),
+        ("cs2,.1", Note("c")),
+        ("Is2", parse("I_I")[0])
+    ]
+
+    for strseq, seq in test_cases:
+        print(parse(strseq)[0])
+        assert parse(strseq)[0] == seq
+
 
 
 # def test_fn_sequencial_depth():

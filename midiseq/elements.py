@@ -641,10 +641,10 @@ class Chord(BaseElement):
 
     def stretch(self, factor) -> Note:
         self.dur *= factor
-        return self.stretchNotes(factor)
+        return self.gate(factor)
 
 
-    def stretchNotes(self, factor) -> Note:
+    def gate(self, factor) -> Note:
         """ Stretch notes duration without changing the whole chord duration """
         for n in self.notes:
             n.dur *= factor
@@ -667,7 +667,7 @@ class Chord(BaseElement):
 
     def __mod__(self, factor: float) -> Chord:
         chord = self.copy()
-        chord.stretchNotes(factor)
+        chord.gate(factor)
         return chord
 
     def __eq__(self, other):
@@ -964,7 +964,7 @@ class Seq(BaseElement):
         return self
     
 
-    def splitNotes(self, n=2, idx: Optional[int]=None) -> Seq:
+    def stutter(self, n=2, prob=1.0, idx: Optional[int]=None) -> Seq:
         """ Split every note in equal divisions
             Modifies sequence in-place
 
@@ -972,6 +972,8 @@ class Seq(BaseElement):
             ----------
                 n : int
                     Number of divisions
+                prob : float
+                    The probability the splitting happens
                 idx : int
                     If used, divide only the note at that position
         """
@@ -981,26 +983,30 @@ class Seq(BaseElement):
         if isinstance(idx, int):
             if idx >= len(self.notes):
                 raise ValueError("idx is greater than number of notes in sequence")
-            t, note = self.notes[idx]
-            split_dur = note.dur / n
-            old_head = self.head
-            del self.notes[idx]
-            self.head = t
-            for i in range(n):
-                n = note.copy()
-                n.dur = split_dur
-                self.add(n)
-            self.head = old_head
+            if random.random() < prob:
+                t, note = self.notes[idx]
+                split_dur = note.dur / n
+                old_head = self.head
+                del self.notes[idx]
+                self.head = t
+                for i in range(n):
+                    n = note.copy()
+                    n.dur = split_dur
+                    self.add(n)
+                self.head = old_head
             return self
 
         orig = self.notes[:]
         self.clear()
         for t, note in orig:
-            split_dur = note.dur / n
-            for i in range(n):
-                splitted_note = note.copy()
-                splitted_note.dur = split_dur
-                self.notes.append( (t + i * split_dur, splitted_note) )
+            if random.random() < prob:
+                split_dur = note.dur / n
+                for i in range(n):
+                    splitted_note = note.copy()
+                    splitted_note.dur = split_dur
+                    self.notes.append( (t + i * split_dur, splitted_note) )
+            else:
+                self.notes.append((t, note))
         return self
 
 
@@ -1617,6 +1623,10 @@ class Track():
     def popTrans(self):
         del self.transforms[-1]
     
+    def ppushTrans(self, method: callable, *args, **kwargs):
+        self.popTrans()
+        self.pushTrans(method, *args, **kwargs)
+    
     def clearTrans(self):
         self.transforms.clear()
 
@@ -1779,29 +1789,34 @@ def split_elements(seq_string):
 def apply_modifiers(elt: Element, modifiers: str) -> Element:
     """ TODO: Modifiers should be read and applied sequencially """
 
+    int_float_or_frac = r"(\d*\.?\d+(?:\/\d*\.?\d+)?)"
+
     while modifiers:
-        # Stretch modifier '*', followed by a float or a fraction
-        match = re.match(r"\*(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+        # '*' Stretch modifier, followed by an int, a float or a fraction
+        match = re.match(r"\*" + int_float_or_frac, modifiers)
         if match:
             elt.stretch(eval(match[1]))
             modifiers = modifiers[match.end():]
+            continue
 
-        # Gate modifier '%', followed by an int, a float or a fraction
-        match = re.match(r"%(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+        # '%' Gate modifier, followed by an int, a float or a fraction
+        match = re.match(r"%" + int_float_or_frac, modifiers)
         if match:
             if isinstance(elt, Note):
                 elt.stretch(eval(match[1]))
             else:
                 elt.gate(eval(match[1]))
             modifiers = modifiers[match.end():]
+            continue
 
-        # Transpose modifier '^'
+        # '^' Transpose modifier
         match = re.match(r"\^(-?\d+)", modifiers)
         if match:
             elt.transpose(int(match[1]))
             modifiers = modifiers[match.end():]
+            continue
         
-        # Multiply modifier 'x'
+        # 'x' Multiply modifier
         match = re.match(r"x(\d+)", modifiers)
         if match:
             new_sequence = Seq()
@@ -1809,27 +1824,48 @@ def apply_modifiers(elt: Element, modifiers: str) -> Element:
                 new_sequence.add(elt)
             elt = new_sequence
             modifiers = modifiers[match.end():]
+            continue
 
-        # Existence modifier '!', followed by a float or a fraction
-        match = re.match(r"\?(\d*\.?\d+(?:\/\d*\.?\d+)?)", modifiers)
+        # '?' Existence modifier, followed by a float or a fraction
+        match = re.match(r"\?" + int_float_or_frac, modifiers)
         if match:
             prob = min(eval(match[1]), 1.0) # limit prob to 1.0
             if prob < random.random():
                 elt *= 0
             modifiers = modifiers[match.end():]
+            continue
         
-        # Arpeggiate modifiers (only applies to Chords)
+        # '/' Arpeggiate up modifiers (only applies to Chords)
         match = re.match(r"/(\d+)?", modifiers)
         if match and isinstance(elt, Chord):
             n = int(match[1]) if match[1] else 1
             elt = elt.arp(n, mode="up")
             modifiers = modifiers[match.end():]
+            continue
         
+        # '\' (or '\\') Arpeggiate down modifiers (only applies to Chords)
         match = re.match(r"\\(\d+)?", modifiers)
         if match and isinstance(elt, Chord):
             n = int(match[1]) if match[1] else 1
             elt = elt.arp(n, mode="down")
             modifiers = modifiers[match.end():]
+            continue
+        
+        # 's' Stutter modifiers (only applies to Chords)
+        # has 2 parameters : "s2,0.2" (2 stutter with 0.2 probability)
+        match = re.match(r"s(\d+)(?:," + int_float_or_frac + ")?", modifiers)
+        if match:
+            if isinstance(elt, Seq):
+                elt.stutter(int(match[1]), eval(match[2]) if match[2] else 1.0)
+            else:
+                if match[2] and random.random() > eval(match[2]):
+                    pass
+                else:
+                    elt = (elt * int(match[1])).stretch(1/int(match[1]))
+            modifiers = modifiers[match.end():]
+            continue
+        
+        modifiers = modifiers[1:]
 
     return elt
 
@@ -1977,10 +2013,9 @@ def _parse_fn_schroedinger(seq_string: str, modifiers: str) -> Tuple[Element, st
 
 
 def _parse(seq_string) -> Tuple[Element, str]:
-
     # Default group
     match = re.fullmatch(r"\((.+)\)(\S*)", seq_string, re.DOTALL)
-    if match:        
+    if match:
         return _parse_fn_default(match[1], match[2])
 
     # Chord group
@@ -1994,7 +2029,7 @@ def _parse(seq_string) -> Tuple[Element, str]:
         return _parse_fn_sequencial(match[1], match[2])
 
     # Schroedinger group
-    match = re.fullmatch(r"{(.+)}+(\S*)", seq_string, re.DOTALL)
+    match = re.fullmatch(r"{(.+)}(\S*)", seq_string, re.DOTALL) # TODO
     if match:
         return _parse_fn_schroedinger(match[1], match[2])
 
