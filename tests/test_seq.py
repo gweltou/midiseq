@@ -137,7 +137,6 @@ def test_select():
 def test_index_slice():
     env.note_dur = 1/4
     s = Seq("60 61 62 63 64 65")
-    print(len(s), s.dur)
     assert s[0] == Note(60)
     assert len(s[0:3]) == 3
     assert len(s[:3]) == 3

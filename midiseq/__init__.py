@@ -129,11 +129,11 @@ env.tracks.addTrack(t1)
 env.default_track = t1
 
 
-def _playT(track: Track, seq: Optional[str]=None):
+def _playT(track: Track, *args, **kwargs):
     """ Start a single track """
     track.stopped = False
-    if seq:
-        track.clearAdd(seq)
+    if args:
+        track.clearAdd(*args)
     
     if env.is_playing:
         return
@@ -146,7 +146,7 @@ def _playT(track: Track, seq: Optional[str]=None):
         else:
             t.stopped = True
             t.syncFrom(track)
-    play()
+    play(*args, **kwargs)
 
 
 history = LifoQueue(512)
@@ -156,22 +156,22 @@ def play(*args, **kwargs):
     history.put(state)
     new_engine.play(*args, **kwargs)
 
-def play1(seq : Optional[str]=None):
-    _playT(t1, seq)
-def play2(seq : Optional[str]=None):
-    _playT(t2, seq)
-def play3(seq : Optional[str]=None):
-    _playT(t3, seq)
-def play4(seq : Optional[str]=None):
-    _playT(t4, seq)
-def play5(seq : Optional[str]=None):
-    _playT(t5, seq)
-def play6(seq : Optional[str]=None):
-    _playT(t6, seq)
-def play7(seq : Optional[str]=None):
-    _playT(t7, seq)
-def play8(seq : Optional[str]=None):
-    _playT(t8, seq)
+def play1(*args, **kwargs):
+    _playT(t1, *args, **kwargs)
+def play2(*args, **kwargs):
+    _playT(t2, *args, **kwargs)
+def play3(*args, **kwargs):
+    _playT(t3, *args, **kwargs)
+def play4(*args, **kwargs):
+    _playT(t4, *args, **kwargs)
+def play5(*args, **kwargs):
+    _playT(t5, *args, **kwargs)
+def play6(*args, **kwargs):
+    _playT(t6, *args, **kwargs)
+def play7(*args, **kwargs):
+    _playT(t7, *args, **kwargs)
+def play8(*args, **kwargs):
+    _playT(t8, *args, **kwargs)
 
 
 def pushT1(method: callable, *args, **kwargs):
