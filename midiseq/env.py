@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 
-tracks = None
+tracks = []
 default_track = None
 is_playing = False
 
@@ -18,6 +18,7 @@ METRONOME_PORT = None      # Midi port for metronome
 METRONOME_CHAN = 9         # Midi channel for metronome
 
 default_output = None
+default_input = None
 DISPLAY = False
 DISPLAY_RANGE = (36, 96)
 verbose = False

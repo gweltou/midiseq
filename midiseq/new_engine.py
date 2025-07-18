@@ -1,4 +1,4 @@
-from typing import List, Union, Generator, Optional
+from typing import List, Union, Generator, Optional, Dict
 import threading
 import time
 
@@ -8,6 +8,7 @@ from rtmidi.midiconstants import (
     ALL_SOUND_OFF, RESET_ALL_CONTROLLERS,
     CONTROL_CHANGE,
 )
+import rtmidi.midiutil
 
 import midiseq.env as env
 from .elements import Seq, Note, PNote, Chord, Track, Song
@@ -45,6 +46,7 @@ class TrackGroup:
                 track._sync_from._sync_children.append(track)
             else:
                 top_priority.append(track)
+        top_priority.reverse()
         
         # Build list from tree
         for track in top_priority:
@@ -59,7 +61,8 @@ class TrackGroup:
         return sorted(self.tracks, key=lambda t:t.name)[index]
 
 
-
+_midiout_ports: Dict[int, rtmidi.MidiOut] = dict()
+_midiin_ports: Dict[int, rtmidi.MidiIn] = dict()
 
 time_res = 0.01
 metronome = False
@@ -70,6 +73,88 @@ _active_notes = [0b0000000000000000] * 128 # Active notes lookup table
 # Signal triggers to communicate with IO thread
 _trigger_play = False
 _trigger_stop = False
+
+
+
+def listInputs():
+    """Print the list of Input MIDI ports"""
+    for i, port_name in getInputs():
+        print(f"[{i}] {port_name}")
+
+
+def getInputs():
+    midiin = rtmidi.MidiIn()
+    return [ (i, midiin.get_port_name(i)) for i in range(midiin.get_port_count()) ]
+
+
+def getInput(port_i : Union[int, str]):
+    """Open and return a MIDI input port or return an already opened one"""
+    if isinstance(port_i, str):
+        for i, name in getInputs():
+            if port_i.lower() in name.lower():
+                port_i = i
+                break
+        else:
+            print(f"Can't find '{port_i}', opening default port")
+            port_i = 0
+    
+    if port_i in _midiin_ports and _midiin_ports[port_i].is_port_open():
+        port = _midiin_ports[port_i]
+    else:
+        midiin = rtmidi.MidiIn()
+        print(f"Opening port {port_i} [{midiin.get_port_name(port_i)}]")
+        midiin.open_port(port_i)
+        _midiout_ports[port_i] = midiin
+        port = midiin
+
+    env.default_input = port
+    print(f"Setting port as env.default_input")
+
+    return port
+
+
+def listOutputs():
+    """Print the list of Output MIDI ports"""
+    for i, port_name in getOutputs():
+        print(f"[{i}] {port_name}")
+
+
+def getOutputs():
+    midiout = rtmidi.MidiOut()
+    return [ (i, midiout.get_port_name(i)) for i in range(midiout.get_port_count()) ]
+
+
+def getOutput(port_i : Union[int, str]):
+    """Open and return a MIDI output port or return an already opened one"""
+    if isinstance(port_i, str):
+        for i, name in getOutputs():
+            if port_i.lower() in name.lower():
+                port_i = i
+                break
+        else:
+            print(f"Can't find '{port_i}', opening default port")
+            port_i = 0
+    
+    if port_i in _midiout_ports and _midiout_ports[port_i].is_port_open():
+        port = _midiout_ports[port_i]
+    else:
+        midiout = rtmidi.MidiOut()
+        print(f"Opening port {port_i} [{midiout.get_port_name(port_i)}]")
+        midiout.open_port(port_i)
+        _midiout_ports[port_i] = midiout
+        port = midiout
+
+    env.default_output = port
+    print(f"Setting port as env.default_output")
+
+    return port
+
+
+def openInput(port_n):
+    if midiin.is_port_open():
+        midiin.close_port()
+    print("Opening port {} [{}]".format(port_n, midiin.get_port_name(port_n)) )    
+    midiin.open_port(port_n)
 
 
 
@@ -90,7 +175,8 @@ def stop_io():
     global _is_running
 
     _is_running = False
-    _thread.join()
+    if _thread != None:
+        _thread.join()
     print("IO thread stopped")
 
 
@@ -125,8 +211,8 @@ def _run():
         
 
         # Process incoming messages
-        #while in_mess := midiin.get_message():
-        #    do stuff
+        while in_mess := midiin.get_message():
+           print(in_mess)
 
         if is_playing:
             sort_events = False
@@ -204,16 +290,16 @@ def play(
     channel: Optional[int]=None,
     instrument: Optional[int]=None,
     loop: Optional[bool]=None):
-    """ Play a Track, a Sequence or a single Note.
+    """Play a Track, a Sequence or a single Note.
 
-        Parameters
-        ----------
-            channel : int
-                Midi channel, between 0 and 15 (defaults to 0)
-            instrument : int
-                Instrument to play with (program change message)
-            loop : boolean
-                Loop playback):
+    Parameters
+    ----------
+        channel : int
+            Midi channel, between 0 and 15 (defaults to 0)
+        instrument : int
+            Instrument to play with (program change message)
+        loop : boolean
+            Loop playback):
     """
     global _trigger_play
     _trigger_play = True
@@ -224,6 +310,10 @@ def play(
     
     if what:
         # Play solo track, seq or note
+        if isinstance(what, Track):
+            what.start()
+            return
+        
         track : Track = env.default_track
         if loop != None:
             track.loop = loop

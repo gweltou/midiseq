@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Union, List, Tuple, Generator
+from typing import Optional, Union, List, Tuple, Generator, Callable
 import random
 import re
 from math import pow
@@ -133,7 +133,7 @@ def str2pitch(tone: str) -> int:
 
 class Scl():
 
-    def __init__(self, scale: Union[str, List]="major", tonic=60):
+    def __init__(self, scale: Union[str, List]="major", tonic: Union[str, int]=60):
         if isinstance(tonic, int):
             self.tonic = min(127, max(0, tonic))
         elif isinstance(tonic, str):
@@ -516,7 +516,10 @@ class Sil(BaseElement):
         return self.__repr__()
     
     def __repr__(self):
-        return "Sil({})".format(self.dur/env.note_dur)
+        arg_dur = ""
+        if self.dur != env.note_dur:
+            arg_dur = str(round(self.dur/env.note_dur, 3))
+        return "Sil({})".format(arg_dur)
 
 
 
@@ -730,7 +733,7 @@ class Seq(BaseElement):
                 raise TypeError
 
     
-    def copy(self) -> Seq:
+    def cpy(self) -> Seq:
         new = Seq()
         new.notes = [ (t, n.copy()) for t, n in self.notes ]
         new.silences = [ (t, s) for t, s in self.silences ]
@@ -1053,7 +1056,7 @@ class Seq(BaseElement):
         return self
 
 
-    def octaveShift(self, prob_up=0.1, prob_down=0.1) -> Seq:
+    def octShift(self, prob_up=0.1, prob_down=0.1) -> Seq:
         """ Transpose notes one octave up or one octave down randomly.
             Modifies sequence in-place.
         """
@@ -1179,8 +1182,27 @@ class Seq(BaseElement):
     
 
     def shuffle(self):
-        """ Shuffle the sequence """
-        raise NotImplementedError
+        """ Shuffle the sequence in place
+            TODO: Adapt to polyphony
+        """
+
+        elements = [ elt for _, elt in self.notes ]
+        elements.extend([ s for _, s in self.silences ])
+        random.shuffle(elements)
+        onsets = [ t for t,_ in self.notes ]
+        onsets.extend([ t for t,_ in self.silences ])
+        onsets.sort()
+        new_notes = []
+        new_silences = []
+        for t in onsets:
+            elt = elements.pop()
+            if isinstance(elt, Sil):
+                new_silences.append((t, elt))
+            else:
+                new_notes.append((t, elt))
+        self.notes = new_notes
+        self.silences = new_silences
+        return self
     
 
     def replacePitch(self, old, new) -> Seq:
@@ -1227,7 +1249,7 @@ class Seq(BaseElement):
             -------
                 A filtered Sequence
         """
-        new_seq = self.copy()
+        new_seq = self.cpy()
         new_seq.notes = [(t, n) for t, n in self.notes if key_fn(n)]
         return new_seq
 
@@ -1278,7 +1300,7 @@ class Seq(BaseElement):
     def _mask(self, mask: List[Interval]):
         new_notes = []
         start_i = 0
-        s = self.copy()
+        s = self.cpy()
         for interval in mask:
             for i, (t, note) in enumerate(s.notes[start_i:]):
                 if t + note.dur <= interval[0]:
@@ -1360,22 +1382,22 @@ class Seq(BaseElement):
 
 
     def __and__(self, other: Seq) -> Seq:
-        new = self.copy()
+        new = self.cpy()
         new.merge(other)
         return new
 
     def __add__(self, other) -> Seq:
-        new_seq = self.copy()
+        new_seq = self.cpy()
         new_seq.add(other)
         return new_seq
     
     def __mul__(self, factor: Union[int, float]) -> Seq:
         if type(factor) == float:
-            new_sequence = self.copy()
+            new_sequence = self.cpy()
             new_sequence.stretch(factor)
             return new_sequence
         elif type(factor) == int and factor >= 0:
-            new_sequence = self.copy()
+            new_sequence = self.cpy()
             new_sequence.clear()
             new_sequence.dur = 0
             for _ in range(factor):
@@ -1385,12 +1407,12 @@ class Seq(BaseElement):
         else: raise TypeError
     
     def __truediv__(self, factor: Union[int, float]):
-        new_sequence = self.copy()
+        new_sequence = self.cpy()
         new_sequence.stretch(1/factor)
         return new_sequence
     
     def __rshift__(self, offset: Union[int, float]) -> Seq:
-        copy = self.copy()
+        copy = self.cpy()
         copy.shift(offset)
         return copy
 
@@ -1398,18 +1420,18 @@ class Seq(BaseElement):
         return self.__rshift__(-offset)
     
     def __mod__(self, factor: float) -> Seq:
-        copy = self.copy()
+        copy = self.cpy()
         for _, n in copy.notes:
             n.dur *= factor
         return copy
     
     def __neg__(self):
         """ Reverse sequence """
-        return self.copy().reverse()
+        return self.cpy().reverse()
     
     def __xor__(self, semitones):
         """ Transpose sequence in semitones """
-        return self.copy().transpose(semitones) if semitones else self
+        return self.cpy().transpose(semitones) if semitones else self
 
     def __setitem__(self, index, newvalue):
         if isinstance(newvalue, Note):
@@ -1481,14 +1503,14 @@ class Seq(BaseElement):
 
 
 class Track():
-    """ Track where you can add Sequence.
-        You can had a silence by adding an empty Sequence with a non-zero duration.
-        You can define a generator callback function by modifing the generator property.
+    """Track where you can add Sequence.
+    You can had a silence by adding an empty Sequence with a non-zero duration.
+    You can define a generator callback function by modifing the generator property.
 
-        Parameters
-        ----------
-            channel : int
-                Midi channel [0-15]
+    Parameters
+    ----------
+        channel : int
+            Midi channel [0-15]
     """
 
     def __init__(self,
@@ -1520,7 +1542,7 @@ class Track():
         self.transforms = []
 
 
-    def add(self, sequence: Union[str, Seq, callable, Generator], *args, **kwargs) -> Track:
+    def add(self, sequence: Union[str, Seq, Callable, Generator], *args, **kwargs) -> Track:
         """
             Add a sequence or a generator to this track.
         """
@@ -1533,7 +1555,7 @@ class Track():
         return self
 
 
-    def _addGen(self, func: Union[Generator, callable], *args, **kwargs) -> Track:
+    def _addGen(self, func: Union[Generator, Callable], *args, **kwargs) -> Track:
         """
             Add a sequence generator to this track.
             A callable should be provided, not the generator itself.
@@ -1555,7 +1577,19 @@ class Track():
         return self
 
 
-    def clearAdd(self, sequence: Union[str, Seq, callable, Generator], *args, **kwargs) -> Track:
+    def delLast(self):
+        if self.seqs:
+            self.seqs = self.seqs[:-1]
+
+
+    def delAdd(self, sequence: Union[str, Seq, Callable, Generator], *args, **kwargs) -> Track:
+        if self.seqs:
+            self.seqs.pop()
+
+        return self.add(sequence)
+
+
+    def clearAdd(self, sequence: Union[str, Seq, Callable, Generator], *args, **kwargs) -> Track:
         # prev_ended = self.ended
         self.clear()
         self.add(sequence, *args, **kwargs)
@@ -1574,9 +1608,12 @@ class Track():
         self.channel = other.channel
         self.instrument = other.instrument
     
-    def start(self):
+    def start(self, loop=Optional[bool]):
         self.reset()
         self.stopped = False
+        self.muted = False
+        if loop != None:
+                self.loop = loop
     
     def stop(self):
         self.stopped = True
@@ -1586,6 +1623,12 @@ class Track():
         self._next_timer = self.offset
         self.ended = False
         self.seq_i = 0
+    
+    def mute(self):
+        self.muted = True
+    
+    def unmute(self):
+        self.muted = False
 
     def setGroup(self, track_group):
         self._sync_group = track_group
@@ -1614,18 +1657,18 @@ class Track():
         return pl
 
 
-    def pushTrans(self, method: callable, *args, **kwargs):
+    def push(self, method: Callable, *args, **kwargs):
         """ Add a transform operation to the pile (a method from Seq class)
             Sequences from the Track will go through the pile of modifiers
         """
         self.transforms.append((method, args, kwargs))
     
-    def popTrans(self):
+    def pop(self):
         del self.transforms[-1]
     
-    def ppushTrans(self, method: callable, *args, **kwargs):
-        self.popTrans()
-        self.pushTrans(method, *args, **kwargs)
+    def popPush(self, method: Callable, *args, **kwargs):
+        self.pop()
+        self.push(method, *args, **kwargs)
     
     def clearTrans(self):
         self.transforms.clear()
@@ -1691,9 +1734,12 @@ class Track():
             else:
                 # Modifiers
                 if self.transforms:
-                    sequence = sequence.copy()
+                    sequence = sequence.cpy()
                     for mod, args, kwargs in self.transforms:
-                        sequence = mod(sequence, *args, **kwargs)
+                        try:
+                            sequence = mod(sequence, *args, **kwargs)
+                        except TypeError:
+                            pass
 
                 messages = (sequence^self.transpose).getMidiMessages(self.channel)
                 # Add midi modulation sequence
@@ -1732,6 +1778,9 @@ class Track():
         if not isinstance(element, Seq):
             element = Seq(element)
         return element, updated_string
+
+    def __getitem__(self, index):
+        return self.seqs[index]
     
     def __len__(self):
         return len(self.seqs)
@@ -1787,8 +1836,6 @@ def split_elements(seq_string):
 
 
 def apply_modifiers(elt: Element, modifiers: str) -> Element:
-    """ TODO: Modifiers should be read and applied sequencially """
-
     int_float_or_frac = r"(\d*\.?\d+(?:\/\d*\.?\d+)?)"
 
     while modifiers:
@@ -1872,6 +1919,7 @@ def apply_modifiers(elt: Element, modifiers: str) -> Element:
 
 def parse_element(elt_string) -> Element:
     """Parse a single element (everything that is not a group)"""
+
     match = re.match(NOTE_CHORD_PATTERN, elt_string)
     if match:
         pitch = str2pitch(match[0])

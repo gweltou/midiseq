@@ -2,7 +2,7 @@
 # import mido
 # import rtmidi
 
-from typing import Optional
+from typing import Optional, Callable
 from queue import LifoQueue
 
 from rtmidi.midiconstants import (
@@ -14,16 +14,18 @@ POLY_AFTERTOUCH = 160
 CHANNEL_AFTERTOUCH = 208
 
 from .definitions import *
-from .engine import (
-    listOutputs, openOutput, _getOutputs,
-    listInputs, openInput,
+# from .engine import (
+    # listOutputs, openOutput, _getOutputs,
+    # listInputs, openInput,
     # listen, rec,
     # play, stop, panic, playMetro, wait,
     # TrackGroup, getPastOpened
-)
+# )
 
 from .new_engine import (
     TrackGroup,
+    listOutputs, getOutput, getOutputs,
+    listInputs, openInput,
     play, stop
 )
 
@@ -33,9 +35,12 @@ from .elements import (
 )
 from .modulation import *
 from .utils import (
-    pattern, noob2seq, noteRange,
     rnd, rndWalk, rndGauss, rndPick, rndDur,
     euclid, lcm,
+    noteRange,
+    noob2seq,
+    pattern,
+    morse,
 )
 from .whistle import whistle, whistleDur, tap, tapDur
 from .generators import *
@@ -56,10 +61,9 @@ def setScale(scale="chromatic", tonic="c"):
 def setBpm(bpm):
     env.bpm = bpm
 
-def clearAllTracks():
+def clearAll():
     for track in env.tracks:
         track.clear()
-
 
 def mute(*tracks) -> None:
     for t in tracks:
@@ -74,28 +78,28 @@ def mutesw(*tracks) -> None:
         t.muted = not t.muted
 
 
-env.METRONOME_NOTES = (sit13, sit16)
+env.METRONOME_NOTES = (36, 38)
 
 setScale("major", "c")
 
 
 midi_out = dict()
-midi_out["default"] = openOutput(0)
-for i, port_name in _getOutputs():
+midi_out["default"] = getOutput(0)
+for i, port_name in getOutputs():
     if "microfreak" in port_name.lower():
-        midi_out["microfreak"] = openOutput(i)
+        midi_out["microfreak"] = getOutput(i)
         midi_out["mf"] = midi_out["microfreak"]
     if "fluid" in port_name.lower():
-        midi_out["fluid"] = openOutput(i)
+        midi_out["fluid"] = getOutput(i)
         midi_out["fl"] = midi_out["fluid"]
     if "amsynth" in port_name.lower():
-        midi_out["amsynth"] = openOutput(i)
+        midi_out["amsynth"] = getOutput(i)
         midi_out["am"] = midi_out["amsynth"]
     if "preenfm" in port_name.lower():
-        midi_out["preenfm"] = openOutput(i)
+        midi_out["preenfm"] = getOutput(i)
         midi_out["pfm"] = midi_out["preenfm"]
     if "irig" in port_name.lower():
-        midi_out["irig"] = openOutput(i)
+        midi_out["irig"] = getOutput(i)
 
 # env.default_output = midi_out["default"]
 _metronome_port = midi_out["default"]
@@ -146,7 +150,7 @@ def _playT(track: Track, *args, **kwargs):
         else:
             t.stopped = True
             t.syncFrom(track)
-    play(*args, **kwargs)
+    play(track, **kwargs)
 
 
 history = LifoQueue(512)
@@ -172,41 +176,57 @@ def play7(*args, **kwargs):
     _playT(t7, *args, **kwargs)
 def play8(*args, **kwargs):
     _playT(t8, *args, **kwargs)
+def play9(*args, **kwargs):
+    _playT(t9, *args, **kwargs)
+def play10(*args, **kwargs):
+    _playT(t10, *args, **kwargs)
+def play11(*args, **kwargs):
+    _playT(t11, *args, **kwargs)
+def play12(*args, **kwargs):
+    _playT(t12, *args, **kwargs)
+def play13(*args, **kwargs):
+    _playT(t13, *args, **kwargs)
+def play14(*args, **kwargs):
+    _playT(t14, *args, **kwargs)
+def play15(*args, **kwargs):
+    _playT(t15, *args, **kwargs)
+def play16(*args, **kwargs):
+    _playT(t16, *args, **kwargs)
 
 
-def pushT1(method: callable, *args, **kwargs):
-    t1.pushTrans(method, *args, **kwargs)
-def pushT2(method: callable, *args, **kwargs):
-    t2.pushTrans(method, *args, **kwargs)
-def pushT3(method: callable, *args, **kwargs):
-    t3.pushTrans(method, *args, **kwargs)
-def pushT4(method: callable, *args, **kwargs):
-    t4.pushTrans(method, *args, **kwargs)
-def pushT5(method: callable, *args, **kwargs):
-    t5.pushTrans(method, *args, **kwargs)
-def pushT6(method: callable, *args, **kwargs):
-    t6.pushTrans(method, *args, **kwargs)
-def pushT7(method: callable, *args, **kwargs):
-    t7.pushTrans(method, *args, **kwargs)
-def pushT8(method: callable, *args, **kwargs):
-    t8.pushTrans(method, *args, **kwargs)
+def pushT1(method: Callable, *args, **kwargs):
+    t1.push(method, *args, **kwargs)
+def pushT2(method: Callable, *args, **kwargs):
+    t2.push(method, *args, **kwargs)
+def pushT3(method: Callable, *args, **kwargs):
+    t3.push(method, *args, **kwargs)
+def pushT4(method: Callable, *args, **kwargs):
+    t4.push(method, *args, **kwargs)
+def pushT5(method: Callable, *args, **kwargs):
+    t5.push(method, *args, **kwargs)
+def pushT6(method: Callable, *args, **kwargs):
+    t6.push(method, *args, **kwargs)
+def pushT7(method: Callable, *args, **kwargs):
+    t7.push(method, *args, **kwargs)
+def pushT8(method: Callable, *args, **kwargs):
+    t8.push(method, *args, **kwargs)
 
 def popT1():
-    t1.popTrans()
+    t1.pop()
 def popT2():
-    t2.popTrans()
+    t2.pop()
 def popT3():
-    t3.popTrans()
+    t3.pop()
 def popT4():
-    t4.popTrans()
+    t4.pop()
 def popT5():
-    t5.popTrans()
+    t5.pop()
 def popT6():
-    t6.popTrans()
+    t6.pop()
 def popT7():
-    t7.popTrans()
+    t7.pop()
 def popT8():
-    t8.popTrans()
+    t8.pop()
 
 
 def _stopT(track: Track):

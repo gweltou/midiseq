@@ -4,6 +4,7 @@ from midiseq import (
     lcm,
     rnd, rndDur, rndWalk, rndGauss, rndPick,
 )
+from midiseq.utils import morse
 from midiseq import env as env
 
 
@@ -34,3 +35,11 @@ def test_rnddur():
     for _ in range(32):
         s = rndDur(1.0, durs=[0.33, 0.5, 1.33])
         assert s.dur == 1.0
+
+def test_morse():
+    # s = pattern("x--- x--- x--- x---", 48)
+    s = morse("hello world", 36)
+    assert s.dur == 16 * env.note_dur
+
+    s = pattern("x-x-", "do")
+    assert s[0].pitch == 48

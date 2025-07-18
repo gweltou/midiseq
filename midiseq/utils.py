@@ -11,8 +11,10 @@ def pattern(
         note: Union[int, str, Note, Chord],
         vel: Optional[int]=None) -> Seq:
     """
-        Build a Sequence from a Sonic Pi type pattern
-        Ex: pattern("x--- --X- --x- -X--", 36)
+    Build a Sequence from a Sonic Pi type pattern
+
+        Example:
+            pattern("x--- --X- --x- -X--", 36)
     """
     seq = Seq()
     if isinstance(note, int):
@@ -52,6 +54,70 @@ def noob2seq(noob: str):
     s = s.replace('-', '_') # Tuplets
     s = ' '.join(s.split()).lower()
     return parse(s)[0]
+
+
+def morse(
+        message: str,
+        note: Union[str, int, None]=None,
+        note2: Union[str, int, None]=None,
+    ) -> Seq:
+    if not note:
+        note = 'i'
+
+    tr = {
+        'a': ".-",
+        'b': "-...",
+        'c': "-.-.",
+        'd': "-..",
+        'e': ".",
+        'f': "..-.",
+        'g': "--.",
+        'h': "....",
+        'i': "..",
+        'j': ".---",
+        'k': "-.-",
+        'l': ".-..",
+        'm': "--",
+        'n': "-.",
+        'o': "---",
+        'p': ".--.",
+        'q': "--.-",
+        'r': ".-.",
+        's': "...",
+        't': "-",
+        'u': "..-",
+        'v': "...-",
+        'w': ".--",
+        'x': "-..-",
+        'y': "-.--",
+        'z': "--..",
+        '1': ".----",
+        '2': "..---",
+        '3': "...--",
+        '4': "....-",
+        '5': ".....",
+        '6': "-....",
+        '7': "--...",
+        '8': "---..",
+        '9': "----.",
+        '0': "-----",
+    }
+
+    s = Note(note)
+    l = Note(note2 if note2 else note, dur=3)
+
+    seq = Seq()
+    for c in message.lower():
+        if c == ' ':
+            seq += Sil(7)
+        elif c in tr:
+            for symb in tr[c]:
+                seq += s if symb == '.' else l
+                seq += Sil(3)
+        seq += Sil(3)
+    seq += Sil(7) 
+    
+    return seq
 
 
 
@@ -290,7 +356,7 @@ def lcm(*seqs, tolerance=0.0001):
         return True
 
     seqs_init = [ parse(s)[0] if isinstance(s, str) else s for s in seqs ]
-    seqs = [ s.copy() for s in seqs_init ]
+    seqs = [ s.cpy() for s in seqs_init ]
     while not samelen(seqs):
         # Find index of shortest seq:
         shortest = (-1, 9999)

@@ -59,8 +59,7 @@ def test_modifiers():
         ("cx2", Note("c")*2),
         ("c^2", Note("d")),
         ("c*2.0", Note("c", dur=2.0)),
-        ("cs2", Note("c")),
-        ("cs2,.1", Note("c")),
+        ("cs2", Note("c", dur=0.5)*2),
         ("Is2", parse("I_I")[0])
     ]
 

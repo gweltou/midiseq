@@ -126,26 +126,6 @@ gm_synth_pad6 = 93
 gm_synth_pad7 = 94
 gm_synth_pad8 = 95
 
-
-# Sitala drum sampler mapping to midi pitch
-# Clean 808
-sit1 = 36 # Kick
-sit2 = 37 # Snare
-sit3 = 38 # Closed HH
-sit4 = 39 # Open HH
-sit5 = 40 # Cymbal
-sit6 = 41 # Low Tom
-sit7 = 42 # Mid Tom
-sit8 = 43 # High Tom
-sit9 = 44 # Low Conga
-sit10 = 45 # Mid Conga
-sit11 = 46 # High Conga
-sit12 = 47 # Hand Clap
-sit13 = 48 # Clave
-sit14 = 49 # Maraca
-sit15 = 50 # Cowbell
-sit16 = 51 # Rim shot
-
 gm_bass_drum_acoustic = 35
 gm_bass_drum_electric = 36
 gm_side_stick = 37
@@ -194,11 +174,11 @@ gm_cuica_open = 79
 gm_triangle_mute = 80
 gm_triangle_open = 81
 
-K = sit1    # Kick
-Sn = sit2   # Snare
-H = sit3    # Closed Hats
-HH = H
-OH = sit4   # Open Hats
-T = sit8    # Tom
-Cl = sit12  # Clap
-Cb = sit15  # Cowbell
+
+# For Roland TR-6S
+BD = 36
+SD = 38
+LT = 43
+HC = 39
+CH = 42
+OH = 46
