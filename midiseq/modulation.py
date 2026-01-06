@@ -76,9 +76,7 @@ class Mod():
 
 
     def getValues(self, start=0.0, dur=1.0, fn_start=0.0, fn_end=1.0):
-        """
-            Calculate values of mod function in given range
-        """
+        """Calculate values of mod function in given range"""
         # We could store the last X states for caching
 
         # Check if requested state has been seen in last X states

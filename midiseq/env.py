@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 
-tracks = []
+tracks = None
 default_track = None
 is_playing = False
 

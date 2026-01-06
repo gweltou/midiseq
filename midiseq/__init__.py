@@ -22,15 +22,15 @@ from .definitions import *
     # TrackGroup, getPastOpened
 # )
 
-from .new_engine import (
-    TrackGroup,
+from .engine import (
     listOutputs, getOutput, getOutputs,
-    listInputs, openInput,
+    listInputs, getInput, getInputs,
     play, stop
 )
+from .tracks import Track, TrackGroup, tracks
 
 from .elements import (
-    Seq, Chord, Note, Sil, Track, PNote, Element,
+    Seq, Chord, Note, Sil, PNote, Element,
     parse, parse_element
 )
 from .modulation import *
@@ -42,7 +42,7 @@ from .utils import (
     pattern,
     morse,
 )
-from .whistle import whistle, whistleDur, tap, tapDur
+# from .whistle import whistle, whistleDur, tap, tapDur
 from .generators import *
 from .seqs import *
 import midiseq.env as env
@@ -62,7 +62,7 @@ def setBpm(bpm):
     env.bpm = bpm
 
 def clearAll():
-    for track in env.tracks:
+    for track in tracks:
         track.clear()
 
 def mute(*tracks) -> None:
@@ -85,28 +85,26 @@ setScale("major", "c")
 
 midi_out = dict()
 midi_out["default"] = getOutput(0)
-for i, port_name in getOutputs():
+for port_idx, port_name in getOutputs():
     if "microfreak" in port_name.lower():
-        midi_out["microfreak"] = getOutput(i)
-        midi_out["mf"] = midi_out["microfreak"]
+        midi_out["microfreak"] = getOutput(port_idx)
     if "fluid" in port_name.lower():
-        midi_out["fluid"] = getOutput(i)
-        midi_out["fl"] = midi_out["fluid"]
+        midi_out["fluidsynth"] = getOutput(port_idx)
     if "amsynth" in port_name.lower():
-        midi_out["amsynth"] = getOutput(i)
-        midi_out["am"] = midi_out["amsynth"]
+        midi_out["amsynth"] = getOutput(port_idx)
     if "preenfm" in port_name.lower():
-        midi_out["preenfm"] = getOutput(i)
-        midi_out["pfm"] = midi_out["preenfm"]
+        midi_out["preenfm"] = getOutput(port_idx)
     if "irig" in port_name.lower():
-        midi_out["irig"] = getOutput(i)
+        midi_out["irig"] = getOutput(port_idx)
 
-# env.default_output = midi_out["default"]
+env.default_output = midi_out["default"]
 _metronome_port = midi_out["default"]
+
+# Prefered output ports
 if "microfreak" in midi_out:
     env.default_output = midi_out["microfreak"]
-elif "fluid" in midi_out:
-    env.default_output = midi_out["fluid"]
+elif "fluidsynth" in midi_out:
+    env.default_output = midi_out["fluidsynth"]
 elif "irig" in midi_out:
     env.default_output = midi_out["irig"]
 
@@ -121,44 +119,50 @@ t7 = Track(6, name="t7", sync_from=t1)
 t8 = Track(7, name="t8", sync_from=t1)
 t9 = Track(8, name="t9", sync_from=t1)
 t10 = Track(9, name="t10", sync_from=t1)
-t11 = Track(10, name="t11", sync_from=t1)
-t12 = Track(11, name="t12", sync_from=t1)
-t13 = Track(12, name="t13", sync_from=t1)
-t14 = Track(13, name="t14", sync_from=t1)
-t15 = Track(14, name="t15", sync_from=t1)
-t16 = Track(15, name="t16", sync_from=t1)
+t11 = Track(9, name="t11", sync_from=t10)
+t12 = Track(9, name="t12", sync_from=t10)
+t13 = Track(9, name="t13", sync_from=t10)
+t14 = Track(9, name="t14", sync_from=t10)
+t15 = Track(9, name="t15", sync_from=t10)
+t16 = Track(9, name="t16", sync_from=t10)
 
-env.tracks = TrackGroup()
-env.tracks.addTrack(t1)
+tracks.add_track(t1)
 env.default_track = t1
 
 
 def _playT(track: Track, *args, **kwargs):
     """ Start a single track """
-    track.stopped = False
     if args:
         track.clearAdd(*args)
     
-    if env.is_playing:
+    if not tracks.all_stopped():
+        print("not all stopped")
         return
     
+    track.stopped = False
+    
     # Synchronize all other tracks to this track
-    for t in env.tracks:
+    # if it is the first one to start
+    for t in tracks:
         if t == track:
             t.reset()
             t.syncFrom(None)
         else:
             t.stopped = True
             t.syncFrom(track)
+    
     play(track, **kwargs)
 
 
 history = LifoQueue(512)
 
+
 def play(*args, **kwargs):
+    print(f"main play({args=}, {kwargs=}")
     state = (args, kwargs)
     history.put(state)
-    new_engine.play(*args, **kwargs)
+    engine.play(*args, **kwargs)
+
 
 def play1(*args, **kwargs):
     _playT(t1, *args, **kwargs)
@@ -232,11 +236,11 @@ def popT8():
 def _stopT(track: Track):
     track.stopped = True
 
-    still_playing = list(filter(lambda t: not t.stopped, env.tracks))
+    still_playing = list(filter(lambda t: not t.stopped, tracks))
     if len(still_playing) == 1:
         # Set remaining track as main track
         main_track = still_playing[0]
-        for t in env.tracks:
+        for t in tracks:
             if t == main_track:
                 t.syncFrom(None)
             else:
@@ -258,3 +262,7 @@ def stop7():
     _stopT(t7)
 def stop8():
     _stopT(t8)
+
+
+def display(status=True):
+    env.DISPLAY = status
