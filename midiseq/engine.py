@@ -101,7 +101,12 @@ class InputPort:
 
 
 class OutputPort:
-    """An opened output Midi port"""
+    """
+    An opened output Midi port
+    
+    Attributes:
+        transpose (int): Global transposition (in semi-tones)
+    """
 
     def __init__(self, port_id: Union[int, str]) -> None:
         self.port = rtmidi.MidiOut()
@@ -119,6 +124,8 @@ class OutputPort:
 
         self.port.open_port(port_id)
 
+        self.name = self.port.get_port_name(port_id)
+
         # Key state lookup table for every note of every midi channel
         # each state is a list of onset time and key velocity
         self.key_states = [ [0.0, 0] for _ in range(16 * 128) ]
@@ -128,6 +135,9 @@ class OutputPort:
 
         self._save_notes = False
         self.notes = Seq()
+
+        # Properties
+        self.transpose: int = 0
 
 
     def process(self, time_delta: float) -> None:
@@ -153,6 +163,8 @@ class OutputPort:
             time:
             event:
         """
+        time += self.time # Offset by internal port relative time
+
         if time <= self.time:
             self.send(event)
         else:
@@ -160,15 +172,20 @@ class OutputPort:
 
 
     def send(self, event) -> None:
-        self.port.send_message(event)
+        if self.transpose != 0:
+            event[1] = min(max(event[1] + self.transpose, 0), 127)
+        
+        # print(f"{self.name[:10]}  {event=}")
 
         status = event[0]
         channel = status & 0xf
+        note = event[1]
+
         if status & 0xf0 == NOTE_ON:
-            note = event[1]
             note_vel = event[2]
-            idx = (channel << 7) | note
+
             # Register note
+            idx = (channel << 7) | note
             self.key_states[idx][0] = self.time
             self.key_states[idx][1] = note_vel
 
@@ -180,11 +197,10 @@ class OutputPort:
                 self.notes.add(note, head=self.time)
 
         elif status & 0xf0 == NOTE_OFF:
-            note = event[1]
+            # Unregister note
             idx = (channel << 7) | note
             note_dur = self.time - self.key_states[idx][0]
             note_vel = self.key_states[idx][1]
-            # Unregister note
             self.key_states[idx][0] = self.time
             self.key_states[idx][1] = 0
 
@@ -194,6 +210,8 @@ class OutputPort:
                     Note(note, note_dur / env.note_dur, note_vel),
                     head=self.time
                 )
+        
+        self.port.send_message(event)
 
 
     def clear(self) -> None:
@@ -367,10 +385,11 @@ def _run():
 
     while _is_running:
         t_frame = time.time()
-        timedelta = t_frame - t_prev
+        time_delta = t_frame - t_prev
         t_prev = t_frame
-        timedelta *= env.bpm / 120   # A time unit (Seq.length=1) is 1 second at 120bpm
-        rel_time += timedelta
+
+        time_delta *= env.bpm / 120   # A time unit (Seq.length=1) is 1 second at 120bpm
+        rel_time += time_delta
 
         # Check for trigger signals
         if _trigger_play:
@@ -392,7 +411,7 @@ def _run():
             _must_sort = False
 
             # Run metronome
-            metronome_time += timedelta
+            metronome_time += time_delta
             if metronome_time > 0.5:
                 metronome_click_count += 1
                 metronome_time -= 0.5
@@ -410,12 +429,12 @@ def _run():
                     note_on = [NOTE_ON | env.METRONOME_CHAN, metro_pitch, 100]
                     out_events.append( (rel_time, note_on, env.default_output) )
                     note_off = [NOTE_OFF | env.METRONOME_CHAN, metro_pitch, 0]
-                    out_events.append((rel_time+env.METRONOME_DUR, note_off, env.default_output))
+                    out_events.append( (rel_time + env.METRONOME_DUR, note_off, env.default_output) )
                     _must_sort = True
 
             # Get midi messages from tracks
             for track in tracks.priority_list:
-                if new_events := track.update(timedelta):
+                if new_events := track.update(time_delta):
                     for t, mess in new_events:
                         out_events.append( (t + rel_time, mess, track.port) )
                     _must_sort = True
@@ -431,7 +450,7 @@ def _run():
             while out_events and out_events[0][0] < rel_time:
                 # A midi event is made of : absolute_t, midi_mess, midi_port
                 # A midi_mess is made of : status, pitch, vel
-                _, mess, port = heapq.heappop(out_events)
+                t_pos, mess, port = heapq.heappop(out_events)
                 if mess[0]>>4 == 9: # note on
                     chan = mess[0] & 0xf
                     _active_notes[mess[1]] |= (1 << chan)
@@ -442,11 +461,15 @@ def _run():
                 
                 port: Optional[OutputPort] = port or env.default_output
                 if port:
-                    port.send(mess)
+                    port.push(t_pos - rel_time, mess)  # Play immediately
                 
                 if env.verbose and not env.DISPLAY:
                     print("Sent", mess)
         
+        # Process output ports
+        for output_port in _midiout_ports.values():
+            output_port.process(time_delta)
+
         if env.DISPLAY and _new_noteon:
             notes_str = ['.'] * (env.DISPLAY_RANGE[1] - env.DISPLAY_RANGE[0] + 1)
             for i, n in enumerate(_active_notes):
@@ -480,7 +503,7 @@ def play(
         loop: boolean
             Loop playback):
     """
-    print(f"play({what=}, {loop=})")
+    # print(f"play({what=}, {loop=})")
     global _trigger_play
     _trigger_play = True
     start_io()

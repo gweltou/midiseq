@@ -6,10 +6,9 @@ from math import pow
 
 from rtmidi.midiconstants import (
     NOTE_ON, NOTE_OFF,
-    PROGRAM_CHANGE,
+    PROGRAM_CHANGE, POLY_AFTERTOUCH
 )
 
-POLY_AFTERTOUCH = 160
 
 import midiseq.env as env
 from .definitions import scales, modes
@@ -269,7 +268,8 @@ class BaseElement():
         if isinstance(factor, int):
             # Repeat
             s = Seq()
-            for _ in range(factor):
+            iterations: int = factor
+            for _ in range(iterations):
                 s.add(self.copy())
             return s
         elif isinstance(factor, float):
@@ -290,7 +290,13 @@ class BaseElement():
 
 class Note(BaseElement):
 
-    def __init__(self, pitch, dur=1, vel:int=100, prob:float=1.0):
+    def __init__(
+            self,
+            pitch: Union[int, str],
+            dur: float = 1.0,
+            vel: int = 100,
+            prob: float = 1.0
+        ):
         if isinstance(pitch, str):
             pitch = parse_element(pitch).pitch
         elif isinstance(pitch, int) and (pitch < 0 or pitch > 127):
@@ -306,30 +312,44 @@ class Note(BaseElement):
     
 
     def copy(self) -> Note:
-        n = Note(self.pitch, self.dur, self.vel, self.prob)
-        n.dur = self.dur # Overrides the env note_dur multiplier
-        n.pat = self.pat
-        n.patval = self.patval
-        return n
+        new_note = Note(self.pitch, self.dur, self.vel, self.prob)
+        new_note.dur = self.dur # Overrides the env note_dur multiplier
+        new_note.pat = self.pat
+        new_note.patval = self.patval
+        return new_note
 
 
-    def aftertouch(self, mod: Mod):
+    def aftertouch(self, mod: Mod) -> Note:
         """Add a poly-aftertouch modulation to this note"""
         self.pat = mod
         self.patval = mod.getValues(0.0, 1.0, stretch=self.dur)
         return self
 
 
-    def stretch(self, factor):
+    def stretch(self, factor) -> Note:
+        """Stretch or shrink the duration of the note"""
         self.dur *= factor
-        if self.pat != None:
+        if self.pat is not None:
             self.patval = self.pat.getValues(0.0, 1.0, stretch=self.dur)
         return self
+    
+    def stretched(self, factor) -> Note:
+        """Stretch or shrink the duration of the note"""
+        new_note = self.copy()
+        new_note.dur *= factor
+        if new_note.pat is not None:
+            new_note.patval = new_note.pat.getValues(0.0, 1.0, stretch=new_note.dur)
+        return new_note
 
 
-    def transpose(self, semitones):
+    def transpose(self, semitones) -> Note:
         self.pitch = min(max(self.pitch + semitones, 0), 127)
         return self
+    
+    def transposed(self, semitones) -> Note:
+        new_note = self.copy()
+        new_note.pitch = min(max(new_note.pitch + semitones, 0), 127)
+        return new_note
 
 
     def __add__(self, other) -> Seq:
@@ -338,7 +358,7 @@ class Note(BaseElement):
     def __truediv__(self, factor: Union[int, float]):
         n = self.copy()
         n.dur = self.dur / factor
-        if n.pat != None:
+        if n.pat is not None:
             n.patval = n.pat.getValues(0.0, 1.0, stretch=n.dur)
         return n
     
@@ -382,18 +402,18 @@ class Note(BaseElement):
 class PNote(Note):
     def __init__(self, wdict, dur=None, vel=100, prob=1):
         """
-            *Experimental*
-        
-            A Schroedinger's note.
-            Only one will be played, depending on probability weights.
-            All given notes should be of the same duration.
+        *Experimental*
+    
+        A Schroedinger's note.
+        Only one will be played, depending on probability weights.
+        All given notes should be of the same duration.
 
-            Parameters
-            ----------
-                pdict: dict
-                    '{"do": 1, "mi": 2, "sol": 1}'
-            
-            * Could we give Chords instead of notes ? Maybe
+        Parameters
+        ----------
+            pdict: dict
+                '{"do": 1, "mi": 2, "sol": 1}'
+        
+        * Could we give Chords instead of notes ? Maybe
         """
         self.dur = dur if dur != None else env.note_dur # XXX Absolute duration
         self.vel = vel
@@ -495,15 +515,28 @@ class PNote(Note):
 
 
 class Sil(BaseElement):
-    """ Silence (non-mutable) """
+    """Silence"""
     
-    def __init__(self, dur=1):
+    def __init__(self, dur = 1.0):
         self.dur = dur * env.note_dur
 
-    def stretch(self, factor):
+
+    def stretch(self, factor) -> Sil:
         self.dur *= factor
         return self
+
+    def stretched(self, factor) -> Sil:
+        new_sil = Sil()
+        new_sil.dur *= factor
+        return new_sil
+
+
+    def copy(self) -> Sil:
+        new_sil = Sil()
+        new_sil.dur = self.dur
+        return new_sil
     
+
     def __add__(self, other) -> Union[Sil, Seq]:
         if isinstance(other, Sil):
             return Sil((self.dur + other.dur) / env.note_dur)
@@ -566,22 +599,25 @@ class Chord(BaseElement):
 
 
     def copy(self) -> Note:
+        new_chord = Chord()
+        new_chord.notes = [ n.copy() for n in self.notes ]
+        new_chord.pitches = self.pitches.copy()
         return Chord(self)
     
 
     def arp(self, oct=1, mode="up") -> Seq:
-        """ Arpeggiate a Chord
-            Return a Sequence
+        """
+        Return the sequence the arpeggiated Chord
+        
 
-            Parameters
-            ----------
-                type : str
-                    "up" / "down"
-                    "updown" / "downup"
-                    "rnd"
-                oct : int
-                    Number of octaves to aperggiate
-                    Additional octaves will be of higher pitch
+        Args:
+            type: str
+                "up" / "down"
+                "updown" / "downup"
+                "rnd"
+            oct: int
+                Number of octaves to aperggiate
+                Additional octaves will be of higher pitch
         """
         notes = []
         if mode == "up":
@@ -626,9 +662,10 @@ class Chord(BaseElement):
         if note.pitch in self.pitches:
             # Note already in chord, keep longest
             for n in self.notes:
-                if n.pitch == note.pitch: break
-            self.notes.remove(n)
-            self.notes.append(note)
+                if n.pitch == note.pitch:
+                    self.notes.remove(n)
+                    self.notes.append(note)
+                    break
         else:
             self.notes.append(note)
             self.pitches.add(note.pitch)
@@ -650,19 +687,24 @@ class Chord(BaseElement):
             self._insert_note(note)
 
 
-    def stretch(self, factor) -> Note:
+    def stretch(self, factor) -> Chord:
+        self.dur *= factor
+        return self.gate(factor)
+    
+    def stretched(self, factor) -> Chord:
+        new_chord = Chord()
         self.dur *= factor
         return self.gate(factor)
 
 
-    def gate(self, factor) -> Note:
+    def gate(self, factor) -> Chord:
         """ Stretch notes duration without changing the whole chord duration """
         for n in self.notes:
             n.dur *= factor
         return self
 
 
-    def transpose(self, semitones):
+    def transpose(self, semitones) -> Chord:
         for n in self.notes:
             n.transpose(semitones)
         self.pitches = set([n.pitch for n in self.notes])
@@ -716,18 +758,21 @@ class Seq(BaseElement):
     """Sequence of notes"""
 
     def __init__(self, *notes, dur=0):
-        self.head = 0.0       # Recording head
-        self.dur = dur  # Can be further than the end of the last note
         self.notes: List[Tuple[float, Note]] = []
-        self.silences = []  # Keep a record of silence, only used for random picking
-                            # so no need to sort it
+        self.silences: List[Tuple[float, Sil]] = []  # Keep a record of silence, only used for random picking
+                                                     # so no need to sort it
+        self.dur = dur  # Can be further than the end of the last note
+        self.head = 0.0 # Recording head
+
         self.modseq = None
         self.string = ""  # Symbolic string representation
 
         for elt in notes:
             if isinstance(elt, int):
-                self.add(Note(elt))
-            elif isinstance(elt, (Note, Sil, Chord, Seq, str)):
+                self._addNote(Note(elt))
+            elif isinstance(elt, Note):
+                self._addNote(elt)
+            elif isinstance(elt, (Sil, Chord, Seq, str)):
                 self.add(elt)
             elif isinstance(elt, tuple):
                 # A (time_pos, Note) tuple
@@ -739,7 +784,7 @@ class Seq(BaseElement):
                 raise TypeError
 
     
-    def cpy(self) -> Seq:
+    def copy(self) -> Seq:
         new = Seq()
         new.notes = [ (t, n.copy()) for t, n in self.notes ]
         new.silences = [ (t, s) for t, s in self.silences ]
@@ -793,14 +838,21 @@ class Seq(BaseElement):
         self.string = ""
 
 
-    def add(self, element, head: Optional[float]=None) -> Seq:
-        """Add a single musical element or whole sequences at the recording head position.
-        
-        This will grow the sequence's duration if necessary.
+    def add(
+        self,
+        element: Union[int, str, Note],
+        head: Optional[float] = None
+    ) -> Seq:
         """
-        if head != None and isinstance(head, (float, int)):
+        Add a single musical element or whole sequences at the recording head position.
+        This will grow the sequence's duration if necessary.
+
+        **Modifies the sequence in-place**
+        """
+        if isinstance(head, (float, int)):
             self.head = head
         
+        # int and string types call 'add' recursively
         if isinstance(element, int):
             return self.add(Note(element))
         elif isinstance(element, str):
@@ -809,9 +861,10 @@ class Seq(BaseElement):
             return self.add(s)
         
         elif isinstance(element, Note):
-            self.notes.append( (self.head, element.copy()) )
+            self._addNote(element)
+            return self
         elif isinstance(element, Sil):
-            self.silences.append( (self.head, element) )
+            self.silences.append( (self.head, element.copy()) )
         elif isinstance(element, Chord):
             for note in element.notes:
                 self.notes.append( (self.head, note.copy()) )
@@ -819,7 +872,7 @@ class Seq(BaseElement):
             for (t, note) in element.notes:
                 self.notes.append( (self.head + t, note.copy()) )
             for (t, sil) in element.silences:
-                self.silences.append( (self.head + t, sil) )
+                self.silences.append( (self.head + t, sil.copy()) )
         else:
             raise TypeError(f"Only instances of Note, Sil, Chord, Seq or string sequences can be added to a Sequence, got {element} ({type(element)})")
         
@@ -828,6 +881,13 @@ class Seq(BaseElement):
         self.notes.sort(key=lambda x: x[0])
         return self
     
+
+    def _addNote(self, note: Note) -> None:
+        self.notes.append( (self.head, note) )
+        self.head += note.dur
+        self.dur = max(self.dur, self.head)
+        self.notes.sort(key=lambda x: x[0])
+
 
     def addNotes(self, notes, dur=1, vel=100):
         # XXX: maybe do without this method altogether
@@ -855,7 +915,7 @@ class Seq(BaseElement):
         return self
 
 
-    def addMod(self, mod: Mod, controler: int):
+    def addMod(self, mod: Mod, controler: int) -> Seq:
         if not self.modseq:
             self.modseq = ModSeq(dur=self.dur)
         
@@ -863,7 +923,12 @@ class Seq(BaseElement):
         return self
     
 
-    def addModNotes(self, mod: Mod, controler: int, notes: Union[int, List, None]=None):
+    def addModNotes(
+        self,
+        mod: Mod,
+        controler: int,
+        notes: Union[int, List, None] = None
+    ) -> Seq:
         if not self.modseq:
             self.modseq = ModSeq(dur=self.dur)
         
@@ -877,9 +942,11 @@ class Seq(BaseElement):
 
 
     def merge(self, other: Union[Seq, Note, Chord]) -> Seq:
-        """Merge sequences, preserving every note's time position.
-        Modify this sequence in place.
+        """
+        Merge sequences, preserving every note's time position.
         This Sequence's new duration will be the max of every merged element.
+
+        **Modifies sequence in-place**
         """
         if isinstance(other, Seq):
             # Merging two sequences together
@@ -900,10 +967,16 @@ class Seq(BaseElement):
         self.dur = max(self.dur, other.dur)
         return self
 
+    def merged(self, other: Union[Seq, Note, Chord]) -> Seq:
+        new_seq = self.copy()
+        return new_seq.merge(other)
+
 
     def stretch(self, factor, stretch_notes=True) -> Seq:
-        """Stretch sequence in time.
-        Modifies sequence in-place.
+        """
+        Stretch the sequence in time
+
+        **Modifies the sequence in-place**
         """
         for i in range(len(self.notes)):
             t, note = self.notes[i]
@@ -913,12 +986,17 @@ class Seq(BaseElement):
         self.dur *= factor
         self.head *= factor
         return self
+    
+    def stretched(self, factor, stretch_notes=True) -> Seq:
+        new_seq = self.copy()
+        return new_seq(factor, stretch_notes)
 
 
     def compress(self, dur_factor=1.0, vel_factor=1.0) -> Seq:
         """
-        Compress silences and note durations by a given factor
-        Modifies the sequence in-place.
+        Compress silences and note durations by a given factor.
+        
+        **Modifies the sequence in-place**
         """
         new_seq = Seq()
         for _, note in self.notes:
@@ -930,41 +1008,68 @@ class Seq(BaseElement):
         self.head = new_seq.head
         self.dur = new_seq.dur
         return self
+    
+    def compressed(self, dur_factor=1.0, vel_factor=1.0) -> Seq:
+        new_seq = Seq()
+        return new_seq.compress(dur_factor, vel_factor)
 
 
     def gate(self, factor) -> Seq:
         """
-        Stretch notes without modifying the sequence's length.
-        Modifies the sequence in-place.
+        Stretch notes without modifying the sequence's length
+        
+        **Modifies the sequence in-place**
         """
         for _, note in self.notes:
             note.stretch(factor)
+        
+        for _, sil in self.silences:
+            sil.stretch(factor)
+
         return self
 
 
     def reverse(self) -> Seq:
-        """Reverse notes order"""
+        """
+        Reverse notes order
+        
+        **Modifies sequence in-place**
+        """
         new_notes = []
         for t, n in self.notes:
             new_notes.append( (self.dur - t - n.dur, n) )
         self.notes = sorted(new_notes)
+        self.string = "" # TODO
+
         return self
+    
+    def reversed() -> Seq:
+        new_seq = self.copy()
+        return new_seq.reverse()
 
 
     def transpose(self, semitones: int) -> Seq:
-        """Transpose all notes in sequence by semitones.
-        Modifies sequence in-place.
         """
+        Transpose all notes in sequence by semitones
+        
+        **Modifies sequence in-place**
+        """
+        
         for _, note in self.notes:
             note.transpose(semitones)
+        self.string = "" # TODO
         return self
+    
+    def transposed(self, semitones: int) -> Seq:
+        new_seq = self.copy()
+        return new_seq.transpose(semitones)
 
 
     def scalePitch(self, factor: float, in_scale=True) -> Seq:
-        """Expand or compress notes pitches around the mean value of the whole sequence.
-        Modifies sequence in-place.
+        """
+        Expand or compress notes pitches around the mean value of the whole sequence.
 
-        Parameters:
+        Args:
             factor (float):
                 Expansion factor (< 1.0 for compression, > 1.0 for expension)
             in_scale (boolean):
@@ -987,10 +1092,12 @@ class Seq(BaseElement):
     
 
     def stutter(self, n=2, prob=1.0, idx: Optional[int] = None) -> Seq:
-        """Split every note in equal divisions.
-        Modifies sequence in-place.
+        """
+        Split every note in equal divisions.
+        
+        **Modifies the sequence in-place**
 
-        Parameters:
+        Args:
             n (int):
                 Number of divisions
             prob (float):
@@ -1032,51 +1139,79 @@ class Seq(BaseElement):
 
 
     def decimate(self, prob=0.2) -> Seq:
-        """ Erase notes randomly based on the given probability
-            Modifies sequence in-place
         """
-        orig = self.notes[:]
-        self.clear()
-        for t, note in orig:
+        Erase notes randomly based on the given probability
+        
+        **Modifies the sequence in-place**
+        """
+        new_notes = []
+        for t, note in self.notes:
             if random.random() > prob:
-                self.notes.append( (t, note) )
+                new_notes.append( (t, note) )
+        self.notes = new_notes
+
+        new_silences = []
+        for t, s in self.silences:
+            if random.random() > prob:
+                new_silences.append( (t, s) )
+        self.silences = new_silences
+
         return self
     
+    def decimated(self, prob=0.2) -> Seq:
+        new_seq = self.copy()
+        return new_seq.decimate(prob)
+
+
 
     def attenuate(self, factor=1.0) -> Seq:
-        """ Attenuate notes velocity by a given factor
-            Modifies sequence in-place
+        """
+        Attenuate notes velocity by a given factor
+        
+        **Modifies the sequence in-place**
         """
         for _, note in self.notes:
             note.vel = min(max(note.vel * factor, 0), 127)
         return self
+    
+    def attenuated(self, factor=1.0) -> Seq:
+        new_seq = self.copy()
+        return new_seq.attenuate(factor)
 
 
     def humanize(self, tfactor=0.01, veldev=5) -> Seq:
-        """ Randomly offsets the notes time and duration
-            Modifies sequence in-place
-
-            Parameters
-            ----------
-                tfactor : 0.0 < float < 1.0 (default 0.01)
-                    variation en note temporal position
-                veldev : float (default 5)
-                    velocity standard deviation
         """
+        Randomly offsets the notes time and duration
+        
+        **Modifies the sequence in-place**
+
+        Args:
+            tfactor: 0.0 < float < 1.0 (default 0.01)
+                variation en note temporal position
+            veldev: float (default 5)
+                velocity standard deviation
+        """
+        
         new_notes = []
-        for t, note in self.notes:
+        for t, note in new_seq:
             t = t + 2 * (random.random()-0.5) * tfactor
-            note.stretch(1 + random.random() * tfactor)
-            note.vel = int(note.vel + random.gauss(0, veldev))
-            note.vel = min(max(note.vel, 0), 127)
+            new_note = note.stretch(1 + random.random() * tfactor)
+            new_note.vel = int(new_note.vel + random.gauss(0, veldev))
+            new_note.vel = min(max(new_note.vel, 0), 127)
             new_notes.append( (t, note) )
         self.notes = new_notes
         return self
+    
+    def humanized(self, tfactor=0.01, veldev=5) -> Seq:
+        new_seq = self.copy()
+        return new_seq.humanize(tfactor, veldev)
 
 
     def octShift(self, prob_up=0.1, prob_down=0.1) -> Seq:
-        """ Transpose notes one octave up or one octave down randomly.
-            Modifies sequence in-place.
+        """
+        Transpose notes one octave up or one octave down randomly.
+        
+        **Modifies the sequence in-place**
         """
         for _, note in self.notes:
             if random.random() < prob_up:
@@ -1087,8 +1222,10 @@ class Seq(BaseElement):
 
 
     def crop(self) -> Seq:
-        """ Shorten or delete notes before time 0 and after the sequence's duration.
-            Modifies sequence in-place.
+        """
+        Shorten or delete notes before time 0 and after the sequence's duration.
+        
+        **Modifies the sequence in-place**
         """
         cropped_notes = []
         for t, n in self.notes:
@@ -1102,12 +1239,20 @@ class Seq(BaseElement):
             self.notes = cropped_notes
         return self
     
+    def cropped() -> Seq:
+        new_seq = self.copy()
+        return new_seq.crop()
+    
 
     def strip(self) -> Seq:
         """ Remove silences from both ends of the sequence
             Modifies sequence in-place
         """
         return self.stripHead().stripTail()
+    
+    def stripped(self) -> Seq:
+        new_seq = self.copy()
+        return new_seq.strip()
     
     def stripHead(self) -> Seq:
         """ Remove silences in front of the sequence
@@ -1137,19 +1282,19 @@ class Seq(BaseElement):
 
 
     def shift(self, offset, wrap=False, stretch=False) -> Seq:
-        """ Shift note onset times by a given *absolute* delta time
-            Modifies sequence in-place.
+        """
+        Shift note onset times by a given *absolute* delta time
+        Modifies sequence in-place.
 
-            Parameters
-            ----------
-                offset : [int, float]
-                    If `offset` is a `float`, will shift sequence by an absolute duration
-                    If `offset` is a `int`, will shift sequence by the default duration of notes
-                    A positive `offset` will shift to the right, while negative will shift to the left
-                wrap : bool
-                    Notes that were pushed out of the sequence get appendend to the other side, if true
-                stretch : bool
-                    A positive shift will grow the Seq duration accordingly, if true
+        Args:
+            offset : [int, float]
+                If `offset` is a `float`, will shift sequence by an absolute duration
+                If `offset` is a `int`, will shift sequence by the default duration of notes
+                A positive `offset` will shift to the right, while negative will shift to the left
+            wrap : bool
+                Notes that were pushed out of the sequence get appendend to the other side, if true
+            stretch : bool
+                A positive shift will grow the Seq duration accordingly, if true
         """
         
         if not(offset):
@@ -1174,6 +1319,10 @@ class Seq(BaseElement):
 
         return self
     
+    def shifted(self, offset, wrap=False, stretch=False) -> Seq:
+        new_seq = self.copy()
+        return new_seq.shift(offset, wrap, stretch)
+
 
     def echo(self, offset, n=1, att=0.8) -> Seq:
         """
@@ -1199,11 +1348,12 @@ class Seq(BaseElement):
         return self
     
 
-    def shuffle(self):
-        """ Shuffle the sequence in place
-            TODO: Adapt to polyphony
+    def shuffle(self) -> Seq:
         """
+        TODO: Adapt to polyphony
 
+        **Modifies the sequence in place**
+        """
         elements = [ elt for _, elt in self.notes ]
         elements.extend([ s for _, s in self.silences ])
         random.shuffle(elements)
@@ -1222,10 +1372,15 @@ class Seq(BaseElement):
         self.silences = new_silences
         return self
     
+    def shuffled(self) -> Seq:
+        new_seq = self.copy()
+        return new_seq.shuffle()
+
 
     def replacePitch(self, old, new) -> Seq:
-        """ Replace notes with given pitch to a new pitch
-            Modifies sequence in-place
+        """
+        Replace notes with given pitch to a new pitch
+        Modifies sequence in-place
         """
         # TODO: `all_octaves` option
         # XXX: Won't work with PNotes
@@ -1239,43 +1394,41 @@ class Seq(BaseElement):
         return self
 
 
-    def selectNotes(self, key_fn):
-        """ Return a list of notes selected by key_fn
-            Notes will be selected if key_fn returns True on them
-
-            Parameters
-            ----------
-                key_fn : lambda function
-            
-            Returns
-            -------
-                A list of Notes
+    def selectNotes(self, key_fn) -> List[Note]:
         """
-        selection = [n for _, n in self.notes if key_fn(n)]
+        Return a list of notes selected by key_fn
+        Notes will be selected if key_fn returns True on them
+
+        Args:
+            key_fn: lambda function
+        
+        Returns:
+            A list of Notes
+        """
+        selection = [ n for _, n in self.notes if key_fn(n) ]
         return selection
 
 
-    def filter(self, key_fn) -> Seq:
-        """ Return copy of the sequence with notes filtered by key_fn
-            Notes will be kept if key_fn returns True on them
-
-            Parameters
-            ----------
-                key_fn : lambda function
-            
-            Returns
-            -------
-                A filtered Sequence
+    def filtered(self, key_fn) -> Seq:
         """
-        new_seq = self.cpy()
-        new_seq.notes = [(t, n) for t, n in self.notes if key_fn(n)]
+        Return copy of the sequence with notes filtered by key_fn.
+        Notes will be kept if key_fn returns True on them.
+
+        Args:
+            key_fn: lambda function
+        
+        Returns:
+            A filtered Sequence
+        """
+        new_seq = self.copy()
+        new_seq.notes = [ (t, n) for t, n in self.notes if key_fn(n) ]
         return new_seq
 
 
     Interval = List[float]
 
     def _getActiveMask(self) -> List[Interval]:
-        """ Return a list of intervals where there is active notes """
+        """Return a list of intervals where there is active notes"""
 
         active_intervals = []
         for t, note in self.notes:
@@ -1294,7 +1447,7 @@ class Seq(BaseElement):
 
 
     def _getNotActiveMask(self) -> List[Interval]:
-        """ Return a list of intervals where there is silence """
+        """Return a list of intervals where there is silence"""
 
         active_intervals = self._getActiveMask()
         if not active_intervals:
@@ -1318,7 +1471,7 @@ class Seq(BaseElement):
     def _mask(self, mask: List[Interval]):
         new_notes = []
         start_i = 0
-        s = self.cpy()
+        s = self.copy()
         for interval in mask:
             for i, (t, note) in enumerate(s.notes[start_i:]):
                 if t + note.dur <= interval[0]:
@@ -1338,9 +1491,7 @@ class Seq(BaseElement):
 
 
     def mask(self, other: Seq):
-        """
-        Keep notes from this sequences only when sequence `other` has active notes
-        """
+        """Keep notes from this sequences only when sequence `other` has active notes"""
         return self._mask(other._getActiveMask())
 
 
@@ -1356,7 +1507,7 @@ class Seq(BaseElement):
         Map the rhythm of another sequence, or list of duration, to this sequence
 
         Args:
-            other (seq|list):
+            other (seq | list):
                 An other sequence to map the rhythm from.
                 Or a list of duration.
             mode (str):
@@ -1402,22 +1553,22 @@ class Seq(BaseElement):
 
 
     def __and__(self, other: Seq) -> Seq:
-        new = self.cpy()
+        new = self.copy()
         new.merge(other)
         return new
 
     def __add__(self, other) -> Seq:
-        new_seq = self.cpy()
+        new_seq = self.copy()
         new_seq.add(other)
         return new_seq
     
     def __mul__(self, factor: Union[int, float]) -> Seq:
         if type(factor) == float:
-            new_sequence = self.cpy()
+            new_sequence = self.copy()
             new_sequence.stretch(factor)
             return new_sequence
         elif type(factor) == int and factor >= 0:
-            new_sequence = self.cpy()
+            new_sequence = self.copy()
             new_sequence.clear()
             new_sequence.dur = 0
             for _ in range(factor):
@@ -1427,12 +1578,12 @@ class Seq(BaseElement):
         else: raise TypeError
     
     def __truediv__(self, factor: Union[int, float]):
-        new_sequence = self.cpy()
+        new_sequence = self.copy()
         new_sequence.stretch(1/factor)
         return new_sequence
     
     def __rshift__(self, offset: Union[int, float]) -> Seq:
-        copy = self.cpy()
+        copy = self.copy()
         copy.shift(offset)
         return copy
 
@@ -1440,18 +1591,18 @@ class Seq(BaseElement):
         return self.__rshift__(-offset)
     
     def __mod__(self, factor: float) -> Seq:
-        copy = self.cpy()
+        copy = self.copy()
         for _, n in copy.notes:
             n.dur *= factor
         return copy
     
     def __neg__(self):
         """ Reverse sequence """
-        return self.cpy().reverse()
+        return self.copy().reverse()
     
     def __xor__(self, semitones):
         """ Transpose sequence in semitones """
-        return self.cpy().transpose(semitones) if semitones else self
+        return self.copy().transpose(semitones) if semitones else self
 
     def __setitem__(self, index, newvalue):
         if isinstance(newvalue, Note):

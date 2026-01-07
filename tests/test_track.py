@@ -1,6 +1,6 @@
 
-from midiseq.elements import Track, Seq
-from midiseq.engine import TrackGroup
+from midiseq.elements import Seq
+from midiseq.tracks import Track, TrackGroup
 from midiseq.utils import rnd
 from midiseq import env as env
 
@@ -41,7 +41,7 @@ def test_trackgroup():
     assert t2._sync_from is t1
     assert len(t1._sync_children) == 1
 
-    tg.addTrack(t1)
+    tg.add_track(t1)
     
     assert len(tg.priority_list) == 2
 
@@ -49,8 +49,8 @@ def test_trackgroup():
 def test_track_modifiers():
     t = Track()
     t.add(rnd(8))
-    t.pushTrans(Seq.stretch, 2.0)
+    t.push(Seq.stretch, 2.0)
     m = t.update(0.0)
 
-    t.popTrans()
+    t.pop()
     assert len(t.transforms) == 0

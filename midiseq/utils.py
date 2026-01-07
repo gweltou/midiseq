@@ -13,8 +13,8 @@ def pattern(
     """
     Build a Sequence from a Sonic Pi type pattern
 
-        Example:
-            pattern("x--- --X- --x- -X--", 36)
+    Example:
+        pattern("x--- --X- --x- -X--", 36)
     """
     seq = Seq()
     if note is None:
@@ -59,10 +59,10 @@ def noob2seq(noob: str):
 
 
 def morse(
-        message: str,
-        note: Union[str, int, None]=None,
-        note2: Union[str, int, None]=None,
-    ) -> Seq:
+    message: str,
+    note: Union[str, int, None]=None,
+    note2: Union[str, int, None]=None,
+) -> Seq:
     if not note:
         note = 'i'
 
@@ -196,31 +196,31 @@ def rndDur(
 
 def rndWalk(
         n=8,
-        start: Union[str,int]=None,
-        steps=[-2,-1,0,1,2],
-        silprob=0.0,
-        notedur=1.0,
-        skip_first=False,
-        scl:Scl=None
+        start: Union[str,int] = None,
+        steps = [-2,-1,0,1,2],
+        silprob = 0.0,
+        notedur = 1.0,
+        skip_first = False,
+        scl:Scl = None
     ) -> Seq:
-    """ Create a sequence of notes moving from last note by a random interval
+    """
+    Create a sequence of notes moving from last note by a random interval
 
-        Parameters
-        ----------
-            n : int
-                Number of notes to generate
-            start : int or str
-                Starting note of the sequence
-            steps : list of int
-                Possible intervals to step from last note
-            skip_first:
-                Skip starting note (False by default)
-            silprob : float
-                Silence probability [0.0-1.0]
-            notedur : float
-                Duration of generated notes
-            scl : Scl (Scale)
-                Constrain generated notes to the given scale
+    Args:
+        n: int
+            Number of notes to generate
+        start: int or str
+            Starting note of the sequence
+        steps: list of int
+            Possible intervals to step from last note
+        skip_first:
+            Skip starting note (False by default)
+        silprob: float
+            Silence probability [0.0-1.0]
+        notedur: float
+            Duration of generated notes
+        scl: Scl (Scale)
+            Constrain generated notes to the given scale
     """
     if scl:
         old_scl = env.scale
@@ -358,7 +358,7 @@ def lcm(*seqs, tolerance=0.0001):
         return True
 
     seqs_init = [ parse(s)[0] if isinstance(s, str) else s for s in seqs ]
-    seqs = [ s.cpy() for s in seqs_init ]
+    seqs = [ s.copy() for s in seqs_init ]
     while not samelen(seqs):
         # Find index of shortest seq:
         shortest = (-1, 9999)

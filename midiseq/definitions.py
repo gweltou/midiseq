@@ -175,10 +175,18 @@ gm_triangle_mute = 80
 gm_triangle_open = 81
 
 
-# For Roland TR-6S
 BD = 36
 SD = 38
-LT = 43
-HC = 39
 CH = 42
+LT = 43
 OH = 46
+
+
+# Roland TR-6S
+
+TR6S_BD = 36
+TR6S_SD = 38
+TR6S_LT = 43
+TR6S_HC = 39
+TR6S_CH = 42
+TR6S_OH = 46

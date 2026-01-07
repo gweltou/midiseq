@@ -245,6 +245,11 @@ def gen_japscale():
 ####                            DRUM PATTERNS                              ####
 ###############################################################################
 
+K = BD
+H = CH
+Sn = SD
+T = LT
+
 
 def drm_8thNoteGrove():
     s = Seq((H, 0) * 4)  # High-hats
@@ -252,9 +257,10 @@ def drm_8thNoteGrove():
     return s*2
 
 def drm_4toTheFloor():
-    s = Seq((H, 0) * 4)  # High-hats
-    s.merge(Seq( (K, 0, 0, 0) * 2) )   # Kick and Snare
-    s.merge(Seq( (0, 0, 0, 0, K, 0, 0, 0) ))
+    # s = Seq((H, 0) * 4)
+    s = Seq(f"({H} .)x4")  # High-hats
+    s.merge(Seq(f"({K} ...)x2"))   # Kick and Snare
+    s.merge(Seq(f". . . . {K} . . ."))
     return s*2
 
 def drm_shuffleGroove():

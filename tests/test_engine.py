@@ -1,6 +1,6 @@
 from midiseq.engine import (
     listInputs, listOutputs,
-    openInput, openOutput
+    getInput, getOutput
 )
 from midiseq import env as env
 

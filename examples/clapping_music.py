@@ -11,7 +11,7 @@ from midiseq import *
 def genRotate(seq: Seq, dir=-1, repeat: int=1):
     """ Yield the given sequence, rotating it by `dir` steps every `repeat` time
     """
-    s = seq.cpy()
+    s = seq.copy()
     while True:
         for _ in range(repeat):
             yield s

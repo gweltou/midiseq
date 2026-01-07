@@ -58,7 +58,7 @@ def test_seq_reverse():
 
 def test_seq_shift():
     s = Seq("do re mi")
-    sc = s.cpy()
+    sc = s.copy()
     assert s == sc.shift(1.0).shift(-1.0)
     s.shift(1.0)
     assert s.notes[0][0] == 1.0
@@ -75,7 +75,7 @@ def test_seq_shift():
 
 def test_seq_strip():
     s = Sil() + Seq("a b c") + Sil()
-    s2 = s.cpy()
+    s2 = s.copy()
     assert s.dur == 5 * env.note_dur
     s.stripTail()
     assert s.dur == 4 * env.note_dur
@@ -147,7 +147,7 @@ def test_index_slice():
 
 def test_filter():
     s = Seq("60 61 62 63 64 65")
-    assert(len(s.filter(lambda n: n.pitch<=62)) == 3)
+    assert(len(s.filtered(lambda n: n.pitch<=62)) == 3)
 
 
 def test_selectnotes():
