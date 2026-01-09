@@ -5,7 +5,7 @@ default_track = None
 is_playing = False
 
 bpm = 120
-note_dur = 1/8
+note_dur = 1/4
 scale = None
 default_octave = 4
 
@@ -17,9 +17,12 @@ METRONOME_DUR = 0.1        # Duration of a click note
 METRONOME_PORT = None      # Midi port for metronome
 METRONOME_CHAN = 9         # Midi channel for metronome
 
+# Settings
+
 default_output = None
 default_input = None
-DISPLAY = False
-DISPLAY_RANGE = (36, 96)
-verbose = False
 default_channel = 0
+
+display_notes = False
+display_range = (36, 96)
+verbose = False

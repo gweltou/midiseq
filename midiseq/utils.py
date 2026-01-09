@@ -105,8 +105,8 @@ def morse(
         '0': "-----",
     }
 
-    s = Note(note)
-    l = Note(note2 if note2 else note, dur=3)
+    short = Note(note)
+    long = Note(note2 if note2 else note, dur=3)
 
     seq = Seq()
     for c in message.lower():
@@ -114,7 +114,7 @@ def morse(
             seq += Sil(7)
         elif c in tr:
             for symb in tr[c]:
-                seq += s if symb == '.' else l
+                seq += short if symb == '.' else long
                 seq += Sil(3)
         seq += Sil(3)
     seq += Sil(7) 
@@ -129,20 +129,20 @@ def morse(
 
 
 def rnd(n=8, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
-    """ Generate a sequence of random notes
+    """
+    Generate a sequence of random notes.
 
-        Parameters
-        ----------
-            n : int
-                Number of notes to generate
-            lo : int
-                Minimum MIDI pitch boundary
-            hi : int
-                Maximum MIDI pitch boundary
-            silprob : float
-                Silence probability [0.0-1.0]
-            scl : Scl (Scale)
-                Constrain generated notes to the given scale
+    Args:
+        n : int
+            Number of notes to generate
+        lo : int
+            Minimum MIDI pitch boundary
+        hi : int
+            Maximum MIDI pitch boundary
+        silprob : float
+            Silence probability [0.0-1.0]
+        scl : Scl (Scale)
+            Constrain generated notes to the given scale
     """
     if not scl:
         scl = env.scale or Scl("chromatic", 'c')
@@ -197,7 +197,7 @@ def rndDur(
 def rndWalk(
         n=8,
         start: Union[str,int] = None,
-        steps = [-2,-1,0,1,2],
+        steps = [-5, -3, -1, 0, 3, 5],
         silprob = 0.0,
         notedur = 1.0,
         skip_first = False,

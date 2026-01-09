@@ -13,7 +13,7 @@ def test_track():
     assert t.name == "my_track"
     assert len(t.seqs) == 1
 
-    t.reset()
+    t.start()
     data = t.update(0.0)
     assert len(data) == 8
     assert t._next_timer == 0.5 # Half a second
@@ -26,7 +26,7 @@ def test_track():
 def test_instrument():
     t = Track(instrument=15)
     t.add(Seq("do re mi"))
-    t.reset()
+    t.start()
     data = t.update(0.0)
     assert len(data) == 7
 

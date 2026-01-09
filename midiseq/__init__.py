@@ -25,7 +25,7 @@ from .definitions import *
 from .engine import (
     listOutputs, getOutput, getOutputs,
     listInputs, getInput, getInputs,
-    play, stop
+    play, stop, panic
 )
 from .tracks import Track, TrackGroup, tracks
 
@@ -158,7 +158,6 @@ history = LifoQueue(512)
 
 
 def play(*args, **kwargs):
-    print(f"main play({args=}, {kwargs=}")
     state = (args, kwargs)
     history.put(state)
     engine.play(*args, **kwargs)
@@ -265,4 +264,4 @@ def stop8():
 
 
 def display(status=True):
-    env.DISPLAY = status
+    env.display_notes = status

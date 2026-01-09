@@ -3,6 +3,7 @@ from typing import Optional, Union, List, Tuple, Generator, Callable
 import random
 import re
 from math import pow
+import json
 
 from rtmidi.midiconstants import (
     NOTE_ON, NOTE_OFF,
@@ -158,11 +159,12 @@ class Scl():
         elif isinstance(scale, list):
             self.scale = scale
             self.scale_name = str(scale)
+        
         self.notes = self._getNotes()
 
 
     def _getNotes(self):
-        """ Returns all midi pitches in scale """
+        """Returns all midi pitches in scale"""
         pitches = []
         smallest_tonic = self.tonic % 12
         for oct in range(-1, 11):
@@ -215,24 +217,27 @@ class Scl():
 
 
     def getDegreeFrom(self, pitch: Union[str, int], n: int) -> int:
-        """ Returns pitch +/- n degrees in the current scale """
+        """Returns pitch +/- n degrees in the current scale"""
         if isinstance(pitch, str):
             pitch = str2pitch(pitch)
         
         for i, p in enumerate(self.notes):
             if p == pitch:
                 # Pitch is in scale
-                idx = i
+                idx = i + n
                 break
             if p > pitch:
                 # Find closest between prev an next
                 d_prev = pitch - self.notes[i-1]
                 d_next = p - pitch
                 if d_prev <= d_next:
-                    idx = i-1
-                idx = i
+                    idx = i - 1 + n
+                else:
+                    idx = i + n
                 break
-        return self.notes[idx+n]
+        
+        idx = min(max(idx, 0), len(self.notes))
+        return self.notes[idx]
 
 
     def triad(self, degree=0, oct=0, dur=1, vel=100):
@@ -752,8 +757,6 @@ class Chord(BaseElement):
 
 
 
-
-
 class Seq(BaseElement):
     """Sequence of notes"""
 
@@ -792,6 +795,42 @@ class Seq(BaseElement):
         new.head = self.head
         new.string = self.string
         return new
+
+    
+    def __getstate__(self) -> object:
+        def serialize_note(t: float, n: Note):
+            data = [t, n.pitch, n.dur / env.note_dur, n.vel]
+            if n.prob != 1.0:
+                data.append(n.prob)
+            return data
+        
+        data = self.__dict__.copy()
+        data["notes"] = [ serialize_note(t, n) for t, n in self.notes ]
+        del data["modseq"]
+
+        return data
+
+
+    def toJson(self) -> str:
+        """Serialize this sequence to a string"""
+        obj = self.__getstate__()
+        return json.dumps(obj)
+    
+
+    @classmethod
+    def from_json(cls, json_str) -> Seq:
+        s = cls()
+        data = json.loads(json_str)
+        notes = []
+        for n in data["notes"]:
+            notes.append( (n[0], Note(*n[1:])) )
+        s.notes = notes
+
+        s.dur = data["dur"]
+        s.head = data["head"]
+        s.string = data["string"]
+
+        return s
     
 
     def getMidiMessages(self, channel=0) -> List[Tuple[float, list]]:
@@ -840,7 +879,7 @@ class Seq(BaseElement):
 
     def add(
         self,
-        element: Union[int, str, Note],
+        element: Union[int, str, Note, Sil, Chord, Seq],
         head: Optional[float] = None
     ) -> Seq:
         """
@@ -1043,7 +1082,7 @@ class Seq(BaseElement):
 
         return self
     
-    def reversed() -> Seq:
+    def reversed(self) -> Seq:
         new_seq = self.copy()
         return new_seq.reverse()
 
@@ -1171,7 +1210,7 @@ class Seq(BaseElement):
         **Modifies the sequence in-place**
         """
         for _, note in self.notes:
-            note.vel = min(max(note.vel * factor, 0), 127)
+            note.vel = min(max(round(note.vel * factor), 0), 127)
         return self
     
     def attenuated(self, factor=1.0) -> Seq:
@@ -1191,13 +1230,12 @@ class Seq(BaseElement):
             veldev: float (default 5)
                 velocity standard deviation
         """
-        
         new_notes = []
-        for t, note in new_seq:
+        for t, note in self.notes:
             t = t + 2 * (random.random()-0.5) * tfactor
-            new_note = note.stretch(1 + random.random() * tfactor)
-            new_note.vel = int(new_note.vel + random.gauss(0, veldev))
-            new_note.vel = min(max(new_note.vel, 0), 127)
+            note.stretch(1 + random.random() * tfactor)
+            note.vel = round(note.vel + random.gauss(0, veldev))
+            note.vel = min(max(note.vel, 0), 127)
             new_notes.append( (t, note) )
         self.notes = new_notes
         return self
@@ -1239,7 +1277,7 @@ class Seq(BaseElement):
             self.notes = cropped_notes
         return self
     
-    def cropped() -> Seq:
+    def cropped(self) -> Seq:
         new_seq = self.copy()
         return new_seq.crop()
     
@@ -1354,20 +1392,21 @@ class Seq(BaseElement):
 
         **Modifies the sequence in place**
         """
-        elements = [ elt for _, elt in self.notes ]
+        elements: List[Union[Note, Sil]] = [ elt for _, elt in self.notes ]
         elements.extend([ s for _, s in self.silences ])
         random.shuffle(elements)
+
         onsets = [ t for t,_ in self.notes ]
-        onsets.extend([ t for t,_ in self.silences ])
+        onsets.extend( [ t for t,_ in self.silences ] )
         onsets.sort()
         new_notes = []
         new_silences = []
         for t in onsets:
             elt = elements.pop()
             if isinstance(elt, Sil):
-                new_silences.append((t, elt))
+                new_silences.append( (t, elt) )
             else:
-                new_notes.append((t, elt))
+                new_notes.append( (t, elt) )
         self.notes = new_notes
         self.silences = new_silences
         return self
@@ -1379,8 +1418,9 @@ class Seq(BaseElement):
 
     def replacePitch(self, old, new) -> Seq:
         """
-        Replace notes with given pitch to a new pitch
-        Modifies sequence in-place
+        Replace notes with given pitch to a new pitch.
+
+        **Modifies the sequence in-place**
         """
         # TODO: `all_octaves` option
         # XXX: Won't work with PNotes
@@ -1390,8 +1430,19 @@ class Seq(BaseElement):
             new = str2pitch(new)
         for note in self.notes:
             if type(note) == Note and note.pitch == old:
-                note.pitch == new
+                note.pitch = new
         return self
+
+
+    def mutate(self, prob=0.1, steps=[-5, -3, -1, 1, 3, 5]) -> Seq:
+        for _, n in self.notes:
+            if random.random() < prob:
+                n.pitch = env.scale.getDegreeFrom(n.pitch, random.choice(steps))
+        return self
+    
+    def mutated(self, prob=0.1, steps=[-5, -3, -1, 1, 3, 5]) -> Seq:
+        new_seq = self.copy()
+        return new_seq.mutate(prob, steps)
 
 
     def selectNotes(self, key_fn) -> List[Note]:
@@ -1426,6 +1477,7 @@ class Seq(BaseElement):
 
 
     Interval = List[float]
+
 
     def _getActiveMask(self) -> List[Interval]:
         """Return a list of intervals where there is active notes"""

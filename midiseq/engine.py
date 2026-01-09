@@ -4,12 +4,16 @@ import time
 import heapq
 
 import rtmidi
+print(f"Using python-rtmidi V{rtmidi.version.version} and rtmidi V{rtmidi.get_rtmidi_version()}")
+from rtmidi.midiutil import (
+    list_input_ports, list_output_ports,
+    open_midiinput, open_midioutput
+)
 from rtmidi.midiconstants import (
     NOTE_ON, NOTE_OFF,
     ALL_SOUND_OFF, RESET_ALL_CONTROLLERS,
     CONTROL_CHANGE,
 )
-import rtmidi.midiutil
 
 import midiseq.env as env
 from .elements import Seq, Note, PNote, Chord
@@ -17,28 +21,16 @@ from .tracks import Track, tracks
 
 
 
+
 class InputPort:
     """An opened input Midi port"""
 
     def __init__(self, port_id: Union[int, str]) -> None:
-        self.port = rtmidi.MidiIn()
-
-        if isinstance(port_id, str):
-            # A port name
-            for i in range(self.port.get_port_count()):
-                port_name = self.port.get_port_name(i)
-                if port_id.lower() in port_name.lower():
-                    port_id = i
-                    break
-            else:
-                print(f"Can't find port '{port_id}'")
-                port_id = 0
-        
-        self.port.open_port(port_id)
+        self.port, self.name = open_midiinput(port_id)
 
         # Key state lookup table for every note of every midi channel
         # each state is a list of onset time and key velocity
-        self.key_states = [ [0.0, 0] for _ in range(16 * 128) ]
+        self._key_states = [ [0.0, 0] for _ in range(16 * 128) ]
         
         self.time = 0.0
         self.events = []
@@ -50,7 +42,7 @@ class InputPort:
     def process(self) -> None:
         """Process incoming message by polling, when the engine is started"""
         while in_mess := self.port.get_message():
-            if env.DISPLAY:
+            if env.display_notes:
                 print(f"Midi in: {in_mess}")
             event, time_delta = in_mess
             self.time += time_delta
@@ -67,25 +59,25 @@ class InputPort:
                 note_vel = event[2]
                 idx = (channel << 7) | note
                 if note_vel == 0:
-                    note_dur = self.time - self.key_states[idx][0]
-                    onset_vel = self.key_states[idx][1]
+                    note_dur = self.time - self._key_states[idx][0]
+                    onset_vel = self._key_states[idx][1]
                     # Save completed note
                     note = Note(note, note_dur / env.note_dur, onset_vel)
                     self.notes.add(note, head=self.time)
                 # Register note
-                self.key_states[idx][0] = self.time
-                self.key_states[idx][1] = note_vel
+                self._key_states[idx][0] = self.time
+                self._key_states[idx][1] = note_vel
             elif status & 0xf0 == NOTE_OFF:
                 note = event[1]
                 idx = (channel << 7) | note
-                note_dur = self.time - self.key_states[idx][0]
-                note_vel = self.key_states[idx][1]
+                note_dur = self.time - self._key_states[idx][0]
+                note_vel = self._key_states[idx][1]
                 # Save completed note
                 note = Note(note, note_dur / env.note_dur, note_vel)
                 self.notes.add(note, head=self.time)
                 # Unregister note
-                self.key_states[idx][0] = self.time
-                self.key_states[idx][1] = 0
+                self._key_states[idx][0] = self.time
+                self._key_states[idx][1] = 0
     
 
     def clear(self) -> None:
@@ -95,8 +87,13 @@ class InputPort:
         self.notes.clear()
 
 
-    def is_open(self) -> bool:
+    def isOpen(self) -> bool:
         return self.port.is_port_open()
+
+
+    def close(self) -> None:
+        """Close port"""
+        self.port.close_port()
 
 
 
@@ -109,26 +106,11 @@ class OutputPort:
     """
 
     def __init__(self, port_id: Union[int, str]) -> None:
-        self.port = rtmidi.MidiOut()
-
-        if isinstance(port_id, str):
-            # A port name
-            for i in range(self.port.get_port_count()):
-                port_name = self.port.get_port_name(i)
-                if port_id.lower() in port_name.lower():
-                    port_id = i
-                    break
-            else:
-                print(f"Can't find port '{port_id}'")
-                port_id = 0
-
-        self.port.open_port(port_id)
-
-        self.name = self.port.get_port_name(port_id)
+        self.port, self.name = open_midioutput(port_id)
 
         # Key state lookup table for every note of every midi channel
         # each state is a list of onset time and key velocity
-        self.key_states = [ [0.0, 0] for _ in range(16 * 128) ]
+        self._key_states = [ [0.0, 0] for _ in range(16 * 128) ]
         
         self.time = 0.0
         self.events = []
@@ -186,12 +168,12 @@ class OutputPort:
 
             # Register note
             idx = (channel << 7) | note
-            self.key_states[idx][0] = self.time
-            self.key_states[idx][1] = note_vel
+            self._key_states[idx][0] = self.time
+            self._key_states[idx][1] = note_vel
 
             if self._save_notes and note_vel == 0:
-                note_dur = self.time - self.key_states[idx][0]
-                onset_vel = self.key_states[idx][1]
+                note_dur = self.time - self._key_states[idx][0]
+                onset_vel = self._key_states[idx][1]
                 # Save completed note
                 note = Note(note, note_dur / env.note_dur, onset_vel)
                 self.notes.add(note, head=self.time)
@@ -199,10 +181,10 @@ class OutputPort:
         elif status & 0xf0 == NOTE_OFF:
             # Unregister note
             idx = (channel << 7) | note
-            note_dur = self.time - self.key_states[idx][0]
-            note_vel = self.key_states[idx][1]
-            self.key_states[idx][0] = self.time
-            self.key_states[idx][1] = 0
+            note_dur = self.time - self._key_states[idx][0]
+            note_vel = self._key_states[idx][1]
+            self._key_states[idx][0] = self.time
+            self._key_states[idx][1] = 0
 
             if self._save_notes:
                 # Save completed note
@@ -214,6 +196,14 @@ class OutputPort:
         self.port.send_message(event)
 
 
+    def allNotesOff(self) -> None:
+        for idx in range(16 * 128):
+            if self._key_states[idx][1] != 0:
+                # This note is still active, send NOTE_OFF message
+                channel, pitch = divmod(idx, 128)
+                self.port.send_message( [NOTE_OFF | channel, pitch, 0] )
+
+
     def clear(self) -> None:
         """Clear all events"""
         self.events = []
@@ -221,7 +211,7 @@ class OutputPort:
         self.notes.clear()
     
 
-    def is_open(self) -> bool:
+    def isOpen(self) -> bool:
         return self.port.is_port_open()
 
 
@@ -275,7 +265,7 @@ def getInput(port_id : Union[int, str]) -> Optional[InputPort]:
             print(f"Can't find port '{port_id}'")
             return None
     elif isinstance(port_id, str):
-        # A port name
+        # A port name (or name substring)
         for i, port_name in getInputs():
             if port_id.lower() in port_name.lower():
                 port_id = port_name
@@ -284,7 +274,7 @@ def getInput(port_id : Union[int, str]) -> Optional[InputPort]:
             print(f"Can't find port '{port_id}'")
             return None
     
-    if port_id in _midiin_ports and _midiin_ports[port_id].is_open():
+    if port_id in _midiin_ports and _midiin_ports[port_id].isOpen():
         return _midiin_ports[port_id]
 
     print(f"Opening port {port_id}")
@@ -325,7 +315,7 @@ def getOutput(port_id : Union[int, str]) -> Optional[OutputPort]:
             print(f"Can't find port '{port_id}'")
             return None
     elif isinstance(port_id, str):
-        # A port name
+        # A port name (or name substring)
         for i, port_name in getOutputs():
             if port_id.lower() in port_name.lower():
                 port_id = port_name
@@ -334,7 +324,7 @@ def getOutput(port_id : Union[int, str]) -> Optional[OutputPort]:
             print(f"Can't find port '{port_id}'")
             return None
     
-    if port_id in _midiout_ports and _midiout_ports[port_id].is_open():
+    if port_id in _midiout_ports and _midiout_ports[port_id].isOpen():
         return _midiout_ports[port_id]
 
     print(f"Opening port {port_id}")
@@ -463,27 +453,26 @@ def _run():
                 if port:
                     port.push(t_pos - rel_time, mess)  # Play immediately
                 
-                if env.verbose and not env.DISPLAY:
+                if env.verbose and not env.display_notes:
                     print("Sent", mess)
         
         # Process output ports
         for output_port in _midiout_ports.values():
             output_port.process(time_delta)
 
-        if env.DISPLAY and _new_noteon:
-            notes_str = ['.'] * (env.DISPLAY_RANGE[1] - env.DISPLAY_RANGE[0] + 1)
+        if env.display_notes and _new_noteon:
+            notes_str = ['.'] * (env.display_range[1] - env.display_range[0] + 1)
             for i, n in enumerate(_active_notes):
                 if n == 0:
                     continue
-                if i < env.DISPLAY_RANGE[0]: notes_str[0] = '<'
-                elif i > env.DISPLAY_RANGE[1]: notes_str[-1] = '>'
-                else: notes_str[i - env.DISPLAY_RANGE[0]] = 'x'
+                if i < env.display_range[0]: notes_str[0] = '<'
+                elif i > env.display_range[1]: notes_str[-1] = '>'
+                else: notes_str[i - env.display_range[0]] = 'x'
             
             notes_str = ''.join(notes_str)
-            print(str(env.DISPLAY_RANGE[0]) + '[' + notes_str + ']' + str(env.DISPLAY_RANGE[1]))
+            print(str(env.display_range[0]) + '[' + notes_str + ']' + str(env.display_range[1]))
         
         time.sleep(min(max(time_res, 0), 0.2))
-
 
 
 def play(
@@ -555,17 +544,10 @@ def stop() -> None:
         track.stop()
 
 
-# def all_notes_off() -> None:
-#     # XXX: What about midi ports ?
-#     for pitch, status in enumerate(_active_notes):
-#         if status == 0:
-#             continue
-#         for chan in range(16):
-#             if status & 2**chan: # This note is active on this channel
-#                 note_off = [NOTE_OFF | chan, pitch, 0]
-#                 env.default_output.send_message(note_off)
-#         _active_notes[pitch] = 0
-
+def panic() -> None:
+    """Stop all active notes on all channel and on all opened ports"""
+    for output_port in _midiout_ports.values():
+        output_port.allNotesOff()
 
 
 
