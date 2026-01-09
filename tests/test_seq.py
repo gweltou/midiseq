@@ -74,7 +74,7 @@ def test_seq_shift():
 
 
 def test_seq_strip():
-    s = Sil() + Seq("a b c") + Sil()
+    s: Seq = Sil() + Seq("a b c") + Sil()
     s2 = s.copy()
     assert s.dur == 5 * env.note_dur
     s.stripTail()
@@ -153,3 +153,7 @@ def test_filter():
 def test_selectnotes():
     s = Seq("60 61 62 63 64 65")
     assert(len(s.selectNotes(lambda n: n.pitch<=62)) == 3)
+
+
+def test_dump():
+    pass
