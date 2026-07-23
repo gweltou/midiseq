@@ -38,6 +38,21 @@ Opening port 1 [VCV Rack:VCV Rack input 133:0]
 >>> stop2()
 ```
 
+## Recording midi messages
+
+```python
+>>> listInputs()
+[0] Midi Through:Midi Through Port-0 14:0
+[1] Launchkey Mini MK3:Launchkey Mini MK3 MIDI Port 20:0
+[2] Launchkey Mini MK3:Launchkey Mini MK3 DAW Port 20:1
+[3] rtpmidid:Network Export 128:0
+[4] rtpmidid:Announcements 128:1
+[5] RtMidiOut Client:RtMidi output 130:0
+[6] RtMidiOut Client:RtMidi output 132:0
+
+>>> m_in = getInput(1)
+```
+
 ## Documentation
 
 ### Scales
@@ -141,12 +156,13 @@ All elements and groups can be followed by one or more modifiers.
 
 Operator | Parameter | Description
 -------- | --------- | -----------
-x | int | Repeat
-\* | int/float | Stretch
-^ | int | Transpose
-% | int/float | Gate
-? | float | Existence
+x | int          | Repeat
+\* | int/float   | Stretch
+^ | int          | Transpose
+% | int/float    | Gate
+? | float        | Existence
 s | int [,float] | Stutter (with prob)
+r |              | Shuffle sequence (randomize)
 
 ### Element objects sequences
 
@@ -219,27 +235,29 @@ Possible type of chords:
 
 Method  | Parameters | Description
 ------- | ---------- | -----------
-clear   |            | Clears the sequence
 add     | Note, Chord, Sil, other Seq... | Add an element to the sequence
-merge   | Other Seq  | Mix the two sequences together
-stretch | float     | Stretch or compress the duration of the sequence
-gate    | float     | Stretch the notes durations without changing the sequence's length
-reverse |           | Reverse the order of the notes
-transpose | int     | Transose the whole sequence by semitones
-scalePitch | float | Raise or lower pitches around a mean value
-stutter | n:int, prob:float [,i:int] | Split all notes (or a single note), with probability
-decimate | prob: float    | Remove notes randomly with a given probability
 attenuate | factor=1.0 | Attenuate notes velocity by a given factor
+clear   |            | Clears the sequence
+crop    |            | Crop notes (or parts of notes) before and after the sequence duration
+decimate | prob: float | Remove notes randomly with a given probability
+echo    |           |
+gate    | float     | Stretch the notes durations without changing the sequence's length
 humanize | tfactor=0.01, veldev=5 | Randomize sligthly notes time, duration and velocity
+mapRhythm | other Seq | Map the rhythm of another sequence to this sequence
+mask |  | Keep notes from this sequences only when given sequence has active notes
+maskNot | | Keep notes from this sequences only when given sequence is silent
+merge   | Other Seq  | Mix the two sequences together
 octaveShift | prob_up=0.1, prob_down=0.1 | Transpose notes one octave up or one octave down randomly |
-crop    |           | Crop notes (or parts of notes) before and after the sequence duration
+reverse |           | Reverse the order of the notes
+scalePitch | float | Raise or lower pitches around a mean value
+stretch | float     | Stretch or compress the duration of the sequence
 strip   |           | Remove silences from both ends of the sequence
 stripHead |         | Remove silences in front of the sequence
 stripTail |         | Remove silences at the end of the sequence
 shift   | float     | Shift onset of all notes in sequence
-mapRhythm | other Seq | Map the rhythm of another sequence to this sequence
-mask |  | Keep notes from this sequences only when given sequence has active notes
-maskNot | | Keep notes from this sequences only when given sequence is silent
+shuffle |           | Shuffle the sequence
+stutter | n:int, prob:float [,i:int] | Split all notes (or a single note), with probability
+transpose | int     | Transose the whole sequence by semitones
 
 ### Generating sequences
 
