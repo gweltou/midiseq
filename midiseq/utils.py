@@ -8,19 +8,22 @@ import midiseq.env as env
 
 def pattern(
         pat: str,
-        note: Union[int, str, Note, Chord],
+        note: Union[int, str, Note, Chord, None],
         vel: Optional[int]=None) -> Seq:
     """
     Build a Sequence from a Sonic Pi type pattern
 
-        Example:
-            pattern("x--- --X- --x- -X--", 36)
+    Example:
+        pattern("x--- --X- --x- -X--", 36)
     """
     seq = Seq()
-    if isinstance(note, int):
+    if note is None:
+        note = Note(36)
+    elif isinstance(note, int):
         note = Note(note)
     elif isinstance(note, str):
         note = parse_element(note)
+
     if vel:
         note.vel = vel
     for c in pat:
@@ -35,90 +38,11 @@ def pattern(
     return seq
 
 
-def noteRange(note_from=36, note_to=60, dur=1):
-    s = Seq()
-    for pitch in range(note_from, note_to):
-        s.add(Note(pitch, dur=dur))
-    return s
-
-
-
-def noob2seq(noob: str):
-    """ https://noobnotes.net/
-        https://www.piano-letters.com/letter-notes
-    """
-
-    o = env.default_octave
-    s = noob.replace('^', str(o+1)).replace('*', str(o+2)) # Octave transpose, up
-    s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
-    s = s.replace('-', '_') # Tuplets
-    s = ' '.join(s.split()).lower()
-    return parse(s)[0]
-
-
-def morse(
-        message: str,
-        note: Union[str, int, None]=None,
-        note2: Union[str, int, None]=None,
-    ) -> Seq:
-    if not note:
-        note = 'i'
-
-    tr = {
-        'a': ".-",
-        'b': "-...",
-        'c': "-.-.",
-        'd': "-..",
-        'e': ".",
-        'f': "..-.",
-        'g': "--.",
-        'h': "....",
-        'i': "..",
-        'j': ".---",
-        'k': "-.-",
-        'l': ".-..",
-        'm': "--",
-        'n': "-.",
-        'o': "---",
-        'p': ".--.",
-        'q': "--.-",
-        'r': ".-.",
-        's': "...",
-        't': "-",
-        'u': "..-",
-        'v': "...-",
-        'w': ".--",
-        'x': "-..-",
-        'y': "-.--",
-        'z': "--..",
-        '1': ".----",
-        '2': "..---",
-        '3': "...--",
-        '4': "....-",
-        '5': ".....",
-        '6': "-....",
-        '7': "--...",
-        '8': "---..",
-        '9': "----.",
-        '0': "-----",
-    }
-
-    s = Note(note)
-    l = Note(note2 if note2 else note, dur=3)
-
-    seq = Seq()
-    for c in message.lower():
-        if c == ' ':
-            seq += Sil(7)
-        elif c in tr:
-            for symb in tr[c]:
-                seq += s if symb == '.' else l
-                seq += Sil(3)
-        seq += Sil(3)
-    seq += Sil(7) 
+# def walk(start: Union[int, Note, Seq], steps: list) -> Seq:
+#     if isinstance(start, int):
+#         start = Note(start)
     
-    return seq
-
+#     new_seq = Seq()
 
 
 ###############################################################################
@@ -127,20 +51,20 @@ def morse(
 
 
 def rnd(n=8, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
-    """ Generate a sequence of random notes
+    """
+    Generate a sequence of random notes.
 
-        Parameters
-        ----------
-            n : int
-                Number of notes to generate
-            lo : int
-                Minimum MIDI pitch boundary
-            hi : int
-                Maximum MIDI pitch boundary
-            silprob : float
-                Silence probability [0.0-1.0]
-            scl : Scl (Scale)
-                Constrain generated notes to the given scale
+    Args:
+        n : int
+            Number of notes to generate
+        lo : int
+            Minimum MIDI pitch boundary
+        hi : int
+            Maximum MIDI pitch boundary
+        silprob : float
+            Silence probability [0.0-1.0]
+        scl : Scl (Scale)
+            Constrain generated notes to the given scale
     """
     if not scl:
         scl = env.scale or Scl("chromatic", 'c')
@@ -156,11 +80,12 @@ def rnd(n=8, lo=36, hi=84, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
 
 
 def rndDur(
-        dur=1.0,
-        lo=36, hi=84,
-        durs=[0.5, 1, 2],
-        silprob=0.0,
-        scl:Scl=None
+        dur = 1.0,
+        lo = 36,
+        hi = 84,
+        durs = [0.5, 1, 2],
+        silprob = 0.0,
+        scl: Scl = None
     ) -> Seq:
     """
     """
@@ -194,31 +119,31 @@ def rndDur(
 
 def rndWalk(
         n=8,
-        start: Union[str,int]=None,
-        steps=[-2,-1,0,1,2],
-        silprob=0.0,
-        notedur=1.0,
-        skip_first=False,
-        scl:Scl=None
+        start: Union[str, int, Note] = None,
+        steps = [-5, -3, -1, 0, 1, 3, 5],
+        silprob = 0.0,
+        notedur = 1.0,
+        skip_first = False,
+        scl:Scl = None
     ) -> Seq:
-    """ Create a sequence of notes moving from last note by a random interval
+    """
+    Create a sequence of notes moving from last note by a random interval
 
-        Parameters
-        ----------
-            n : int
-                Number of notes to generate
-            start : int or str
-                Starting note of the sequence
-            steps : list of int
-                Possible intervals to step from last note
-            skip_first:
-                Skip starting note (False by default)
-            silprob : float
-                Silence probability [0.0-1.0]
-            notedur : float
-                Duration of generated notes
-            scl : Scl (Scale)
-                Constrain generated notes to the given scale
+    Args:
+        n: int
+            Number of notes to generate
+        start: int, str or Note
+            Starting note of the sequence
+        steps: list of int
+            Possible intervals to step from last note
+        skip_first:
+            Skip starting note (False by default)
+        silprob: float
+            Silence probability [0.0-1.0]
+        notedur: float
+            Duration of generated notes
+        scl: Scl (Scale)
+            Constrain generated notes to the given scale
     """
     if scl:
         old_scl = env.scale
@@ -226,8 +151,11 @@ def rndWalk(
     
     if not start:
         start = env.scale.tonic
-    if isinstance(start, str):
+    elif isinstance(start, str):
         start = parse_element(start).pitch
+    elif isinstance(start, Note):
+        start = start.pitch
+    
     pitch = env.scale.getClosest(start)
     if skip_first:
         pitch = env.scale.getDegreeFrom(pitch, random.choice(steps))
@@ -246,20 +174,20 @@ def rndWalk(
 
 
 def rndGauss(n=8, mean: Union[str,int]=None, dev=3, silprob=0.0, notedur=1.0, scl:Scl=None) -> Seq:
-    """ Generate random notes with a normal distribution around a mean value
+    """
+    Generate random notes with a normal distribution around a mean value
 
-        Parameters
-        ----------
-            n : int
-                Number of notes to generate
-            mean : int|str
-                Mean pitch value
-            dev : float
-                Standard deviation
-            silprob : float
-                Silence probability [0.0-1.0]
-            scl : Scl (Scale)
-                Constrain generated notes to the given scale
+    Args:
+        n : int
+            Number of notes to generate
+        mean : int|str
+            Mean pitch value
+        dev : float
+            Standard deviation
+        silprob : float
+            Silence probability [0.0-1.0]
+        scl : Scl (Scale)
+            Constrain generated notes to the given scale
     """
     if scl:
         old_scl = env.scale
@@ -303,9 +231,7 @@ def rndPick(sequence: Seq, n=8, sil=True) -> Seq:
 
 
 def rndGrid(note=36, n=4, grid=16) -> Seq:
-    """
-        Fill a sequence randomly with a given number of the same note
-    """
+    """Fill a sequence randomly with a given number of the same note"""
     elts = [Note(note)] * n + [Sil() * (grid-n)]
     random.shuffle(elts)
     s = Seq()
@@ -316,18 +242,18 @@ def rndGrid(note=36, n=4, grid=16) -> Seq:
 
 
 def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
-    """ Generate a Euclidian rythm sequence
+    """
+    Generate a Euclidian rythm sequence
 
-        Parameters
-        ----------
-            note : Union[Note, int, str]
-                Note to be repeated
-            n : int
-                Number of notes to generate
-            grid : int
-                Size of the grid (should be bigger than `n`)
-            offset : int
-                Number of rests before first note
+    Args:
+        note : Union[Note, int, str]
+            Note to be repeated
+        n : int
+            Number of notes to generate
+        grid : int
+            Size of the grid (should be bigger than `n`)
+        offset : int
+            Number of rests before first note
     """
     if not isinstance(note, Note):
         note = Note(note)
@@ -344,9 +270,9 @@ def euclid(note=36, n=4, grid=16, offset=0) -> Seq:
 
 
 def lcm(*seqs, tolerance=0.0001):
-    """ Combine two or more sequence to build
-        the least common multiplier of them all.
-        You better use quantized sequences !
+    """
+    Combine two or more sequence to build the least common multiplier of them all.
+    **Better to use quantized sequences!**
     """
     def samelen(seqs):
         first = seqs[0]
@@ -356,7 +282,7 @@ def lcm(*seqs, tolerance=0.0001):
         return True
 
     seqs_init = [ parse(s)[0] if isinstance(s, str) else s for s in seqs ]
-    seqs = [ s.cpy() for s in seqs_init ]
+    seqs = [ s.copy() for s in seqs_init ]
     while not samelen(seqs):
         # Find index of shortest seq:
         shortest = (-1, 9999)
@@ -370,3 +296,90 @@ def lcm(*seqs, tolerance=0.0001):
     for s in seqs[1:]:
         merged &= s
     return merged
+
+
+
+def noteRange(note_from=36, note_to=60, dur=1):
+    s = Seq()
+    for pitch in range(note_from, note_to):
+        s.add(Note(pitch, dur=dur))
+    return s
+
+
+
+def noob2seq(noob: str):
+    """
+    https://noobnotes.net/
+    https://www.piano-letters.com/letter-notes
+    """
+
+    o = env.default_octave
+    s = noob.replace('^', str(o+1)).replace('*', str(o+2)) # Octave transpose, up
+    s = s.replace('.', str(o-1)).replace('_', str(o-2)) # Octave transpose, down
+    s = s.replace('-', '_') # Tuplets
+    s = ' '.join(s.split()).lower()
+    return parse(s)[0]
+
+
+def morse(
+    message: str,
+    note: Union[str, int, None]=None,
+    note2: Union[str, int, None]=None,
+) -> Seq:
+    if note is None:
+        note = 'i'
+
+    tr = {
+        'a': ".-",
+        'b': "-...",
+        'c': "-.-.",
+        'd': "-..",
+        'e': ".",
+        'f': "..-.",
+        'g': "--.",
+        'h': "....",
+        'i': "..",
+        'j': ".---",
+        'k': "-.-",
+        'l': ".-..",
+        'm': "--",
+        'n': "-.",
+        'o': "---",
+        'p': ".--.",
+        'q': "--.-",
+        'r': ".-.",
+        's': "...",
+        't': "-",
+        'u': "..-",
+        'v': "...-",
+        'w': ".--",
+        'x': "-..-",
+        'y': "-.--",
+        'z': "--..",
+        '1': ".----",
+        '2': "..---",
+        '3': "...--",
+        '4': "....-",
+        '5': ".....",
+        '6': "-....",
+        '7': "--...",
+        '8': "---..",
+        '9': "----.",
+        '0': "-----",
+    }
+
+    short = Note(note)
+    long = Note(note2 if note2 else note, dur=3)
+
+    seq = Seq()
+    for c in message.lower():
+        if c == ' ':
+            seq += Sil(7)
+        elif c in tr:
+            for symb in tr[c]:
+                seq += short if symb == '.' else long
+                seq += Sil(3)
+        seq += Sil(3)
+    seq += Sil(7) 
+    
+    return seq

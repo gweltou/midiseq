@@ -7,6 +7,7 @@ from rtmidi.midiconstants import (
 )
 
 import midiseq.env as env
+from .definitions import Midi_message
 
 
 __all__ = ['Mod', 'ModSeq', 'modRnd']
@@ -76,9 +77,7 @@ class Mod():
 
 
     def getValues(self, start=0.0, dur=1.0, fn_start=0.0, fn_end=1.0):
-        """
-            Calculate values of mod function in given range
-        """
+        """Calculate values of mod function in given range"""
         # We could store the last X states for caching
 
         # Check if requested state has been seen in last X states
@@ -199,7 +198,7 @@ class ModSeq():
         return self
     
 
-    def getMidiMessages(self, channel=0):
+    def getMidiMessages(self, channel=0) -> list[tuple[float, Midi_message]]:
         messages = []
         for i in range(len(self.modulators)):
             # mod = self.modulators[i][0]

@@ -1,3 +1,6 @@
+type Midi_message = list # List of 3 bytes
+
+
 scales = {
     "chromatic":        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     "major":            [0, 2, 4, 5, 7, 9, 11],
@@ -175,10 +178,18 @@ gm_triangle_mute = 80
 gm_triangle_open = 81
 
 
-# For Roland TR-6S
 BD = 36
 SD = 38
-LT = 43
-HC = 39
 CH = 42
+LT = 43
 OH = 46
+
+
+# Roland TR-6S
+
+TR6S_BD = 36
+TR6S_SD = 38
+TR6S_LT = 43
+TR6S_HC = 39
+TR6S_CH = 42
+TR6S_OH = 46

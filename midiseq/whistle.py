@@ -3,7 +3,7 @@ import numpy as np
 import sounddevice as sd
 
 from .elements import Seq, Note
-from .engine import playMetro
+from .old_engine import playMetro
 import midiseq.env as env
 
 import matplotlib.pyplot as plt

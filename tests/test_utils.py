@@ -39,6 +39,8 @@ def test_rnddur():
 def test_morse():
     # s = pattern("x--- x--- x--- x---", 48)
     s = morse("hello world", 36)
+    print(s)
+    print(len(s))
     assert s.dur == 16 * env.note_dur
 
     s = pattern("x-x-", "do")

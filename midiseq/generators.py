@@ -43,7 +43,7 @@ def genFunc(func: callable, repeat=1, max_iter=0, *args, **kwargs):
         while max_iter == 0 or n < max_iter:
             s = func(*args, **kwargs)
             for _ in range(repeat):
-                yield s.cpy()
+                yield s.copy()
                 n += 1
     else:
         while max_iter == 0 or n < max_iter:
@@ -96,7 +96,7 @@ def genMapRhythm(mel: Seq, rhy: Seq):
 def genRotate(seq: Seq, dir=-1, repeat: int=1):
     """ Yield the given sequence, rotating it by `dir` steps every `repeat` time
     """
-    s = seq.cpy()
+    s = seq.copy()
     while True:
         for _ in range(repeat):
             yield s
