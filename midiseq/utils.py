@@ -15,6 +15,8 @@ def pattern(
 
     Example:
         pattern("x--- --X- --x- -X--", 36)
+    Example:
+        pattern("x--- --X- --x- -X--", 36)
     """
     seq = Seq()
     if note is None:

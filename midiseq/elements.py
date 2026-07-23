@@ -1032,32 +1032,6 @@ class Seq(BaseElement):
         self.dur *= factor
         self.head *= factor
         return self
-    
-    def stretched(self, factor, stretch_notes=True) -> Seq:
-        new_seq = self.copy()
-        return new_seq.stretch(factor, stretch_notes)
-
-
-    def compress(self, dur_factor=1.0, vel_factor=1.0) -> Seq:
-        """
-        Compress silences and note durations by a given factor.
-        
-        **Modifies the sequence in-place**
-        """
-        new_seq = Seq()
-        for _, note in self.notes:
-            new_dur = note.dur * (1.0 - dur_factor) + dur_factor
-            new_vel = note.vel * (1.0 - vel_factor) + round(127 * vel_factor)
-            new_seq.add(Note(note.pitch, new_dur, new_vel))
-
-        self.notes = new_seq.notes
-        self.head = new_seq.head
-        self.dur = new_seq.dur
-        return self
-    
-    def compressed(self, dur_factor=1.0, vel_factor=1.0) -> Seq:
-        new_seq = Seq()
-        return new_seq.compress(dur_factor, vel_factor)
 
 
     def gate(self, factor) -> Seq:
